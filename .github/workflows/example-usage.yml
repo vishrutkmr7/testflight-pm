@@ -38,6 +38,11 @@ jobs:
     runs-on: ubuntu-latest
     name: Monitor TestFlight Feedback
     
+    # Explicit permissions following principle of least privilege
+    permissions:
+      contents: read    # Required to access repository content
+      issues: write     # Required to create GitHub issues from TestFlight feedback
+    
     steps:
       - name: Monitor TestFlight and Create Issues
         uses: vishrutkmr7/testflight-pm@v1

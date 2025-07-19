@@ -26,6 +26,10 @@ jobs:
     runs-on: ubuntu-latest
     name: TestFlight → Linear Issues
     
+    # Explicit permissions following principle of least privilege
+    permissions:
+      contents: read    # Required to access repository content for action execution
+    
     steps:
       - name: Create Linear Issues from TestFlight Feedback
         id: testflight-linear
