@@ -3,6 +3,13 @@
 	"module": "index.ts",
 	"type": "module",
 	"private": true,
+	"scripts": {
+		"test": "bun test",
+		"test:auth": "bun run src/cli/test-testflight.ts test-auth",
+		"test:fetch": "bun run src/cli/test-testflight.ts fetch-all --limit 5",
+		"test:integration": "bun run src/cli/test-testflight.ts fetch-all --verbose",
+		"test:testflight": "bun run src/cli/test-testflight.ts"
+	},
 	"devDependencies": {
 		"@types/bun": "latest"
 	},
