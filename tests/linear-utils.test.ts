@@ -69,7 +69,14 @@ const createMockScreenshotFeedback = (
 			},
 		],
 		annotations: [
-			{ x: 100, y: 200, width: 50, height: 30, text: "Button issue here", type: "text" },
+			{
+				x: 100,
+				y: 200,
+				width: 50,
+				height: 30,
+				text: "Button issue here",
+				type: "text",
+			},
 		],
 	},
 	...overrides,

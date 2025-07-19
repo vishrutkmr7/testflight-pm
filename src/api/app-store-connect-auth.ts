@@ -62,7 +62,7 @@ export class AppStoreConnectAuth {
 		const now = new Date();
 		const refreshThreshold = new Date(
 			this.currentToken.expiresAt.getTime() -
-			this.refreshThresholdMinutes * 60 * 1000,
+				this.refreshThresholdMinutes * 60 * 1000,
 		);
 
 		return now < refreshThreshold;

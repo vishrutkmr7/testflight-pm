@@ -6,10 +6,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { createHmac } from "node:crypto";
 import {
-	TestFlightWebhookReceiver,
-	type WebhookRequest,
 	clearReceiverInstance,
 	getWebhookReceiver,
+	TestFlightWebhookReceiver,
+	type WebhookRequest,
 } from "../src/api/webhook-receiver.js";
 import { clearConfigCache } from "../src/config/environment.js";
 import type { TestFlightWebhookEvent } from "../types/testflight.js";
