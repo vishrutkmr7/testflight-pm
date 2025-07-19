@@ -1,6 +1,7 @@
 /**
  * Environment Configuration Management
  * Securely loads and validates environment variables and secrets
+ * Supports both local development and GitHub Action contexts
  */
 
 export interface AppStoreConnectConfig {
@@ -30,6 +31,7 @@ export interface WebhookConfig {
 export interface EnvironmentConfig {
     nodeEnv: 'development' | 'production' | 'test';
     logLevel: 'debug' | 'info' | 'warn' | 'error';
+    isGitHubAction: boolean;
     appStoreConnect: AppStoreConnectConfig;
     github?: GitHubConfig;
     linear?: LinearConfig;
@@ -37,11 +39,38 @@ export interface EnvironmentConfig {
 }
 
 /**
+ * Checks if running in GitHub Actions environment
+ */
+function isGitHubActionEnvironment(): boolean {
+    return process.env.GITHUB_ACTION === 'true' || !!process.env.GITHUB_ACTIONS;
+}
+
+/**
+ * Gets environment variable value with GitHub Action input fallback
+ */
+function getEnvVar(name: string, githubActionInputName?: string): string | undefined {
+    // First try direct environment variable
+    let value = process.env[name];
+
+    // If in GitHub Action and no direct env var, try input format
+    if (!value && isGitHubActionEnvironment() && githubActionInputName) {
+        const inputName = `INPUT_${githubActionInputName.toUpperCase().replace(/-/g, '_')}`;
+        value = process.env[inputName];
+    }
+
+    return value;
+}
+
+/**
  * Validates that required environment variables are present
  */
-function validateRequiredEnvVar(name: string, value: string | undefined): string {
+function validateRequiredEnvVar(name: string, value: string | undefined, githubActionInputName?: string): string {
     if (!value || value.trim() === '') {
-        throw new Error(`Required environment variable ${name} is not set or is empty`);
+        const sources = [name];
+        if (githubActionInputName) {
+            sources.push(`INPUT_${githubActionInputName.toUpperCase().replace(/-/g, '_')}`);
+        }
+        throw new Error(`Required environment variable not found. Tried: ${sources.join(', ')}`);
     }
     return value.trim();
 }
@@ -72,76 +101,123 @@ function validatePrivateKey(privateKey: string): string {
 
 /**
  * Loads and validates environment configuration
- * Throws descriptive errors for missing or invalid configuration
+ * Supports both local development and GitHub Action contexts
  */
 export function loadEnvironmentConfig(): EnvironmentConfig {
     try {
+        const isGitHubAction = isGitHubActionEnvironment();
+
+        if (isGitHubAction) {
+            console.log('🎯 Running in GitHub Action environment');
+        } else {
+            console.log('💻 Running in local development environment');
+        }
+
         // Core App Store Connect configuration (always required)
-        const issuerId = validateRequiredEnvVar('APP_STORE_CONNECT_ISSUER_ID', process.env.APP_STORE_CONNECT_ISSUER_ID);
-        const keyId = validateRequiredEnvVar('APP_STORE_CONNECT_KEY_ID', process.env.APP_STORE_CONNECT_KEY_ID);
+        const issuerId = validateRequiredEnvVar(
+            'APP_STORE_CONNECT_ISSUER_ID',
+            getEnvVar('APP_STORE_CONNECT_ISSUER_ID', 'app-store-connect-issuer-id'),
+            'app-store-connect-issuer-id'
+        );
+
+        const keyId = validateRequiredEnvVar(
+            'APP_STORE_CONNECT_KEY_ID',
+            getEnvVar('APP_STORE_CONNECT_KEY_ID', 'app-store-connect-key-id'),
+            'app-store-connect-key-id'
+        );
 
         // Private key can come from environment variable or file path
         let privateKey: string;
-        if (process.env.APP_STORE_CONNECT_PRIVATE_KEY) {
-            privateKey = validatePrivateKey(process.env.APP_STORE_CONNECT_PRIVATE_KEY);
-        } else if (process.env.APP_STORE_CONNECT_PRIVATE_KEY_PATH) {
-            const keyPath = process.env.APP_STORE_CONNECT_PRIVATE_KEY_PATH;
+        const privateKeyEnv = getEnvVar('APP_STORE_CONNECT_PRIVATE_KEY', 'app-store-connect-private-key');
+        const privateKeyPathEnv = getEnvVar('APP_STORE_CONNECT_PRIVATE_KEY_PATH');
+
+        if (privateKeyEnv) {
+            privateKey = validatePrivateKey(privateKeyEnv);
+        } else if (privateKeyPathEnv && !isGitHubAction) {
+            // Only allow file path in local development
             try {
-                // Use synchronous file reading for simplicity
                 const fs = require('fs');
-                const keyContent = fs.readFileSync(keyPath, 'utf8');
+                const keyContent = fs.readFileSync(privateKeyPathEnv, 'utf8');
                 privateKey = validatePrivateKey(keyContent);
             } catch (error) {
-                throw new Error(`Failed to read private key from ${keyPath}: ${error}`);
+                throw new Error(`Failed to read private key from ${privateKeyPathEnv}: ${error}`);
             }
         } else {
-            throw new Error('Either APP_STORE_CONNECT_PRIVATE_KEY or APP_STORE_CONNECT_PRIVATE_KEY_PATH must be set');
+            throw new Error('APP_STORE_CONNECT_PRIVATE_KEY must be set (file paths not supported in GitHub Actions)');
         }
 
         const appStoreConnect: AppStoreConnectConfig = {
             issuerId,
             keyId,
             privateKey,
-            appId: process.env.TESTFLIGHT_APP_ID,
-            bundleId: process.env.TESTFLIGHT_BUNDLE_ID,
+            appId: getEnvVar('TESTFLIGHT_APP_ID', 'testflight-app-id'),
+            bundleId: getEnvVar('TESTFLIGHT_BUNDLE_ID', 'testflight-bundle-id'),
         };
 
-        // Optional GitHub configuration
+        // GitHub configuration (required in GitHub Actions, optional in local dev)
         let github: GitHubConfig | undefined;
-        if (process.env.GITHUB_TOKEN) {
-            github = {
-                token: validateRequiredEnvVar('GITHUB_TOKEN', process.env.GITHUB_TOKEN),
-                owner: validateRequiredEnvVar('GITHUB_OWNER', process.env.GITHUB_OWNER),
-                repo: validateRequiredEnvVar('GITHUB_REPO', process.env.GITHUB_REPO),
-            };
+        const githubToken = getEnvVar('GITHUB_TOKEN', 'github-token');
+
+        if (githubToken) {
+            // In GitHub Actions, use context defaults if not explicitly provided
+            const githubOwner = getEnvVar('GITHUB_OWNER', 'github-owner') ||
+                (isGitHubAction ? process.env.GITHUB_REPOSITORY_OWNER : undefined);
+            const githubRepo = getEnvVar('GITHUB_REPO', 'github-repo') ||
+                (isGitHubAction ? process.env.GITHUB_REPOSITORY?.split('/')[1] : undefined);
+
+            if (githubOwner && githubRepo) {
+                github = {
+                    token: githubToken,
+                    owner: githubOwner,
+                    repo: githubRepo,
+                };
+            } else if (isGitHubAction) {
+                throw new Error('GitHub configuration incomplete in GitHub Action environment');
+            }
         }
 
-        // Optional Linear configuration
+        // Linear configuration (optional)
         let linear: LinearConfig | undefined;
-        if (process.env.LINEAR_API_TOKEN) {
+        const linearToken = getEnvVar('LINEAR_API_TOKEN', 'linear-api-token');
+
+        if (linearToken) {
+            const linearTeamId = getEnvVar('LINEAR_TEAM_ID', 'linear-team-id');
+            if (!linearTeamId) {
+                throw new Error('LINEAR_TEAM_ID is required when LINEAR_API_TOKEN is provided');
+            }
+
             linear = {
-                apiToken: validateRequiredEnvVar('LINEAR_API_TOKEN', process.env.LINEAR_API_TOKEN),
-                teamId: validateRequiredEnvVar('LINEAR_TEAM_ID', process.env.LINEAR_TEAM_ID),
+                apiToken: linearToken,
+                teamId: linearTeamId,
             };
         }
 
-        // Optional webhook configuration
+        // Webhook configuration (only for local development)
         let webhook: WebhookConfig | undefined;
-        if (process.env.WEBHOOK_SECRET) {
-            webhook = {
-                secret: validateRequiredEnvVar('WEBHOOK_SECRET', process.env.WEBHOOK_SECRET),
-                port: parseInt(process.env.WEBHOOK_PORT || '3000', 10),
-            };
+        if (!isGitHubAction) {
+            const webhookSecret = getEnvVar('WEBHOOK_SECRET');
+            if (webhookSecret) {
+                webhook = {
+                    secret: webhookSecret,
+                    port: parseInt(getEnvVar('WEBHOOK_PORT') || '3000', 10),
+                };
+            }
         }
 
         // Validate that at least one issue tracker is configured
         if (!github && !linear) {
-            console.warn('Warning: Neither GitHub nor Linear configuration found. Issue creation will be disabled.');
+            const message = 'Neither GitHub nor Linear configuration found. Issue creation will be disabled.';
+            if (isGitHubAction) {
+                throw new Error(message);
+            } else {
+                console.warn(`Warning: ${message}`);
+            }
         }
 
         const config: EnvironmentConfig = {
-            nodeEnv: (process.env.NODE_ENV as any) || 'development',
-            logLevel: (process.env.LOG_LEVEL as any) || 'info',
+            nodeEnv: (process.env.NODE_ENV as any) || (isGitHubAction ? 'production' : 'development'),
+            logLevel: (process.env.LOG_LEVEL as any) || (isGitHubAction ? 'info' : 'debug'),
+            isGitHubAction,
             appStoreConnect,
             github,
             linear,

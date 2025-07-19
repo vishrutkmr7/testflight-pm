@@ -1,0 +1,152 @@
+name: 'TestFlight PM'
+description: 'Automatically monitor TestFlight feedback and create GitHub/Linear issues from crashes and user feedback'
+author: 'TestFlight PM Team'
+
+branding:
+  icon: 'smartphone'
+  color: 'blue'
+
+inputs:
+  # Required App Store Connect Configuration
+  app-store-connect-issuer-id:
+    description: 'App Store Connect API Issuer ID'
+    required: true
+  
+  app-store-connect-key-id:
+    description: 'App Store Connect API Key ID'
+    required: true
+  
+  app-store-connect-private-key:
+    description: 'App Store Connect API Private Key (PEM format)'
+    required: true
+  
+  # TestFlight App Configuration
+  testflight-app-id:
+    description: 'TestFlight App ID to monitor'
+    required: false
+  
+  testflight-bundle-id:
+    description: 'App Bundle ID (e.g., com.company.app)'
+    required: false
+  
+  # Issue Creation Configuration
+  create-github-issues:
+    description: 'Create GitHub issues for TestFlight feedback'
+    required: false
+    default: 'true'
+  
+  create-linear-issues:
+    description: 'Create Linear issues for TestFlight feedback'
+    required: false
+    default: 'false'
+  
+  # GitHub Configuration (uses action context by default)
+  github-token:
+    description: 'GitHub token for creating issues (defaults to GITHUB_TOKEN)'
+    required: false
+    default: ${{ github.token }}
+  
+  github-owner:
+    description: 'GitHub repository owner (defaults to current repo)'
+    required: false
+    default: ${{ github.repository_owner }}
+  
+  github-repo:
+    description: 'GitHub repository name (defaults to current repo)'
+    required: false
+    default: ${{ github.event.repository.name }}
+  
+  # Linear Configuration (optional)
+  linear-api-token:
+    description: 'Linear API token for creating issues'
+    required: false
+  
+  linear-team-id:
+    description: 'Linear team ID for issue assignment'
+    required: false
+  
+  # Monitoring Configuration
+  monitor-since:
+    description: 'Monitor feedback since this date (ISO format, defaults to last run or 24h ago)'
+    required: false
+  
+  max-issues-per-run:
+    description: 'Maximum number of issues to create per run'
+    required: false
+    default: '10'
+  
+  feedback-types:
+    description: 'Types of feedback to monitor (crashes,screenshots,all)'
+    required: false
+    default: 'all'
+  
+  # Issue Configuration
+  issue-labels:
+    description: 'Comma-separated labels to add to created issues'
+    required: false
+    default: 'testflight,feedback'
+  
+  crash-issue-labels:
+    description: 'Additional labels for crash issues'
+    required: false
+    default: 'bug,crash'
+  
+  feedback-issue-labels:
+    description: 'Additional labels for feedback issues'
+    required: false
+    default: 'enhancement,user-feedback'
+  
+  # Advanced Configuration
+  duplicate-detection:
+    description: 'Enable duplicate issue detection'
+    required: false
+    default: 'true'
+  
+  include-device-info:
+    description: 'Include device information in issues'
+    required: false
+    default: 'true'
+  
+  include-app-version:
+    description: 'Include app version in issue titles'
+    required: false
+    default: 'true'
+  
+  dry-run:
+    description: 'Run in dry-run mode (no issues created)'
+    required: false
+    default: 'false'
+
+outputs:
+  issues-created:
+    description: 'Number of issues created'
+  
+  crashes-processed:
+    description: 'Number of crash reports processed'
+  
+  feedback-processed:
+    description: 'Number of feedback items processed'
+  
+  errors-encountered:
+    description: 'Number of errors encountered'
+  
+  summary:
+    description: 'JSON summary of the action results'
+
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  env:
+    # Map inputs to environment variables for the container
+    APP_STORE_CONNECT_ISSUER_ID: ${{ inputs.app-store-connect-issuer-id }}
+    APP_STORE_CONNECT_KEY_ID: ${{ inputs.app-store-connect-key-id }}
+    APP_STORE_CONNECT_PRIVATE_KEY: ${{ inputs.app-store-connect-private-key }}
+    TESTFLIGHT_APP_ID: ${{ inputs.testflight-app-id }}
+    TESTFLIGHT_BUNDLE_ID: ${{ inputs.testflight-bundle-id }}
+    GITHUB_TOKEN: ${{ inputs.github-token }}
+    GITHUB_OWNER: ${{ inputs.github-owner }}
+    GITHUB_REPO: ${{ inputs.github-repo }}
+    LINEAR_API_TOKEN: ${{ inputs.linear-api-token }}
+    LINEAR_TEAM_ID: ${{ inputs.linear-team-id }}
+    GITHUB_ACTION: 'true'
+    NODE_ENV: 'production' 

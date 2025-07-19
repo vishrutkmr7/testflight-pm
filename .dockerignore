@@ -1,0 +1,78 @@
+# Git and version control
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+README.md
+docs/
+*.md
+
+# Development files
+.env
+.env.*
+.env.local
+.env.development
+.env.test
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Test files
+tests/
+test/
+*.test.ts
+*.test.js
+*.spec.ts
+*.spec.js
+
+# Development tools
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Build artifacts (except dist which we need)
+coverage/
+.nyc_output/
+build/
+
+# Runtime logs
+logs/
+*.log
+
+# Temporary files
+tmp/
+temp/
+
+# GitHub workflows (not needed in action)
+.github/workflows/
+
+# Local development scripts
+scripts/dev-*
+scripts/local-*
+
+# Editor files
+*.sublime-*
+.editorconfig
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Secrets (should never be in repo anyway)
+secrets/
+*.pem
+*.p8
+*.key
+
+# Example and demo files
+examples/
+demo/
+sample/ 

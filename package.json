@@ -1,22 +1,79 @@
 {
 	"name": "testflight-pm",
-	"module": "index.ts",
+	"version": "1.0.0",
+	"description": "Automatically monitor TestFlight feedback and create GitHub/Linear issues from crashes and user feedback",
+	"main": "index.ts",
 	"type": "module",
-	"private": true,
 	"scripts": {
+		"dev": "bun run --watch index.ts",
+		"start": "bun run index.ts",
+		"build": "bun build index.ts --outdir dist",
 		"test": "bun test",
 		"test:auth": "bun run src/cli/test-testflight.ts test-auth",
 		"test:fetch": "bun run src/cli/test-testflight.ts fetch-all --limit 5",
 		"test:integration": "bun run src/cli/test-testflight.ts fetch-all --verbose",
-		"test:testflight": "bun run src/cli/test-testflight.ts",
-		"test:webhook": "bun test tests/webhook-receiver.test.ts",
-		"webhook:start": "bun run src/cli/webhook-server.ts",
-		"webhook:dev": "WEBHOOK_SECRET=dev-secret-key WEBHOOK_PORT=3001 bun run src/cli/webhook-server.ts"
+		"test:linear": "bun run src/cli/test-linear.ts",
+		"test:linear:auth": "bun run src/cli/test-linear.ts test-auth",
+		"test:linear:health": "bun run src/cli/test-linear.ts health-check",
+		"test:linear:issues": "bun run src/cli/test-linear.ts list-issues",
+		"test:linear:projects": "bun run src/cli/test-linear.ts list-projects",
+		"test:linear:labels": "bun run src/cli/test-linear.ts list-labels",
+		"test:linear:create": "bun run src/cli/test-linear.ts create-test-issue",
+		"test:github": "bun run src/cli/test-github.ts",
+		"test:github:auth": "bun run src/cli/test-github.ts test-auth",
+		"test:github:health": "bun run src/cli/test-github.ts health-check",
+		"test:github:issues": "bun run src/cli/test-github.ts list-issues",
+		"test:github:labels": "bun run src/cli/test-github.ts list-labels",
+		"test:github:milestones": "bun run src/cli/test-github.ts list-milestones",
+		"test:github:create": "bun run src/cli/test-github.ts create-test-issue",
+		"test:github:rate-limit": "bun run src/cli/test-github.ts rate-limit",
+		"webhook:server": "bun run src/cli/webhook-server.ts",
+		"action:build": "bun build action-entrypoint.ts --outdir dist --target bun",
+		"action:test": "bun run action-entrypoint.ts",
+		"action:dry-run": "INPUT_DRY_RUN=true INPUT_FEEDBACK_TYPES=all INPUT_MAX_ISSUES_PER_RUN=5 bun run action-entrypoint.ts",
+		"docker:build": "docker build -t testflight-pm:latest .",
+		"docker:test": "docker run --rm --env-file .env testflight-pm:latest",
+		"lint": "bunx @biomejs/biome check .",
+		"lint:fix": "bunx @biomejs/biome check --apply .",
+		"format": "bunx @biomejs/biome format --write ."
 	},
+	"keywords": [
+		"testflight",
+		"ios",
+		"app-store-connect",
+		"github-action",
+		"automation",
+		"feedback",
+		"crash-reporting",
+		"linear",
+		"github-issues",
+		"mobile-development"
+	],
+	"author": "TestFlight PM Team",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/your-org/testflight-pm.git"
+	},
+	"bugs": {
+		"url": "https://github.com/your-org/testflight-pm/issues"
+	},
+	"homepage": "https://github.com/your-org/testflight-pm#readme",
 	"devDependencies": {
-		"@types/bun": "latest"
+		"@biomejs/biome": "^1.8.3",
+		"@types/bun": "^1.1.6",
+		"typescript": "^5.5.4"
 	},
-	"peerDependencies": {
-		"typescript": "^5.8.3"
-	}
+	"dependencies": {},
+	"engines": {
+		"bun": ">=1.1.0"
+	},
+	"files": [
+		"dist/",
+		"src/",
+		"types/",
+		"action-entrypoint.ts",
+		"Dockerfile",
+		"action.yml"
+	]
 }

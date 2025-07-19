@@ -1,0 +1,104 @@
+# Example workflow for using TestFlight PM Action with Linear integration
+# This workflow demonstrates how to create Linear issues from TestFlight feedback
+
+name: TestFlight PM - Linear Integration
+
+on:
+  schedule:
+    # Run twice daily at 9 AM and 5 PM UTC
+    - cron: '0 9,17 * * 1-5'
+  
+  workflow_dispatch:
+    inputs:
+      monitor-since:
+        description: 'Monitor since date (ISO format)'
+        required: false
+        type: string
+      
+      dry-run:
+        description: 'Run in dry-run mode'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  testflight-to-linear:
+    runs-on: ubuntu-latest
+    name: TestFlight → Linear Issues
+    
+    steps:
+      - name: Create Linear Issues from TestFlight Feedback
+        id: testflight-linear
+        uses: your-org/testflight-pm@v1
+        with:
+          # Required: App Store Connect API credentials
+          app-store-connect-issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          app-store-connect-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          app-store-connect-private-key: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+          
+          # App configuration
+          testflight-app-id: ${{ secrets.TESTFLIGHT_APP_ID }}
+          testflight-bundle-id: ${{ vars.APP_BUNDLE_ID }}
+          
+          # Linear integration (primary)
+          create-linear-issues: true
+          linear-api-token: ${{ secrets.LINEAR_API_TOKEN }}
+          linear-team-id: ${{ secrets.LINEAR_TEAM_ID }}
+          
+          # Disable GitHub issues for this workflow
+          create-github-issues: false
+          
+          # Monitoring configuration
+          monitor-since: ${{ github.event.inputs.monitor-since }}
+          feedback-types: 'all'
+          max-issues-per-run: '15'
+          
+          # Linear-specific labeling (customize for your Linear workspace)
+          issue-labels: 'testflight,mobile,feedback'
+          crash-issue-labels: 'bug,crash,urgent'
+          feedback-issue-labels: 'feature-request,user-feedback'
+          
+          # Advanced features
+          duplicate-detection: true
+          include-device-info: true
+          include-app-version: true
+          
+          # Testing mode
+          dry-run: ${{ github.event.inputs.dry-run || false }}
+      
+      - name: Slack Notification
+        if: always() && !github.event.inputs.dry-run
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          custom_payload: |
+            {
+              text: "TestFlight PM completed",
+              attachments: [{
+                color: '${{ job.status }}' === 'success' ? 'good' : 'danger',
+                fields: [
+                  {
+                    title: "Issues Created",
+                    value: "${{ steps.testflight-linear.outputs.issues-created }}",
+                    short: true
+                  },
+                  {
+                    title: "Crashes Processed", 
+                    value: "${{ steps.testflight-linear.outputs.crashes-processed }}",
+                    short: true
+                  },
+                  {
+                    title: "Feedback Processed",
+                    value: "${{ steps.testflight-linear.outputs.feedback-processed }}",
+                    short: true
+                  },
+                  {
+                    title: "Errors",
+                    value: "${{ steps.testflight-linear.outputs.errors-encountered }}",
+                    short: true
+                  }
+                ]
+              }]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }} 
