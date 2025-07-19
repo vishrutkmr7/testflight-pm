@@ -1,271 +1,242 @@
-# TestFlight PM
+# TestFlight PM GitHub Action
 
-**TestFlight PM** is an intelligent automation tool that securely bridges the gap between TestFlight feedback and development workflow. It automatically processes TestFlight data (crashes, bugs, screenshots, user feedback) and creates actionable development tasks in GitHub Issues or Linear, complete with repository context and code analysis.
+Automatically monitor TestFlight feedback and create GitHub or Linear issues from crashes and user feedback. This GitHub Action securely processes TestFlight data and creates actionable development tasks with rich context and metadata.
 
-## 🚀 Quick Start
+## 🚀 Features
 
-### 1. Setup Environment
+- **Automated Issue Creation**: Convert TestFlight crashes and feedback into GitHub Issues or Linear tasks
+- **Rich Context**: Include device info, app versions, stack traces, and user feedback
+- **Secure Authentication**: Uses App Store Connect API with industry-standard security
+- **Smart Filtering**: Configurable feedback types, priority detection, and duplicate prevention
+- **Rate Limited**: Respects API limits with intelligent retry mechanisms
 
-Install Bun runtime:
-```bash
-curl -fsSL https://bun.sh/install | bash
+## 📋 Usage
+
+### Basic Setup
+
+```yaml
+name: Process TestFlight Feedback
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+  workflow_dispatch:
+
+jobs:
+  testflight-feedback:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Process TestFlight Feedback
+        uses: your-org/testflight-pm@v1
+        with:
+          # Required: App Store Connect API credentials
+          app-store-connect-issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          app-store-connect-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          app-store-connect-private-key: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+          
+          # Required: TestFlight app configuration
+          testflight-bundle-id: 'com.yourcompany.yourapp'
+          
+          # Optional: Issue creation configuration
+          create-github-issues: true
+          create-linear-issues: false
 ```
 
-Clone and setup the project:
-```bash
-git clone <your-repo-url>
-cd testflight-pm
-bun install
+### Advanced Configuration
+
+```yaml
+      - name: Process TestFlight Feedback
+        uses: your-org/testflight-pm@v1
+        with:
+          # App Store Connect Configuration
+          app-store-connect-issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          app-store-connect-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          app-store-connect-private-key: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+          testflight-app-id: '1234567890'
+          testflight-bundle-id: 'com.yourcompany.yourapp'
+          
+          # Filtering Options
+          feedback-types: 'all'  # 'crashes', 'screenshots', or 'all'
+          monitor-since: '24h'   # Time period to check
+          max-issues-per-run: 10
+          
+          # GitHub Issues (uses repository context by default)
+          create-github-issues: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          issue-labels: 'testflight,feedback,bug'
+          crash-issue-labels: 'bug,crash,urgent'
+          feedback-issue-labels: 'enhancement,user-feedback'
+          
+          # Linear Integration (optional)
+          create-linear-issues: false
+          linear-api-token: ${{ secrets.LINEAR_API_TOKEN }}
+          linear-team-id: ${{ secrets.LINEAR_TEAM_ID }}
+          
+          # Additional Options
+          duplicate-detection: true
+          include-device-info: true
+          include-app-version: true
+          dry-run: false
 ```
 
-### 2. Configure GitHub Secrets
+## 🔐 Required Secrets
 
-#### App Store Connect API Setup
+### App Store Connect API
 
 1. Go to [App Store Connect](https://appstoreconnect.apple.com/)
-2. Navigate to **Users and Access** > **Integrations** > **App Store Connect API**
+2. Navigate to **Users and Access** → **Integrations** → **App Store Connect API**
 3. Click **Generate API Key**
-4. Configure the key:
-   - **Name**: `TestFlight PM API Key`
-   - **Access**: Select appropriate permissions (minimum: App Manager)
-   - **Apps**: Select your TestFlight apps
-5. **Download the `.p8` file immediately** (you can only download it once)
-6. Note down your **Issuer ID** and **Key ID**
+4. Configure the key with **App Manager** permissions
+5. Download the `.p8` file immediately (only available once)
+6. Add these secrets to your GitHub repository:
 
-#### Required GitHub Repository Secrets
+| Secret Name | Description | Example |
+|-------------|-------------|---------|
+| `APP_STORE_CONNECT_ISSUER_ID` | Issuer ID from App Store Connect | `57246542-96fe-1a63-e053-0824d011072a` |
+| `APP_STORE_CONNECT_KEY_ID` | Key ID from your API key | `2X9R4HXF34` |
+| `APP_STORE_CONNECT_PRIVATE_KEY` | Complete content of your .p8 file | `-----BEGIN PRIVATE KEY-----\nMIGT...` |
 
-Go to your GitHub repository → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**
+### Optional Secrets
 
-```
-APP_STORE_CONNECT_ISSUER_ID
-Value: Your issuer ID from App Store Connect
-```
+For Linear integration:
+- `LINEAR_API_TOKEN`: Your Linear API token
+- `LINEAR_TEAM_ID`: Your Linear team identifier
 
-```
-APP_STORE_CONNECT_KEY_ID  
-Value: Your API key ID (e.g., 2X9R4HXF34)
-```
+## 📝 Action Inputs
 
-```
-APP_STORE_CONNECT_PRIVATE_KEY
-Value: Complete content of your .p8 file, including headers:
------BEGIN PRIVATE KEY-----
-MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQg...
-...your private key content...
------END PRIVATE KEY-----
-```
+| Input | Description | Required | Default |
+|-------|-------------|----------|---------|
+| `app-store-connect-issuer-id` | App Store Connect API Issuer ID | ✅ | - |
+| `app-store-connect-key-id` | App Store Connect API Key ID | ✅ | - |
+| `app-store-connect-private-key` | App Store Connect API Private Key | ✅ | - |
+| `testflight-bundle-id` | App Bundle ID (e.g., com.company.app) | ✅ | - |
+| `testflight-app-id` | TestFlight App ID | ❌ | - |
+| `create-github-issues` | Create GitHub issues | ❌ | `true` |
+| `create-linear-issues` | Create Linear issues | ❌ | `false` |
+| `github-token` | GitHub token for creating issues | ❌ | `${{ github.token }}` |
+| `github-owner` | GitHub repository owner | ❌ | Current repo owner |
+| `github-repo` | GitHub repository name | ❌ | Current repo name |
+| `linear-api-token` | Linear API token | ❌ | - |
+| `linear-team-id` | Linear team ID | ❌ | - |
+| `feedback-types` | Types to process: 'crashes', 'screenshots', 'all' | ❌ | `all` |
+| `monitor-since` | Time period to check (e.g., '24h', '7d') | ❌ | `24h` |
+| `max-issues-per-run` | Maximum issues to create per run | ❌ | `10` |
+| `issue-labels` | Base labels for all issues | ❌ | `testflight,feedback` |
+| `crash-issue-labels` | Additional labels for crash issues | ❌ | `bug,crash,urgent` |
+| `feedback-issue-labels` | Additional labels for feedback issues | ❌ | `enhancement,user-feedback` |
+| `duplicate-detection` | Enable duplicate issue detection | ❌ | `true` |
+| `include-device-info` | Include device information in issues | ❌ | `true` |
+| `include-app-version` | Include app version in issues | ❌ | `true` |
+| `dry-run` | Log actions without creating issues | ❌ | `false` |
 
-#### Optional Configuration Secrets
+## 📊 Action Outputs
 
-```
-TESTFLIGHT_APP_ID=your-app-id
-TESTFLIGHT_BUNDLE_ID=com.yourcompany.yourapp
-GITHUB_TOKEN=your-github-personal-access-token
-GITHUB_OWNER=your-github-username
-GITHUB_REPO=your-repository-name
-LINEAR_API_TOKEN=your-linear-api-token
-LINEAR_TEAM_ID=your-linear-team-id
-WEBHOOK_SECRET=random-secure-webhook-string
-```
+| Output | Description |
+|--------|-------------|
+| `issues-created` | Number of issues created |
+| `crashes-processed` | Number of crashes processed |
+| `feedback-processed` | Number of feedback items processed |
+| `errors-encountered` | Number of errors encountered |
+| `summary` | Summary of the action run |
 
-### 3. Test Your Setup
+## 📋 Example Workflows
 
-```bash
-# Test authentication
-bun run test:auth
+### Process All Feedback Every 6 Hours
 
-# Fetch sample data
-bun run test:fetch
+```yaml
+name: TestFlight Feedback Monitor
+on:
+  schedule:
+    - cron: '0 */6 * * *'
 
-# Run full integration test
-bun run test:integration
-```
-
-## 🔐 Security Features
-
-- **Zero Hardcoded Secrets**: All credentials stored in GitHub repository secrets
-- **Secure JWT Authentication**: Industry-standard ES256 token generation
-- **Error Safety**: Never exposes secrets in logs or error messages
-- **Comprehensive Validation**: Strict format checking for all credentials
-- **Production Ready**: Rate limiting, retry logic, and proper error handling
-
-## 🛠️ Core Features
-
-### TestFlight Data Fetching
-- **Crash Reports**: Automatic collection with stack traces and device info
-- **Screenshot Feedback**: User feedback with annotations and comments
-- **Real-time Processing**: Webhook support for instant notifications
-- **Historical Data**: Query feedback from specific time periods
-
-### API Client Features
-- **Rate Limiting**: Intelligent rate limit handling with automatic backoff
-- **Error Recovery**: Exponential backoff and retry mechanisms
-- **Type Safety**: Complete TypeScript interfaces for all data types
-- **Security First**: JWT token management with automatic refresh
-
-## 📋 Available Commands
-
-```bash
-# Testing Commands
-bun test                    # Run full test suite
-bun run test:auth          # Test App Store Connect authentication
-bun run test:fetch         # Fetch sample TestFlight data
-bun run test:integration   # Full integration test
-
-# TestFlight CLI
-bun run test:testflight test-auth                    # Test authentication
-bun run test:testflight fetch-crashes --limit 10    # Get recent crashes
-bun run test:testflight fetch-screenshots --days 7  # Get recent feedback
-bun run test:testflight fetch-all --verbose         # Get all feedback types
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: your-org/testflight-pm@v1
+        with:
+          app-store-connect-issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          app-store-connect-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          app-store-connect-private-key: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+          testflight-bundle-id: 'com.yourcompany.yourapp'
 ```
 
-## 🏗️ Architecture
+### Process Only Crashes with High Priority
 
-### Core Components
+```yaml
+name: Critical Crash Monitor
+on:
+  schedule:
+    - cron: '0 * * * *'  # Every hour
 
-```
-src/
-├── config/
-│   └── environment.ts      # Secure configuration management
-├── api/
-│   ├── app-store-connect-auth.ts  # JWT authentication
-│   └── testflight-client.ts       # Main API client
-├── cli/
-│   └── test-testflight.ts         # Testing CLI
-└── utils/                          # Shared utilities
-
-types/
-└── testflight.ts           # TypeScript interfaces
-
-tests/
-└── testflight-utils.test.ts # Comprehensive test suite
-```
-
-### Security Architecture
-
-- **Environment Configuration**: Validates and loads secrets from repository secrets
-- **JWT Authentication**: Secure token generation with ES256 algorithm
-- **API Client**: Rate-limited requests with automatic retry and error handling
-- **Type Safety**: Complete TypeScript coverage for all data structures
-
-## 🔧 Local Development Setup
-
-### Environment File
-Create a `.env` file in your project root (never commit this file):
-
-```bash
-APP_STORE_CONNECT_ISSUER_ID=your-issuer-id
-APP_STORE_CONNECT_KEY_ID=your-key-id
-APP_STORE_CONNECT_PRIVATE_KEY_PATH=./secrets/AuthKey_XXXXXXXXXX.p8
-
-# Optional local overrides
-TESTFLIGHT_APP_ID=your-app-id
-TESTFLIGHT_BUNDLE_ID=com.yourcompany.yourapp
-NODE_ENV=development
-LOG_LEVEL=debug
+jobs:
+  monitor-crashes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: your-org/testflight-pm@v1
+        with:
+          app-store-connect-issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          app-store-connect-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          app-store-connect-private-key: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+          testflight-bundle-id: 'com.yourcompany.yourapp'
+          feedback-types: 'crashes'
+          crash-issue-labels: 'critical,bug,crash,urgent'
+          max-issues-per-run: 5
 ```
 
-### Private Key File (Alternative)
-If you prefer using a file instead of environment variable:
+### Dual Integration (GitHub + Linear)
 
-1. Create a `secrets/` directory in your project root
-2. Place your `.p8` file there
-3. Add `secrets/` to your `.gitignore`
-4. Set `APP_STORE_CONNECT_PRIVATE_KEY_PATH` in your `.env`
+```yaml
+name: Full Integration Monitor
+on:
+  schedule:
+    - cron: '0 8,20 * * *'  # 8 AM and 8 PM daily
 
-## 🔐 Security Best Practices
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: your-org/testflight-pm@v1
+        with:
+          app-store-connect-issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          app-store-connect-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          app-store-connect-private-key: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+          testflight-bundle-id: 'com.yourcompany.yourapp'
+          create-github-issues: true
+          create-linear-issues: true
+          linear-api-token: ${{ secrets.LINEAR_API_TOKEN }}
+          linear-team-id: ${{ secrets.LINEAR_TEAM_ID }}
+```
 
-### GitHub Secrets Management
-- ✅ Use repository secrets for all sensitive data
-- ✅ Rotate API keys regularly
-- ✅ Use least-privilege access for API keys
-- ❌ Never commit credentials to your repository
-- ❌ Never log or expose secret values
+## 🔒 Security
 
-### Production Deployment
-- Use organization secrets for shared credentials
-- Set up separate secrets for staging/production environments
-- Monitor API usage and rate limits
-- Enable audit logging for secret access
+- **Zero Hardcoded Secrets**: All credentials managed through GitHub repository secrets
+- **Secure JWT Authentication**: Industry-standard ES256 token generation for App Store Connect
+- **No Secret Exposure**: Credentials never appear in logs or error messages
+- **Rate Limiting**: Intelligent API rate limit handling with automatic backoff
+- **Input Validation**: Strict validation of all inputs and credentials
 
-## 🔧 Troubleshooting
+## 🛠️ Troubleshooting
 
 ### Common Issues
 
 **Authentication Fails**
-- Verify Issuer ID and Key ID are correct
-- Check private key format (must include headers and footers)
-- Ensure API key has sufficient permissions
-- Try regenerating the API key if issues persist
+- Verify your App Store Connect API credentials are correct
+- Ensure the API key has sufficient permissions (App Manager minimum)
+- Check that the private key includes the full PEM format with headers
+
+**No Issues Created**
+- Verify there's TestFlight feedback in the specified time period
+- Check the `dry-run` input isn't set to `true`
+- Ensure the bundle ID matches your TestFlight app
 
 **Rate Limiting**
-- App Store Connect has strict rate limits
-- The client implements automatic retry with backoff
-- Monitor rate limit headers in responses
-
-**Private Key Format**
-```
-✅ Correct format:
------BEGIN PRIVATE KEY-----
-MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQg...
------END PRIVATE KEY-----
-
-❌ Incorrect format:
-MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQg...
-```
-
-### Environment Validation
-The application will validate your configuration on startup and provide clear error messages for missing or invalid settings.
-
-## 🧪 Testing
-
-The project includes comprehensive security-focused tests:
-
-```bash
-bun test  # Runs all tests including:
-          # - Environment configuration validation
-          # - Authentication security testing
-          # - API client functionality
-          # - Security violation detection
-          # - Integration testing
-```
-
-**Test Coverage:**
-- ✅ Secret management and validation
-- ✅ JWT authentication flow
-- ✅ API client with rate limiting
-- ✅ Security error handling
-- ✅ TypeScript type safety
-
-## 🔧 Development
-
-### Project Standards
-
-- **Runtime**: Bun (TypeScript)
-- **Security**: Repository secrets for all credentials
-- **Testing**: Comprehensive security validation
-- **Code Quality**: DRY and SOLID principles
-- **Documentation**: Complete setup and usage guides
-
-### Contributing
-
-1. Follow the security guidelines in `docs/SETUP.md`
-2. Ensure all tests pass: `bun test`
-3. Never commit credentials or secrets
-4. Update documentation for new features
+- The action automatically handles rate limits with backoff
+- Consider reducing `max-issues-per-run` if encountering persistent rate limits
 
 ## 📄 License
 
-MIT License - see LICENSE file for details.
+MIT License - See [LICENSE](LICENSE) for details.
 
 ---
 
-## 🆘 Support
-
-If you encounter issues:
-1. Check the [troubleshooting guide](docs/SETUP.md#troubleshooting)
-2. Verify all required secrets are properly configured
-3. Review application logs for specific error messages
-4. Ensure your App Store Connect API key has correct permissions
-
-**Security Notice**: Keep your API credentials secure and never share them publicly. If you suspect your credentials have been compromised, immediately revoke the API key in App Store Connect and generate a new one.
+**Security Notice**: Keep your App Store Connect API credentials secure. If compromised, immediately revoke the API key in App Store Connect and generate a new one.
