@@ -27,15 +27,14 @@ export async function createGitHubIssueFromFeedback(
 	const client = getGitHubClient();
 
 	try {
-		const result = await client.createIssueFromTestFlight(feedback, {
-			...options,
-			additionalLabels: [
-				...generateFeedbackLabels(feedback),
-				...(options.additionalLabels || []),
-			],
-		});
+		return await client.createIssueFromTestFlight(feedback, {
+  			...options,
+  			additionalLabels: [
+  				...generateFeedbackLabels(feedback),
+  				...(options.additionalLabels || []),
+  			],
+  		});
 
-		return result;
 	} catch (error) {
 		throw new Error(
 			`Failed to create GitHub issue from TestFlight feedback: ${error}`,
