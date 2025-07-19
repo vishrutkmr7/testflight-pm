@@ -130,10 +130,10 @@ MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgTestKeyContent
 			},
 		};
 
-		function createSignedRequest(
+		const createSignedRequest = (
 			payload: string,
 			secret: string,
-		): WebhookRequest {
+		): WebhookRequest => {
 			const signature = createHmac("sha256", secret)
 				.update(payload, "utf8")
 				.digest("hex");
@@ -147,7 +147,7 @@ MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgTestKeyContent
 				},
 				url: "/webhook",
 			};
-		}
+		};
 
 		it("should accept valid signatures", async () => {
 			const payload = JSON.stringify(mockEvent);
@@ -213,7 +213,7 @@ MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgTestKeyContent
 	});
 
 	describe("Event Processing", () => {
-		function createCrashEvent(): TestFlightWebhookEvent {
+		const createCrashEvent = (): TestFlightWebhookEvent => {
 			return {
 				eventType: "BETA_FEEDBACK_CRASH_SUBMISSION",
 				eventTime: "2024-01-01T12:00:00Z",
@@ -248,9 +248,9 @@ MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgTestKeyContent
 					},
 				},
 			};
-		}
+		};
 
-		function createScreenshotEvent(): TestFlightWebhookEvent {
+		const createScreenshotEvent = (): TestFlightWebhookEvent => {
 			return {
 				eventType: "BETA_FEEDBACK_SCREENSHOT_SUBMISSION",
 				eventTime: "2024-01-01T12:00:00Z",
@@ -284,11 +284,11 @@ MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgTestKeyContent
 					},
 				},
 			};
-		}
+		};
 
-		function createSignedRequestFromEvent(
+		const createSignedRequestFromEvent = (
 			event: TestFlightWebhookEvent,
-		): WebhookRequest {
+		): WebhookRequest => {
 			const payload = JSON.stringify(event);
 			const signature = createHmac("sha256", "test-webhook-secret-key")
 				.update(payload, "utf8")
@@ -303,7 +303,7 @@ MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgTestKeyContent
 				},
 				url: "/webhook",
 			};
-		}
+		};
 
 		it("should process crash submission events", async () => {
 			const event = createCrashEvent();
