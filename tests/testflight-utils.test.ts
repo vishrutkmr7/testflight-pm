@@ -223,7 +223,7 @@ MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgTestKeyContentHere
 		};
 
 		// Access private method for testing
-		const processCrashReport = (client as any).processCrashReport;
+		const {processCrashReport} = client as any;
 		const processed = processCrashReport(mockCrashReport);
 
 		expect(processed.id).toBe("crash-123");
