@@ -13,6 +13,11 @@ import {
 	getTestFlightClient,
 } from "../src/api/testflight-client.js";
 import { clearConfigCache, getConfig } from "../src/config/environment.js";
+import type {
+	ProcessedFeedbackData,
+	TestFlightCrashReport,
+	TestFlightQueryParams,
+} from "../types/testflight.js";
 
 describe("Environment Configuration", () => {
 	beforeEach(() => {
@@ -40,9 +45,9 @@ MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQg
 
 	it("should throw error for missing required environment variables", () => {
 		// Clear environment variables
-		delete process.env.APP_STORE_CONNECT_ISSUER_ID;
-		delete process.env.APP_STORE_CONNECT_KEY_ID;
-		delete process.env.APP_STORE_CONNECT_PRIVATE_KEY;
+		process.env.APP_STORE_CONNECT_ISSUER_ID = undefined;
+		process.env.APP_STORE_CONNECT_KEY_ID = undefined;
+		process.env.APP_STORE_CONNECT_PRIVATE_KEY = undefined;
 
 		expect(() => getConfig()).toThrow("Required environment variable");
 	});
@@ -180,7 +185,11 @@ MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgTestKeyContentHere
 		const client = getTestFlightClient();
 
 		// Access private method for testing (TypeScript will complain but it works at runtime)
-		const buildUrl = (client as any).buildUrl.bind(client);
+		const buildUrl = (
+			client as unknown as {
+				buildUrl: (endpoint: string, params?: TestFlightQueryParams) => string;
+			}
+		).buildUrl.bind(client);
 
 		const url = buildUrl("/betaFeedbackCrashSubmissions", {
 			limit: 10,
@@ -223,7 +232,11 @@ MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgTestKeyContentHere
 		};
 
 		// Access private method for testing
-		const {processCrashReport} = client as any;
+		const { processCrashReport } = client as unknown as {
+			processCrashReport: (
+				crash: TestFlightCrashReport,
+			) => ProcessedFeedbackData;
+		};
 		const processed = processCrashReport(mockCrashReport);
 
 		expect(processed.id).toBe("crash-123");
@@ -278,10 +291,10 @@ SuperSecretKeyContentThatShouldNeverBeLogged
 
 	it("should validate environment variable presence", () => {
 		// Clear all environment variables
-		delete process.env.APP_STORE_CONNECT_ISSUER_ID;
-		delete process.env.APP_STORE_CONNECT_KEY_ID;
-		delete process.env.APP_STORE_CONNECT_PRIVATE_KEY;
-		delete process.env.APP_STORE_CONNECT_PRIVATE_KEY_PATH;
+		process.env.APP_STORE_CONNECT_ISSUER_ID = undefined;
+		process.env.APP_STORE_CONNECT_KEY_ID = undefined;
+		process.env.APP_STORE_CONNECT_PRIVATE_KEY = undefined;
+		process.env.APP_STORE_CONNECT_PRIVATE_KEY_PATH = undefined;
 
 		clearConfigCache();
 

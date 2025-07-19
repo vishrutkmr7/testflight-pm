@@ -21,7 +21,11 @@ import type {
 	LinearUser,
 } from "../../types/linear.js";
 import type { ProcessedFeedbackData } from "../../types/testflight.js";
-import { DEFAULT_LABELS, ERROR_MESSAGES } from "../config/constants.js";
+import {
+	DEFAULT_LABELS,
+	ERROR_MESSAGES,
+	PRIORITY_LEVELS,
+} from "../config/constants.js";
 import { getConfig } from "../config/environment.js";
 
 /**
@@ -44,9 +48,9 @@ export class LinearClient {
 			apiToken: envConfig.linear.apiToken,
 			teamId: envConfig.linear.teamId,
 			defaultPriority: PRIORITY_LEVELS.NORMAL,
-			defaultLabels: DEFAULT_LABELS.BASE,
-			crashLabels: DEFAULT_LABELS.CRASH,
-			feedbackLabels: DEFAULT_LABELS.FEEDBACK,
+			defaultLabels: [...DEFAULT_LABELS.BASE],
+			crashLabels: [...DEFAULT_LABELS.CRASH],
+			feedbackLabels: [...DEFAULT_LABELS.FEEDBACK],
 			enableDuplicateDetection: true,
 			duplicateDetectionDays: 7,
 		};
@@ -248,7 +252,10 @@ export class LinearClient {
 		const normalizedName = statusName.toLowerCase();
 
 		if (this.statusCache.has(normalizedName)) {
-			return this.statusCache.get(normalizedName)!;
+			const status = this.statusCache.get(normalizedName);
+			if (status) {
+				return status;
+			}
 		}
 
 		try {
@@ -286,7 +293,7 @@ export class LinearClient {
 	/**
 	 * Lists recent issues for the team
 	 */
-	public async getRecentIssues(limit: number = 20): Promise<LinearIssue[]> {
+	public async getRecentIssues(limit = 20): Promise<LinearIssue[]> {
 		try {
 			const searchParams: LinearIssueSearchParams = {
 				teamId: this.config.teamId,
@@ -334,7 +341,14 @@ export class LinearClient {
 	 */
 	public async healthCheck(): Promise<{
 		status: "healthy" | "unhealthy";
-		details: any;
+		details: {
+			teamName?: string;
+			teamKey?: string;
+			currentUser?: string;
+			configuredTeamId?: string;
+			error?: string;
+			timestamp: string;
+		};
 	}> {
 		try {
 			const team = await this.getTeam();
@@ -483,7 +497,7 @@ export class LinearClient {
 		description += `**Locale:** ${feedback.deviceInfo.locale}\n\n`;
 
 		if (isCrash && feedback.crashData) {
-			description += `### Crash Details\n`;
+			description += "### Crash Details\n";
 			description += `**Type:** ${feedback.crashData.type}\n`;
 			if (feedback.crashData.exceptionType) {
 				description += `**Exception:** ${feedback.crashData.exceptionType}\n`;
@@ -495,7 +509,7 @@ export class LinearClient {
 		}
 
 		if (feedback.screenshotData) {
-			description += `### User Feedback\n`;
+			description += "### User Feedback\n";
 			if (feedback.screenshotData.text) {
 				description += `**Feedback Text:**\n${feedback.screenshotData.text}\n\n`;
 			}

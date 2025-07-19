@@ -27,18 +27,18 @@
 		"github-issues",
 		"mobile-development"
 	],
-	"author": "TestFlight PM Team",
+	"author": "Vishrut Jha",
 	"license": "MIT",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/your-org/testflight-pm.git"
+		"url": "https://github.com/vishrutkmr7/testflight-pm.git"
 	},
 	"bugs": {
-		"url": "https://github.com/your-org/testflight-pm/issues"
+		"url": "https://github.com/vishrutkmr7/testflight-pm/issues"
 	},
-	"homepage": "https://github.com/your-org/testflight-pm#readme",
+	"homepage": "https://github.com/vishrutkmr7/testflight-pm#readme",
 	"devDependencies": {
-		"@biomejs/biome": "^1.8.3",
+		"@biomejs/biome": "^1.9.4",
 		"@types/bun": "^1.1.6",
 		"typescript": "^5.5.4"
 	},

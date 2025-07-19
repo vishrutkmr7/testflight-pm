@@ -40,7 +40,7 @@ jobs:
     
     steps:
       - name: Monitor TestFlight and Create Issues
-        uses: your-org/testflight-pm@v1
+        uses: vishrutkmr7/testflight-pm@v1
         with:
           # Required: App Store Connect API credentials
           app-store-connect-issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}

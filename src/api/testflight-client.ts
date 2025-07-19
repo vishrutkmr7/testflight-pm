@@ -352,9 +352,9 @@ export class TestFlightClient {
 
 		if (remaining && reset && limit) {
 			this.rateLimitInfo = {
-				remaining: parseInt(remaining, 10),
-				reset: new Date(parseInt(reset, 10) * 1000),
-				limit: parseInt(limit, 10),
+				remaining: Number.parseInt(remaining, 10),
+				reset: new Date(Number.parseInt(reset, 10) * 1000),
+				limit: Number.parseInt(limit, 10),
 			};
 		}
 	}

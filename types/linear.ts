@@ -153,7 +153,7 @@ export interface LinearDocument {
 	id: string;
 	title: string;
 	content?: string;
-	contentData?: any;
+	contentData?: Record<string, unknown>;
 	slug: string;
 	icon?: string;
 	color?: string;
@@ -161,7 +161,6 @@ export interface LinearDocument {
 	updatedAt: string;
 	archivedAt?: string;
 	creator: LinearUser;
-	updatedBy: LinearUser;
 	project?: LinearProject;
 }
 
@@ -239,7 +238,7 @@ export interface LinearIssue {
 export interface LinearComment {
 	id: string;
 	body: string;
-	bodyData?: any;
+	bodyData?: Record<string, unknown>;
 	createdAt: string;
 	updatedAt: string;
 	editedAt?: string;
@@ -247,7 +246,7 @@ export interface LinearComment {
 	user: LinearUser;
 	issue: LinearIssue;
 	parent?: LinearComment;
-	children: LinearComment[];
+	children?: LinearComment[];
 	resolvingUser?: LinearUser;
 	resolvingComment?: LinearComment;
 	resolvedAt?: string;
@@ -259,13 +258,13 @@ export interface LinearAttachment {
 	title: string;
 	subtitle?: string;
 	url: string;
-	metadata?: any;
+	metadata?: Record<string, unknown>;
 	createdAt: string;
 	updatedAt: string;
 	archivedAt?: string;
 	creator: LinearUser;
 	issue?: LinearIssue;
-	source: any;
+	source: Record<string, unknown>;
 	sourceType: string;
 }
 
@@ -405,7 +404,7 @@ export interface LinearWebhookEvent {
 		| LinearProject
 		| LinearIssueLabel
 		| LinearCycle;
-	updatedFrom?: any;
+	updatedFrom?: Record<string, unknown>;
 	url: string;
 	createdAt: string;
 }

@@ -242,13 +242,32 @@ export function clearReceiverInstance(): void {
 	_receiverInstance = null;
 }
 
+interface ExpressRequest {
+	body?: string;
+	headers?: Record<string, string>;
+	method?: string;
+	url?: string;
+}
+
+interface ExpressResponse {
+	status: (code: number) => ExpressResponse;
+	setHeader: (key: string, value: string) => void;
+	send: (data: string) => void;
+}
+
+type ExpressNext = () => void;
+
 /**
  * Express-like middleware wrapper for easy integration
  */
 export function createWebhookMiddleware() {
 	const receiver = getWebhookReceiver();
 
-	return async (req: any, res: any, _next?: any) => {
+	return async (
+		req: ExpressRequest,
+		res: ExpressResponse,
+		_next?: ExpressNext,
+	) => {
 		try {
 			const request: WebhookRequest = {
 				body: req.body || "",
@@ -261,14 +280,14 @@ export function createWebhookMiddleware() {
 
 			res.status(response.status);
 			if (response.headers) {
-				Object.entries(response.headers).forEach(([key, value]) => {
+				for (const [key, value] of Object.entries(response.headers)) {
 					res.setHeader(key, value);
-				});
+				}
 			}
 			res.send(response.body);
 		} catch (error) {
 			console.error("Webhook middleware error:", error);
-			res.status(500).json({ error: "Internal server error" });
+			res.status(500).send(JSON.stringify({ error: "Internal server error" }));
 		}
 	};
 }

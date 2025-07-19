@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Process TestFlight Feedback
-        uses: your-org/testflight-pm@v1
+        uses: vishrutkmr7/testflight-pm@v1
         with:
           # Required: App Store Connect API credentials
           app-store-connect-issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
@@ -45,7 +45,7 @@ jobs:
 
 ```yaml
       - name: Process TestFlight Feedback
-        uses: your-org/testflight-pm@v1
+        uses: vishrutkmr7/testflight-pm@v1
         with:
           # App Store Connect Configuration
           app-store-connect-issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
@@ -152,7 +152,7 @@ jobs:
   monitor:
     runs-on: ubuntu-latest
     steps:
-      - uses: your-org/testflight-pm@v1
+      - uses: vishrutkmr7/testflight-pm@v1
         with:
           app-store-connect-issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           app-store-connect-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
@@ -172,7 +172,7 @@ jobs:
   monitor-crashes:
     runs-on: ubuntu-latest
     steps:
-      - uses: your-org/testflight-pm@v1
+      - uses: vishrutkmr7/testflight-pm@v1
         with:
           app-store-connect-issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           app-store-connect-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
@@ -195,7 +195,7 @@ jobs:
   monitor:
     runs-on: ubuntu-latest
     steps:
-      - uses: your-org/testflight-pm@v1
+      - uses: vishrutkmr7/testflight-pm@v1
         with:
           app-store-connect-issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           app-store-connect-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}

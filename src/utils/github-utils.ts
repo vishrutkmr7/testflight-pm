@@ -28,13 +28,12 @@ export async function createGitHubIssueFromFeedback(
 
 	try {
 		return await client.createIssueFromTestFlight(feedback, {
-  			...options,
-  			additionalLabels: [
-  				...generateFeedbackLabels(feedback),
-  				...(options.additionalLabels || []),
-  			],
-  		});
-
+			...options,
+			additionalLabels: [
+				...generateFeedbackLabels(feedback),
+				...(options.additionalLabels || []),
+			],
+		});
 	} catch (error) {
 		throw new Error(
 			`Failed to create GitHub issue from TestFlight feedback: ${error}`,
@@ -48,7 +47,7 @@ export async function createGitHubIssueFromFeedback(
 export async function createGitHubIssuesFromFeedbackBatch(
 	feedbackItems: ProcessedFeedbackData[],
 	options: GitHubIssueCreationOptions = {},
-	maxConcurrent: number = 3, // Lower than Linear to respect GitHub rate limits
+	maxConcurrent = 3, // Lower than Linear to respect GitHub rate limits
 ): Promise<GitHubIssueCreationResult[]> {
 	if (!validateGitHubConfig()) {
 		throw new Error(ERROR_MESSAGES.GITHUB_CONFIG_MISSING);
@@ -120,7 +119,7 @@ export async function updateGitHubIssueStatus(
 export async function addGitHubIssueComment(
 	issueNumber: number,
 	comment: string,
-	includeTimestamp: boolean = true,
+	includeTimestamp = true,
 ): Promise<void> {
 	if (!validateGitHubConfig()) {
 		throw new Error(ERROR_MESSAGES.GITHUB_CONFIG_MISSING);
@@ -350,8 +349,8 @@ export function formatFeedbackForGitHub(feedback: ProcessedFeedbackData): {
 	let body = `## ${typeIcon} ${typeLabel} from TestFlight\n\n`;
 
 	// Feedback metadata table
-	body += `| Field | Value |\n`;
-	body += `|-------|-------|\n`;
+	body += "| Field | Value |\n";
+	body += "|-------|-------|\n";
 	body += `| **TestFlight ID** | \`${feedback.id}\` |\n`;
 	body += `| **App Version** | ${feedback.appVersion} (Build ${feedback.buildNumber}) |\n`;
 	body += `| **Submitted** | ${feedback.submittedAt.toISOString()} |\n`;
@@ -360,7 +359,7 @@ export function formatFeedbackForGitHub(feedback: ProcessedFeedbackData): {
 	body += `| **Locale** | ${feedback.deviceInfo.locale} |\n\n`;
 
 	if (isCrash && feedback.crashData) {
-		body += `## 🔍 Crash Analysis\n\n`;
+		body += "## 🔍 Crash Analysis\n\n";
 		body += `**Crash Type:** ${feedback.crashData.type}\n\n`;
 
 		if (feedback.crashData.exceptionType) {
@@ -374,50 +373,50 @@ export function formatFeedbackForGitHub(feedback: ProcessedFeedbackData): {
 		body += `### Stack Trace\n\`\`\`\n${feedback.crashData.trace}\n\`\`\`\n\n`;
 
 		if (feedback.crashData.logs.length > 0) {
-			body += `### Crash Logs\n`;
+			body += "### Crash Logs\n";
 			feedback.crashData.logs.forEach((log, index) => {
 				body += `- [Crash Log ${index + 1}](${log.url}) (expires: ${log.expiresAt.toLocaleDateString()})\n`;
 			});
-			body += `\n`;
+			body += "\n";
 		}
 	}
 
 	if (feedback.screenshotData) {
-		body += `## 📝 User Feedback\n\n`;
+		body += "## 📝 User Feedback\n\n";
 
 		if (feedback.screenshotData.text) {
-			body += `### Feedback Text\n`;
+			body += "### Feedback Text\n";
 			body += `> ${feedback.screenshotData.text.replace(/\n/g, "\n> ")}\n\n`;
 		}
 
 		if (feedback.screenshotData.images.length > 0) {
 			body += `### Screenshots (${feedback.screenshotData.images.length})\n`;
-			body += `Screenshots will be attached to this issue automatically.\n\n`;
+			body += "Screenshots will be attached to this issue automatically.\n\n";
 		}
 
 		if (
 			feedback.screenshotData.annotations &&
 			feedback.screenshotData.annotations.length > 0
 		) {
-			body += `### Annotations\n`;
+			body += "### Annotations\n";
 			body += `User provided ${feedback.screenshotData.annotations.length} annotation(s) on screenshots.\n\n`;
 		}
 	}
 
 	// Technical details section
-	body += `## 🛠️ Technical Details\n\n`;
-	body += `<details>\n<summary>Device & Environment Information</summary>\n\n`;
+	body += "## 🛠️ Technical Details\n\n";
+	body += "<details>\n<summary>Device & Environment Information</summary>\n\n";
 	body += `- **Device Family:** ${feedback.deviceInfo.family}\n`;
 	body += `- **Device Model:** ${feedback.deviceInfo.model}\n`;
 	body += `- **OS Version:** ${feedback.deviceInfo.osVersion}\n`;
 	body += `- **Locale:** ${feedback.deviceInfo.locale}\n`;
 	body += `- **Bundle ID:** ${feedback.bundleId}\n`;
 	body += `- **Submission Time:** ${feedback.submittedAt.toISOString()}\n`;
-	body += `\n</details>\n\n`;
+	body += "\n</details>\n\n";
 
 	// Auto-generated footer
-	body += `---\n`;
-	body += `*This issue was automatically created from TestFlight feedback.*\n`;
+	body += "---\n";
+	body += "*This issue was automatically created from TestFlight feedback.*\n";
 	body += `*Original submission ID: \`${feedback.id}\`*\n`;
 	body += `*Priority: ${determineFeedbackPriority(feedback)}*`;
 
@@ -464,7 +463,17 @@ export function validateGitHubIntegration(): {
  */
 export async function getGitHubIntegrationHealth(): Promise<{
 	status: "healthy" | "degraded" | "unhealthy";
-	details: any;
+	details: {
+		repository?: string;
+		currentUser?: string;
+		rateLimit?: {
+			remaining: number;
+			limit: number;
+			reset: string;
+		};
+		error?: string;
+		timestamp: string;
+	};
 	recommendations?: string[];
 }> {
 	try {
@@ -472,7 +481,10 @@ export async function getGitHubIntegrationHealth(): Promise<{
 		if (!validation.valid) {
 			return {
 				status: "unhealthy",
-				details: { errors: validation.errors },
+				details: {
+					error: validation.errors.join(", "),
+					timestamp: new Date().toISOString(),
+				},
 				recommendations: [
 					"Set GITHUB_TOKEN environment variable",
 					"Set GITHUB_OWNER environment variable",
@@ -501,7 +513,10 @@ export async function getGitHubIntegrationHealth(): Promise<{
 	} catch (error) {
 		return {
 			status: "unhealthy",
-			details: { error: (error as Error).message },
+			details: {
+				error: (error as Error).message,
+				timestamp: new Date().toISOString(),
+			},
 			recommendations: [
 				"Check GitHub API connectivity",
 				"Verify authentication credentials",
@@ -519,17 +534,17 @@ export async function createIssueFromTestFlightFeedback(
 	feedback: ProcessedFeedbackData,
 	options: {
 		github?: GitHubIssueCreationOptions;
-		linear?: any; // Would import from linear-utils if needed
+		linear?: unknown; // Would import proper type from linear-utils if needed
 		preferredPlatform?: "github" | "linear" | "both";
 	} = {},
 ): Promise<{
 	github?: GitHubIssueCreationResult;
-	linear?: any;
+	linear?: unknown;
 	errors: string[];
 }> {
 	const results: {
 		github?: GitHubIssueCreationResult;
-		linear?: any;
+		linear?: unknown;
 		errors: string[];
 	} = { errors: [] };
 

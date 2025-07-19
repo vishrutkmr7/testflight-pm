@@ -6,10 +6,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { createHmac } from "node:crypto";
 import {
-	clearReceiverInstance,
-	getWebhookReceiver,
 	TestFlightWebhookReceiver,
 	type WebhookRequest,
+	clearReceiverInstance,
+	getWebhookReceiver,
 } from "../src/api/webhook-receiver.js";
 import { clearConfigCache } from "../src/config/environment.js";
 import type { TestFlightWebhookEvent } from "../types/testflight.js";
@@ -37,8 +37,8 @@ MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgTestKeyContent
 	afterEach(() => {
 		clearReceiverInstance();
 		clearConfigCache();
-		delete process.env.WEBHOOK_SECRET;
-		delete process.env.WEBHOOK_PORT;
+		process.env.WEBHOOK_SECRET = undefined;
+		process.env.WEBHOOK_PORT = undefined;
 	});
 
 	describe("Initialization", () => {
@@ -48,7 +48,7 @@ MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgTestKeyContent
 		});
 
 		it("should handle missing webhook secret gracefully", () => {
-			delete process.env.WEBHOOK_SECRET;
+			process.env.WEBHOOK_SECRET = undefined;
 			clearReceiverInstance();
 			clearConfigCache();
 
@@ -339,7 +339,9 @@ MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgTestKeyContent
 				data: {},
 			};
 
-			const request = createSignedRequestFromEvent(invalidEvent as any);
+			const request = createSignedRequestFromEvent(
+				invalidEvent as TestFlightWebhookEvent,
+			);
 			const response = await receiver.handleWebhook(request);
 
 			expect(response.status).toBe(500);
@@ -375,7 +377,7 @@ MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgTestKeyContent
 		});
 
 		it("should indicate when signature verification is disabled", () => {
-			delete process.env.WEBHOOK_SECRET;
+			process.env.WEBHOOK_SECRET = undefined;
 			clearReceiverInstance();
 			clearConfigCache();
 

@@ -277,11 +277,7 @@ export class GitHubClient {
 					const feedbackWords = feedback.screenshotData.text
 						.toLowerCase()
 						.split(" ");
-					const issueText = (
-						issue.title +
-						" " +
-						(issue.body || "")
-					).toLowerCase();
+					const issueText = `${issue.title} ${issue.body || ""}`.toLowerCase();
 					const matchingWords = feedbackWords.filter(
 						(word) => word.length > 3 && issueText.includes(word),
 					).length;
@@ -323,11 +319,11 @@ export class GitHubClient {
 		params: GitHubIssueSearchParams,
 	): Promise<GitHubSearchResponse<GitHubIssue>> {
 		const queryParams = new URLSearchParams();
-		Object.entries(params).forEach(([key, value]) => {
+		for (const [key, value] of Object.entries(params)) {
 			if (value !== undefined) {
 				queryParams.append(key, value.toString());
 			}
-		});
+		}
 
 		const response = await this.makeApiRequest<
 			GitHubSearchResponse<GitHubIssue>
@@ -341,7 +337,7 @@ export class GitHubClient {
 	public async getLabels(): Promise<GitHubLabel[]> {
 		const cacheAge = this.lastCacheUpdate.labels
 			? Date.now() - this.lastCacheUpdate.labels.getTime()
-			: Infinity;
+			: Number.POSITIVE_INFINITY;
 		const cacheExpiryMs = 5 * 60 * 1000; // 5 minutes
 
 		if (this.labelsCache.size === 0 || cacheAge > cacheExpiryMs) {
@@ -366,7 +362,7 @@ export class GitHubClient {
 	public async getMilestones(): Promise<GitHubMilestone[]> {
 		const cacheAge = this.lastCacheUpdate.milestones
 			? Date.now() - this.lastCacheUpdate.milestones.getTime()
-			: Infinity;
+			: Number.POSITIVE_INFINITY;
 		const cacheExpiryMs = 5 * 60 * 1000; // 5 minutes
 
 		if (this.milestonesCache.size === 0 || cacheAge > cacheExpiryMs) {
@@ -522,7 +518,17 @@ export class GitHubClient {
 	 */
 	public async healthCheck(): Promise<{
 		status: "healthy" | "unhealthy";
-		details: any;
+		details: {
+			repository?: string;
+			currentUser?: string;
+			rateLimit?: {
+				remaining: number;
+				limit: number;
+				reset: string;
+			};
+			error?: string;
+			timestamp: string;
+		};
 	}> {
 		try {
 			const rateLimit = await this.getRateLimit();
@@ -569,7 +575,7 @@ export class GitHubClient {
 	private async makeApiRequest<T>(
 		method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE",
 		endpoint: string,
-		body?: any,
+		body?: unknown,
 		options: GitHubRequestOptions = {},
 	): Promise<GitHubApiResponse<T>> {
 		const {
@@ -640,17 +646,19 @@ export class GitHubClient {
 					status: response.status,
 					headers: Object.fromEntries(response.headers.entries()),
 					rateLimit: {
-						limit: parseInt(
+						limit: Number.parseInt(
 							response.headers.get("x-ratelimit-limit") || "0",
 							10,
 						),
-						remaining: parseInt(
+						remaining: Number.parseInt(
 							response.headers.get("x-ratelimit-remaining") || "0",
 							10,
 						),
 						reset: new Date(
-							parseInt(response.headers.get("x-ratelimit-reset") || "0", 10) *
-								1000,
+							Number.parseInt(
+								response.headers.get("x-ratelimit-reset") || "0",
+								10,
+							) * 1000,
 						),
 					},
 				};
@@ -693,12 +701,12 @@ export class GitHubClient {
 		const reset = response.headers.get("x-ratelimit-reset");
 
 		if (limit && remaining && reset) {
-			const resetTimestamp = parseInt(reset, 10);
+			const resetTimestamp = Number.parseInt(reset, 10);
 			// Validate the reset timestamp
 			if (!Number.isNaN(resetTimestamp) && resetTimestamp > 0) {
 				this.rateLimitInfo = {
-					limit: parseInt(limit, 10),
-					remaining: parseInt(remaining, 10),
+					limit: Number.parseInt(limit, 10),
+					remaining: Number.parseInt(remaining, 10),
 					reset: resetTimestamp,
 					used: 0,
 					resource: "core",
@@ -776,7 +784,7 @@ export class GitHubClient {
 			try {
 				const screenshots = await testFlightClient.downloadScreenshots({
 					id: feedback.id,
-					type: "betaFeedbackScreenshotSubmission",
+					type: "betaFeedbackScreenshotSubmissions",
 					attributes: {
 						submittedAt: feedback.submittedAt.toISOString(),
 						appVersion: feedback.appVersion,
@@ -796,7 +804,7 @@ export class GitHubClient {
 						annotations: feedback.screenshotData.annotations || [],
 					},
 					relationships: {},
-				} as any);
+				});
 
 				screenshots.forEach((screenshot, index) => {
 					const imageInfo = feedback.screenshotData?.images?.[index];
@@ -848,8 +856,8 @@ export class GitHubClient {
 		let body = `## ${typeIcon} ${typeLabel} from TestFlight\n\n`;
 
 		// Metadata table
-		body += `| Field | Value |\n`;
-		body += `|-------|-------|\n`;
+		body += "| Field | Value |\n";
+		body += "|-------|-------|\n";
 		body += `| **TestFlight ID** | \`${feedback.id}\` |\n`;
 		body += `| **App Version** | ${feedback.appVersion} (Build ${feedback.buildNumber}) |\n`;
 		body += `| **Submitted** | ${feedback.submittedAt.toISOString()} |\n`;
@@ -858,7 +866,7 @@ export class GitHubClient {
 		body += `| **Locale** | ${feedback.deviceInfo.locale} |\n\n`;
 
 		if (isCrash && feedback.crashData) {
-			body += `### 🔍 Crash Details\n\n`;
+			body += "### 🔍 Crash Details\n\n";
 			body += `**Type:** ${feedback.crashData.type}\n\n`;
 
 			if (feedback.crashData.exceptionType) {
@@ -872,16 +880,16 @@ export class GitHubClient {
 			body += `### Stack Trace\n\`\`\`\n${feedback.crashData.trace}\n\`\`\`\n\n`;
 
 			if (feedback.crashData.logs.length > 0) {
-				body += `### Crash Logs\n`;
+				body += "### Crash Logs\n";
 				feedback.crashData.logs.forEach((log, index) => {
 					body += `- [Crash Log ${index + 1}](${log.url}) (expires: ${log.expiresAt.toLocaleDateString()})\n`;
 				});
-				body += `\n`;
+				body += "\n";
 			}
 		}
 
 		if (feedback.screenshotData) {
-			body += `### 📝 User Feedback\n\n`;
+			body += "### 📝 User Feedback\n\n";
 
 			if (feedback.screenshotData.text) {
 				body += `**Feedback Text:**\n> ${feedback.screenshotData.text.replace(/\n/g, "\n> ")}\n\n`;
@@ -900,15 +908,15 @@ export class GitHubClient {
 		}
 
 		// Technical details
-		body += `### 🛠️ Technical Information\n\n`;
-		body += `<details>\n<summary>Device & Environment Details</summary>\n\n`;
+		body += "### 🛠️ Technical Information\n\n";
+		body += "<details>\n<summary>Device & Environment Details</summary>\n\n";
 		body += `- **Device Family:** ${feedback.deviceInfo.family}\n`;
 		body += `- **Device Model:** ${feedback.deviceInfo.model}\n`;
 		body += `- **OS Version:** ${feedback.deviceInfo.osVersion}\n`;
 		body += `- **Locale:** ${feedback.deviceInfo.locale}\n`;
 		body += `- **Bundle ID:** ${feedback.bundleId}\n`;
 		body += `- **Submission Time:** ${feedback.submittedAt.toISOString()}\n`;
-		body += `\n</details>\n\n`;
+		body += "\n</details>\n\n";
 
 		body += `---\n*Automatically created from TestFlight feedback. ID: \`${feedback.id}\`*`;
 
@@ -923,15 +931,15 @@ export class GitHubClient {
 		failed: number;
 		details: Array<{ filename: string; success: boolean; url?: string }>;
 	}): string {
-		let screenshotSection = `\n\n### 📸 Screenshots\n\n`;
+		let screenshotSection = "\n\n### 📸 Screenshots\n\n";
 
-		attachmentResults.details.forEach((detail) => {
+		for (const detail of attachmentResults.details) {
 			if (detail.success && detail.url) {
 				screenshotSection += `- [${detail.filename}](${detail.url})\n`;
 			} else {
 				screenshotSection += `- ❌ ${detail.filename} (failed to upload)\n`;
 			}
-		});
+		}
 
 		if (attachmentResults.failed > 0) {
 			screenshotSection += `\n*Note: ${attachmentResults.failed} screenshot(s) failed to upload*\n`;

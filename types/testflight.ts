@@ -25,7 +25,7 @@ export interface TestFlightCrashReport {
 		crashType: string;
 		exceptionType?: string;
 		exceptionMessage?: string;
-		threadState?: Record<string, any>;
+		threadState?: Record<string, unknown>;
 		binaryImages?: BinaryImage[];
 	};
 	relationships: {
@@ -72,7 +72,7 @@ export interface TestFlightScreenshotFeedback {
 		// Screenshot-specific data
 		feedbackText?: string;
 		annotations?: ScreenshotAnnotation[];
-		systemInfo?: Record<string, any>;
+		systemInfo?: Record<string, unknown>;
 	};
 	relationships: {
 		app?: {
@@ -111,6 +111,13 @@ export interface ScreenshotAnnotation {
 	height: number;
 	text?: string;
 	type: "highlight" | "arrow" | "text" | "rectangle";
+}
+
+export interface ScreenshotImage {
+	url: string;
+	fileName: string;
+	fileSize: number;
+	expiresAt: Date;
 }
 
 export interface TestFlightApp {

@@ -83,7 +83,7 @@ export async function createLinearIssueFromFeedback(
 export async function createLinearIssuesFromFeedbackBatch(
 	feedbackItems: ProcessedFeedbackData[],
 	options: LinearIssueCreationOptions = {},
-	maxConcurrent: number = 5,
+	maxConcurrent = 5,
 ): Promise<LinearIssueCreationResult[]> {
 	if (!validateLinearConfig()) {
 		throw new Error(
@@ -155,7 +155,7 @@ export async function updateLinearIssueStatus(
 export async function addLinearIssueComment(
 	issueId: string,
 	comment: string,
-	includeTimestamp: boolean = true,
+	includeTimestamp = true,
 ): Promise<void> {
 	if (!validateLinearConfig()) {
 		throw new Error(
@@ -320,8 +320,8 @@ export function formatFeedbackForLinear(feedback: ProcessedFeedbackData): {
 	let description = `## ${typeLabel} from TestFlight\n\n`;
 
 	// Feedback metadata table
-	description += `| Field | Value |\n`;
-	description += `|-------|-------|\n`;
+	description += "| Field | Value |\n";
+	description += "|-------|-------|\n";
 	description += `| **TestFlight ID** | \`${feedback.id}\` |\n`;
 	description += `| **App Version** | ${feedback.appVersion} (Build ${feedback.buildNumber}) |\n`;
 	description += `| **Submitted** | ${feedback.submittedAt.toISOString()} |\n`;
@@ -330,7 +330,7 @@ export function formatFeedbackForLinear(feedback: ProcessedFeedbackData): {
 	description += `| **Locale** | ${feedback.deviceInfo.locale} |\n\n`;
 
 	if (isCrash && feedback.crashData) {
-		description += `## 🔍 Crash Analysis\n\n`;
+		description += "## 🔍 Crash Analysis\n\n";
 		description += `**Crash Type:** ${feedback.crashData.type}\n\n`;
 
 		if (feedback.crashData.exceptionType) {
@@ -344,19 +344,19 @@ export function formatFeedbackForLinear(feedback: ProcessedFeedbackData): {
 		description += `### Stack Trace\n\`\`\`\n${feedback.crashData.trace}\n\`\`\`\n\n`;
 
 		if (feedback.crashData.logs.length > 0) {
-			description += `### Crash Logs\n`;
+			description += "### Crash Logs\n";
 			feedback.crashData.logs.forEach((log, index) => {
 				description += `- [Crash Log ${index + 1}](${log.url}) (expires: ${log.expiresAt.toLocaleDateString()})\n`;
 			});
-			description += `\n`;
+			description += "\n";
 		}
 	}
 
 	if (feedback.screenshotData) {
-		description += `## 📝 User Feedback\n\n`;
+		description += "## 📝 User Feedback\n\n";
 
 		if (feedback.screenshotData.text) {
-			description += `### Feedback Text\n`;
+			description += "### Feedback Text\n";
 			description += `> ${feedback.screenshotData.text.replace(/\n/g, "\n> ")}\n\n`;
 		}
 
@@ -365,31 +365,32 @@ export function formatFeedbackForLinear(feedback: ProcessedFeedbackData): {
 			feedback.screenshotData.images.forEach((image, _index) => {
 				description += `- [${image.fileName}](${image.url}) (${Math.round(image.fileSize / 1024)}KB, expires: ${image.expiresAt.toLocaleDateString()})\n`;
 			});
-			description += `\n`;
+			description += "\n";
 		}
 
 		if (
 			feedback.screenshotData.annotations &&
 			feedback.screenshotData.annotations.length > 0
 		) {
-			description += `### Annotations\n`;
+			description += "### Annotations\n";
 			description += `User provided ${feedback.screenshotData.annotations.length} annotation(s) on screenshots.\n\n`;
 		}
 	}
 
 	// Debugging information
-	description += `## 🛠️ Technical Details\n\n`;
-	description += `<details>\n<summary>Device & Environment Information</summary>\n\n`;
+	description += "## 🛠️ Technical Details\n\n";
+	description +=
+		"<details>\n<summary>Device & Environment Information</summary>\n\n";
 	description += `- **Device Family:** ${feedback.deviceInfo.family}\n`;
 	description += `- **Device Model:** ${feedback.deviceInfo.model}\n`;
 	description += `- **OS Version:** ${feedback.deviceInfo.osVersion}\n`;
 	description += `- **Locale:** ${feedback.deviceInfo.locale}\n`;
 	description += `- **Bundle ID:** ${feedback.bundleId}\n`;
 	description += `- **Submission Time:** ${feedback.submittedAt.toISOString()}\n`;
-	description += `\n</details>\n\n`;
+	description += "\n</details>\n\n";
 
 	// Auto-generated footer
-	description += `---\n`;
+	description += "---\n";
 	description += `*This issue was automatically created from TestFlight feedback. Original submission ID: \`${feedback.id}\`*`;
 
 	return { title, description };
@@ -424,7 +425,14 @@ export function validateLinearIntegration(): {
  */
 export async function getLinearIntegrationHealth(): Promise<{
 	status: "healthy" | "degraded" | "unhealthy";
-	details: any;
+	details: {
+		teamName?: string;
+		teamKey?: string;
+		currentUser?: string;
+		configuredTeamId?: string;
+		error?: string;
+		timestamp: string;
+	};
 	recommendations?: string[];
 }> {
 	try {
@@ -432,7 +440,10 @@ export async function getLinearIntegrationHealth(): Promise<{
 		if (!validation.valid) {
 			return {
 				status: "unhealthy",
-				details: { errors: validation.errors },
+				details: {
+					error: validation.errors.join(", "),
+					timestamp: new Date().toISOString(),
+				},
 				recommendations: [
 					"Set LINEAR_API_TOKEN environment variable",
 					"Set LINEAR_TEAM_ID environment variable",
@@ -459,7 +470,10 @@ export async function getLinearIntegrationHealth(): Promise<{
 	} catch (error) {
 		return {
 			status: "unhealthy",
-			details: { error: (error as Error).message },
+			details: {
+				error: (error as Error).message,
+				timestamp: new Date().toISOString(),
+			},
 			recommendations: [
 				"Check Linear API connectivity",
 				"Verify authentication credentials",

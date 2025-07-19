@@ -5,8 +5,8 @@
 
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import {
-	clearLinearClientInstance,
 	LinearClient,
+	clearLinearClientInstance,
 	validateLinearConfig,
 } from "../src/api/linear-client.js";
 import type { ProcessedFeedbackData } from "../types/testflight.js";

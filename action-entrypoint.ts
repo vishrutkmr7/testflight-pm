@@ -75,7 +75,7 @@ function parseActionInputs(): ActionInputs {
 		createLinearIssues:
 			process.env.INPUT_CREATE_LINEAR_ISSUES?.toLowerCase() === "true",
 		monitorSince: process.env.INPUT_MONITOR_SINCE,
-		maxIssuesPerRun: parseInt(
+		maxIssuesPerRun: Number.parseInt(
 			process.env.INPUT_MAX_ISSUES_PER_RUN ||
 				ACTION_DEFAULTS.MAX_ISSUES_PER_RUN.toString(),
 			10,
@@ -328,20 +328,21 @@ async function runAction(): Promise<ActionOutputs> {
 					`Linear integration is unhealthy: ${JSON.stringify(linearHealth.details)}`,
 				);
 				if (linearHealth.recommendations) {
-					linearHealth.recommendations.forEach((rec) =>
-						setWarning(`💡 Recommendation: ${rec}`),
-					);
+					for (const rec of linearHealth.recommendations) {
+						setWarning(`💡 Recommendation: ${rec}`);
+					}
 				}
 				outputs.errorsEncountered++;
 				return outputs;
-			} else if (linearHealth.status === "degraded") {
+			}
+			if (linearHealth.status === "degraded") {
 				setWarning(
 					`Linear integration is degraded: ${JSON.stringify(linearHealth.details)}`,
 				);
 				if (linearHealth.recommendations) {
-					linearHealth.recommendations.forEach((rec) =>
-						setWarning(`💡 Recommendation: ${rec}`),
-					);
+					for (const rec of linearHealth.recommendations) {
+						setWarning(`💡 Recommendation: ${rec}`);
+					}
 				}
 			} else {
 				setInfo(

@@ -225,7 +225,7 @@ export function loadEnvironmentConfig(): EnvironmentConfig {
 			if (webhookSecret) {
 				webhook = {
 					secret: webhookSecret,
-					port: parseInt(getEnvVar("WEBHOOK_PORT") || "3000", 10),
+					port: Number.parseInt(getEnvVar("WEBHOOK_PORT") || "3000", 10),
 				};
 			}
 		}
@@ -236,17 +236,17 @@ export function loadEnvironmentConfig(): EnvironmentConfig {
 				"Neither GitHub nor Linear configuration found. Issue creation will be disabled.";
 			if (isGitHubAction) {
 				throw new Error(message);
-			} else {
-				console.warn(`Warning: ${message}`);
 			}
+			console.warn(`Warning: ${message}`);
 		}
 
 		const config: EnvironmentConfig = {
 			nodeEnv:
-				(process.env.NODE_ENV as any) ||
+				(process.env.NODE_ENV as "development" | "production" | "test") ||
 				(isGitHubAction ? "production" : "development"),
 			logLevel:
-				(process.env.LOG_LEVEL as any) || (isGitHubAction ? "info" : "debug"),
+				(process.env.LOG_LEVEL as "debug" | "info" | "warn" | "error") ||
+				(isGitHubAction ? "info" : "debug"),
 			isGitHubAction,
 			appStoreConnect,
 			github,
