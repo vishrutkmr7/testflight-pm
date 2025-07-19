@@ -481,10 +481,12 @@ describe("Linear Client", () => {
 			// This test ensures the client structure is ready for when MCP functions are available
 			const client = new LinearClient();
 
-			// Check that private MCP wrapper methods exist (they should throw for now)
-			expect(typeof client.mcpCreateIssue).toBe("function");
-			expect(typeof client.mcpUpdateIssue).toBe("function");
-			expect(typeof client.mcpCreateComment).toBe("function");
+			// Test that the public API methods exist and are ready for MCP integration
+			expect(typeof client.createIssueFromTestFlight).toBe("function");
+			expect(typeof client.updateIssueStatus).toBe("function");
+			expect(typeof client.addCommentToIssue).toBe("function");
+			expect(typeof client.getTeam).toBe("function");
+			expect(typeof client.healthCheck).toBe("function");
 		});
 	});
 });

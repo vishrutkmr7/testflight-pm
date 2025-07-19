@@ -33,8 +33,8 @@ export class AppStoreConnectAuth {
 	 */
 	public async getValidToken(): Promise<string> {
 		try {
-			if (this.isTokenValid()) {
-				return this.currentToken?.token;
+			if (this.isTokenValid() && this.currentToken) {
+				return this.currentToken.token;
 			}
 
 			return await this.generateNewToken();
@@ -62,7 +62,7 @@ export class AppStoreConnectAuth {
 		const now = new Date();
 		const refreshThreshold = new Date(
 			this.currentToken.expiresAt.getTime() -
-				this.refreshThresholdMinutes * 60 * 1000,
+			this.refreshThresholdMinutes * 60 * 1000,
 		);
 
 		return now < refreshThreshold;
