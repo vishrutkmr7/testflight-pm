@@ -8,7 +8,10 @@
 		"test:auth": "bun run src/cli/test-testflight.ts test-auth",
 		"test:fetch": "bun run src/cli/test-testflight.ts fetch-all --limit 5",
 		"test:integration": "bun run src/cli/test-testflight.ts fetch-all --verbose",
-		"test:testflight": "bun run src/cli/test-testflight.ts"
+		"test:testflight": "bun run src/cli/test-testflight.ts",
+		"test:webhook": "bun test tests/webhook-receiver.test.ts",
+		"webhook:start": "bun run src/cli/webhook-server.ts",
+		"webhook:dev": "WEBHOOK_SECRET=dev-secret-key WEBHOOK_PORT=3001 bun run src/cli/webhook-server.ts"
 	},
 	"devDependencies": {
 		"@types/bun": "latest"
