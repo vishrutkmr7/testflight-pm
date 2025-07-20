@@ -4,7 +4,9 @@
  * Supports both local development and GitHub Action contexts
  */
 
+import * as core from "@actions/core";
 import { ERROR_MESSAGES } from "./constants.js";
+import type { LLMEnhancementConfig, LLMProvider } from "./llm-config.js";
 
 export interface AppStoreConnectConfig {
 	issuerId: string;
@@ -38,6 +40,23 @@ export interface EnvironmentConfig {
 	github?: GitHubConfig;
 	linear?: LinearConfig;
 	webhook?: WebhookConfig;
+	llm?: LLMEnhancementConfig; // Added for LLM configuration
+	processing?: {
+		enableDuplicateDetection: boolean;
+		duplicateDetectionDays: number;
+		enableCodebaseAnalysis: boolean;
+		codebaseAnalysisDepth: string;
+		minFeedbackLength: number;
+		processingWindowHours: number;
+		workspaceRoot: string;
+	};
+	labels?: {
+		crash: string[];
+		feedback: string[];
+		additional: string[];
+	};
+	debug: boolean;
+	dryRun: boolean;
 }
 
 /**
@@ -231,16 +250,107 @@ export function loadEnvironmentConfig(): EnvironmentConfig {
 			}
 		}
 
-		// Validate that at least one issue tracker is configured
-		if (!github && !linear) {
-			const message =
-				"Neither GitHub nor Linear configuration found. Issue creation will be disabled.";
-			if (isGitHubAction) {
-				throw new Error(message);
-			}
-			console.warn(`Warning: ${message}`);
-		}
+		// LLM Configuration from environment
+		const llmConfig =
+			core.getInput("enable_llm_enhancement") === "true"
+				? {
+						enabled: true,
+						primaryProvider: (core.getInput("llm_provider") ||
+							"openai") as LLMProvider,
+						fallbackProviders: (
+							core.getInput("llm_fallback_providers") || "anthropic,google"
+						)
+							.split(",")
+							.map((p: string) => p.trim()) as LLMProvider[],
 
+						providers: {
+							openai: {
+								apiKey:
+									core.getInput("openai_api_key") ||
+									process.env.OPENAI_API_KEY ||
+									"",
+								model: core.getInput("openai_model") || "gpt-4.1-mini",
+								maxTokens: 4000,
+								temperature: 0.1,
+								timeout: 30000,
+								maxRetries: 3,
+							},
+							anthropic: {
+								apiKey:
+									core.getInput("anthropic_api_key") ||
+									process.env.ANTHROPIC_API_KEY ||
+									"",
+								model: core.getInput("anthropic_model") || "claude-3.7-sonnet",
+								maxTokens: 4000,
+								temperature: 0.1,
+								timeout: 30000,
+								maxRetries: 3,
+							},
+							google: {
+								apiKey:
+									core.getInput("google_api_key") ||
+									process.env.GOOGLE_API_KEY ||
+									"",
+								model: core.getInput("google_model") || "gemini-2.0-flash",
+								maxTokens: 4000,
+								temperature: 0.1,
+								timeout: 30000,
+								maxRetries: 3,
+							},
+							deepseek: {
+								apiKey:
+									core.getInput("deepseek_api_key") ||
+									process.env.DEEPSEEK_API_KEY ||
+									"",
+								model: core.getInput("deepseek_model") || "deepseek-v3",
+								maxTokens: 4000,
+								temperature: 0.1,
+								timeout: 30000,
+								maxRetries: 3,
+							},
+							xai: {
+								apiKey:
+									core.getInput("xai_api_key") || process.env.XAI_API_KEY || "",
+								model: core.getInput("xai_model") || "grok-3",
+								maxTokens: 4000,
+								temperature: 0.1,
+								timeout: 30000,
+								maxRetries: 3,
+							},
+						},
+
+						costControls: {
+							maxCostPerRun: parseFloat(
+								core.getInput("max_llm_cost_per_run") || "5.00",
+							),
+							maxCostPerMonth: parseFloat(
+								core.getInput("max_llm_cost_per_month") || "200.00",
+							),
+							maxTokensPerIssue: parseInt(
+								core.getInput("max_tokens_per_issue") || "4000",
+								10,
+							),
+							enableCostAlerts: true,
+							preventOverage: true,
+						},
+						features: {
+							codebaseAnalysis:
+								core.getBooleanInput("enable_codebase_analysis") || true,
+							screenshotAnalysis: true,
+							priorityClassification: true,
+							labelGeneration: true,
+							assigneeRecommendation: false,
+						},
+						security: {
+							anonymizeData: false,
+							excludeSensitiveInfo: true,
+							logRequestsResponses: false,
+							enableDataRetentionPolicy: false,
+						},
+					}
+				: undefined;
+
+		// Enhanced environment configuration export
 		const config: EnvironmentConfig = {
 			nodeEnv:
 				(process.env.NODE_ENV as "development" | "production" | "test") ||
@@ -253,6 +363,47 @@ export function loadEnvironmentConfig(): EnvironmentConfig {
 			github,
 			linear,
 			webhook,
+			llm: llmConfig,
+			processing: {
+				enableDuplicateDetection: core.getBooleanInput(
+					"enable_duplicate_detection",
+				),
+				duplicateDetectionDays: parseInt(
+					core.getInput("duplicate_detection_days") || "7",
+					10,
+				),
+				enableCodebaseAnalysis: core.getBooleanInput(
+					"enable_codebase_analysis",
+				),
+				codebaseAnalysisDepth:
+					core.getInput("codebase_analysis_depth") || "moderate",
+				minFeedbackLength: parseInt(
+					core.getInput("min_feedback_length") || "10",
+					10,
+				),
+				processingWindowHours: parseInt(
+					core.getInput("processing_window_hours") || "24",
+					10,
+				),
+				workspaceRoot: core.getInput("workspace_root") || ".",
+			},
+			labels: {
+				crash: (core.getInput("crash_labels") || "bug,crash,testflight")
+					.split(",")
+					.map((l: string) => l.trim()),
+				feedback: (
+					core.getInput("feedback_labels") || "enhancement,feedback,testflight"
+				)
+					.split(",")
+					.map((l: string) => l.trim()),
+				additional: core
+					.getInput("additional_labels")
+					.split(",")
+					.map((l: string) => l.trim())
+					.filter((l: string) => l.length > 0),
+			},
+			debug: core.getBooleanInput("debug") || getEnvVar("DEBUG") === "true",
+			dryRun: core.getBooleanInput("dry_run"),
 		};
 
 		return config;

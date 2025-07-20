@@ -1,242 +1,330 @@
-# TestFlight PM GitHub Action
+# TestFlight PM - GitHub Action
 
-Automatically monitor TestFlight feedback and create GitHub or Linear issues from crashes and user feedback. This GitHub Action securely processes TestFlight data and creates actionable development tasks with rich context and metadata.
+Intelligent TestFlight feedback processing with AI-powered issue enhancement and automated issue creation for GitHub and Linear.
 
-## 🚀 Features
+## ✨ Features
 
-- **Automated Issue Creation**: Convert TestFlight crashes and feedback into GitHub Issues or Linear tasks
-- **Rich Context**: Include device info, app versions, stack traces, and user feedback
-- **Secure Authentication**: Uses App Store Connect API with industry-standard security
-- **Smart Filtering**: Configurable feedback types, priority detection, and duplicate prevention
-- **Rate Limited**: Respects API limits with intelligent retry mechanisms
+- 🤖 **AI-Enhanced Issues** - Intelligent issue titles, descriptions, and categorization using OpenAI, Anthropic, Google, DeepSeek, or xAI
+- 🔍 **Smart Code Analysis** - Automatically correlate feedback with relevant code areas in your repository
+- 📱 **TestFlight Integration** - Process crash reports and user feedback from TestFlight automatically
+- 🎯 **Multi-Platform** - Create issues in GitHub Issues or Linear
+- 🔄 **Duplicate Prevention** - Smart duplicate detection to avoid creating redundant issues
+- 💰 **Cost Controls** - Built-in LLM usage tracking and spending limits
+- 🔒 **Secure** - All credentials stored securely in GitHub Secrets
 
-## 📋 Usage
+## 🚀 Quick Setup
 
-### Basic Setup
+### 1. Add Required Secrets
+
+Go to your repository **Settings → Secrets and variables → Actions** and add:
+
+#### TestFlight (Required)
+```
+TESTFLIGHT_ISSUER_ID       # Your App Store Connect Issuer ID
+TESTFLIGHT_KEY_ID          # Your App Store Connect Key ID
+TESTFLIGHT_PRIVATE_KEY     # Your private key content (full .p8 file content)
+TESTFLIGHT_APP_ID          # Your TestFlight App ID
+```
+
+#### Platform Secrets (Choose one or both)
+
+**For GitHub Issues:**
+```
+GITHUB_TOKEN               # GitHub Personal Access Token with repo permissions
+```
+
+**For Linear:**
+```
+LINEAR_API_TOKEN           # Linear API Token
+LINEAR_TEAM_ID             # Your Linear Team ID
+```
+
+#### AI Enhancement (Optional but Recommended)
+```
+OPENAI_API_KEY             # OpenAI API key for GPT models
+ANTHROPIC_API_KEY          # Anthropic API key for Claude models (optional)
+GOOGLE_API_KEY             # Google API key for Gemini models (optional)
+DEEPSEEK_API_KEY           # DeepSeek API key (optional)
+XAI_API_KEY                # xAI API key for Grok models (optional)
+```
+
+### 2. Create Workflow File
+
+Create `.github/workflows/testflight-pm.yml`:
 
 ```yaml
-name: Process TestFlight Feedback
+name: TestFlight Issue Management
+
 on:
   schedule:
-    - cron: '0 */6 * * *'  # Every 6 hours
-  workflow_dispatch:
+    - cron: '0 */6 * * *'  # Run every 6 hours
+  workflow_dispatch:        # Allow manual triggers
 
 jobs:
-  testflight-feedback:
+  process-testflight-feedback:
     runs-on: ubuntu-latest
     steps:
       - name: Process TestFlight Feedback
         uses: vishrutkmr7/testflight-pm@v1
         with:
-          # Required: App Store Connect API credentials
-          app-store-connect-issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          app-store-connect-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          app-store-connect-private-key: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+          # TestFlight Configuration
+          testflight_issuer_id: ${{ secrets.TESTFLIGHT_ISSUER_ID }}
+          testflight_key_id: ${{ secrets.TESTFLIGHT_KEY_ID }}
+          testflight_private_key: ${{ secrets.TESTFLIGHT_PRIVATE_KEY }}
+          app_id: ${{ secrets.TESTFLIGHT_APP_ID }}
           
-          # Required: TestFlight app configuration
-          testflight-bundle-id: 'com.yourcompany.yourapp'
+          # Platform (choose 'github', 'linear', or 'both')
+          platform: 'github'
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           
-          # Optional: Issue creation configuration
-          create-github-issues: true
-          create-linear-issues: false
+          # AI Enhancement
+          enable_llm_enhancement: 'true'
+          openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+          max_llm_cost_per_run: '2.00'
 ```
 
-### Advanced Configuration
+### 3. Run Your First Workflow
 
-```yaml
-      - name: Process TestFlight Feedback
-        uses: vishrutkmr7/testflight-pm@v1
-        with:
-          # App Store Connect Configuration
-          app-store-connect-issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          app-store-connect-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          app-store-connect-private-key: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
-          testflight-app-id: '1234567890'
-          testflight-bundle-id: 'com.yourcompany.yourapp'
-          
-          # Filtering Options
-          feedback-types: 'all'  # 'crashes', 'screenshots', or 'all'
-          monitor-since: '24h'   # Time period to check
-          max-issues-per-run: 10
-          
-          # GitHub Issues (uses repository context by default)
-          create-github-issues: true
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          issue-labels: 'testflight,feedback,bug'
-          crash-issue-labels: 'bug,crash,urgent'
-          feedback-issue-labels: 'enhancement,user-feedback'
-          
-          # Linear Integration (optional)
-          create-linear-issues: false
-          linear-api-token: ${{ secrets.LINEAR_API_TOKEN }}
-          linear-team-id: ${{ secrets.LINEAR_TEAM_ID }}
-          
-          # Additional Options
-          duplicate-detection: true
-          include-device-info: true
-          include-app-version: true
-          dry-run: false
+- Go to **Actions** tab in your repository
+- Click on **TestFlight Issue Management**
+- Click **Run workflow** → **Run workflow**
+
+That's it! The action will process your TestFlight feedback and create enhanced issues.
+
+## 📋 Configuration Options
+
+### Core Configuration
+
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `testflight_issuer_id` | ✅ | - | App Store Connect API Issuer ID |
+| `testflight_key_id` | ✅ | - | App Store Connect API Key ID |
+| `testflight_private_key` | ✅ | - | App Store Connect private key (.p8 file content) |
+| `app_id` | ✅ | - | TestFlight App ID |
+
+### Platform Configuration
+
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `platform` | ❌ | `github` | Where to create issues: `github`, `linear`, or `both` |
+| `github_token` | ❌ | - | GitHub token (required if platform includes `github`) |
+| `github_owner` | ❌ | auto-detected | GitHub repository owner |
+| `github_repo` | ❌ | auto-detected | GitHub repository name |
+| `linear_api_token` | ❌ | - | Linear API token (required if platform includes `linear`) |
+| `linear_team_id` | ❌ | - | Linear team ID (required if platform includes `linear`) |
+
+### AI Enhancement
+
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `enable_llm_enhancement` | ❌ | `false` | Enable AI-powered issue enhancement |
+| `llm_provider` | ❌ | `openai` | Primary AI provider: `openai`, `anthropic`, `google`, `deepseek`, `xai` |
+| `llm_fallback_providers` | ❌ | `anthropic,google` | Comma-separated fallback providers |
+| `max_llm_cost_per_run` | ❌ | `5.00` | Maximum AI cost per workflow run (USD) |
+| `max_llm_cost_per_month` | ❌ | `200.00` | Maximum AI cost per month (USD) |
+
+### Processing Options
+
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `enable_duplicate_detection` | ❌ | `true` | Prevent creating duplicate issues |
+| `enable_codebase_analysis` | ❌ | `true` | Analyze code to find relevant areas |
+| `enable_crash_processing` | ❌ | `true` | Process crash reports |
+| `enable_feedback_processing` | ❌ | `true` | Process user feedback |
+| `processing_window_hours` | ❌ | `24` | Hours to look back for new feedback |
+| `min_feedback_length` | ❌ | `10` | Minimum feedback text length to process |
+
+### Labeling
+
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `crash_labels` | ❌ | `bug,crash,testflight` | Labels for crash issues |
+| `feedback_labels` | ❌ | `enhancement,feedback,testflight` | Labels for feedback issues |
+| `additional_labels` | ❌ | - | Additional labels for all issues |
+
+## 🤖 AI Enhancement Examples
+
+### Without AI Enhancement
+```
+Title: App Crash
+Body: User reported app crashed when tapping login button
+Labels: bug, crash, testflight
 ```
 
-## 🔐 Required Secrets
+### With AI Enhancement
+```
+Title: 💥 Authentication Crash - NSInvalidArgumentException in LoginViewController
+Body: 
+## Issue Summary
+Critical authentication flow crash when user attempts login, likely due to null parameter validation failure.
 
-### App Store Connect API
+## Technical Analysis
+- **Exception Type:** NSInvalidArgumentException  
+- **Component:** LoginViewController.signInButtonTapped
+- **Severity:** High - Prevents app access
+- **Confidence:** 0.95
 
-1. Go to [App Store Connect](https://appstoreconnect.apple.com/)
-2. Navigate to **Users and Access** → **Integrations** → **App Store Connect API**
-3. Click **Generate API Key**
-4. Configure the key with **App Manager** permissions
-5. Download the `.p8` file immediately (only available once)
-6. Add these secrets to your GitHub repository:
+## Suggested Investigation Areas
+- Check null validation for username/password fields
+- Review AuthenticationManager error handling
+- Validate network connectivity handling
 
-| Secret Name | Description | Example |
-|-------------|-------------|---------|
-| `APP_STORE_CONNECT_ISSUER_ID` | Issuer ID from App Store Connect | `57246542-96fe-1a63-e053-0824d011072a` |
-| `APP_STORE_CONNECT_KEY_ID` | Key ID from your API key | `2X9R4HXF34` |
-| `APP_STORE_CONNECT_PRIVATE_KEY` | Complete content of your .p8 file | `-----BEGIN PRIVATE KEY-----\nMIGT...` |
-
-### Optional Secrets
-
-For Linear integration:
-- `LINEAR_API_TOKEN`: Your Linear API token
-- `LINEAR_TEAM_ID`: Your Linear team identifier
-
-## 📝 Action Inputs
-
-| Input | Description | Required | Default |
-|-------|-------------|----------|---------|
-| `app-store-connect-issuer-id` | App Store Connect API Issuer ID | ✅ | - |
-| `app-store-connect-key-id` | App Store Connect API Key ID | ✅ | - |
-| `app-store-connect-private-key` | App Store Connect API Private Key | ✅ | - |
-| `testflight-bundle-id` | App Bundle ID (e.g., com.company.app) | ✅ | - |
-| `testflight-app-id` | TestFlight App ID | ❌ | - |
-| `create-github-issues` | Create GitHub issues | ❌ | `true` |
-| `create-linear-issues` | Create Linear issues | ❌ | `false` |
-| `github-token` | GitHub token for creating issues | ❌ | `${{ github.token }}` |
-| `github-owner` | GitHub repository owner | ❌ | Current repo owner |
-| `github-repo` | GitHub repository name | ❌ | Current repo name |
-| `linear-api-token` | Linear API token | ❌ | - |
-| `linear-team-id` | Linear team ID | ❌ | - |
-| `feedback-types` | Types to process: 'crashes', 'screenshots', 'all' | ❌ | `all` |
-| `monitor-since` | Time period to check (e.g., '24h', '7d') | ❌ | `24h` |
-| `max-issues-per-run` | Maximum issues to create per run | ❌ | `10` |
-| `issue-labels` | Base labels for all issues | ❌ | `testflight,feedback` |
-| `crash-issue-labels` | Additional labels for crash issues | ❌ | `bug,crash,urgent` |
-| `feedback-issue-labels` | Additional labels for feedback issues | ❌ | `enhancement,user-feedback` |
-| `duplicate-detection` | Enable duplicate issue detection | ❌ | `true` |
-| `include-device-info` | Include device information in issues | ❌ | `true` |
-| `include-app-version` | Include app version in issues | ❌ | `true` |
-| `dry-run` | Log actions without creating issues | ❌ | `false` |
-
-## 📊 Action Outputs
-
-| Output | Description |
-|--------|-------------|
-| `issues-created` | Number of issues created |
-| `crashes-processed` | Number of crashes processed |
-| `feedback-processed` | Number of feedback items processed |
-| `errors-encountered` | Number of errors encountered |
-| `summary` | Summary of the action run |
-
-## 📋 Example Workflows
-
-### Process All Feedback Every 6 Hours
-
-```yaml
-name: TestFlight Feedback Monitor
-on:
-  schedule:
-    - cron: '0 */6 * * *'
-
-jobs:
-  monitor:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: vishrutkmr7/testflight-pm@v1
-        with:
-          app-store-connect-issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          app-store-connect-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          app-store-connect-private-key: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
-          testflight-bundle-id: 'com.yourcompany.yourapp'
+## Code Areas
+- `LoginViewController.swift:42-67` (0.95 confidence)
+- `AuthenticationManager.swift:120-145` (0.87 confidence)
 ```
 
-### Process Only Crashes with High Priority
+## 📊 Workflow Outputs
+
+The action provides detailed outputs you can use in subsequent steps:
 
 ```yaml
-name: Critical Crash Monitor
+- name: Process TestFlight Feedback  
+  id: testflight
+  uses: vishrutkmr7/testflight-pm@v1
+  with:
+    # ... configuration
+
+- name: Report Results
+  run: |
+    echo "Issues created: ${{ steps.testflight.outputs.issues_created }}"
+    echo "AI cost: ${{ steps.testflight.outputs.llm_cost_incurred }}"
+    echo "Processing time: ${{ fromJSON(steps.testflight.outputs.processing_summary).processingTime }}ms"
+```
+
+Available outputs:
+- `issues_created` - Number of new issues created
+- `issues_updated` - Number of existing issues updated  
+- `crashes_processed` - Number of crash reports processed
+- `feedback_processed` - Number of feedback items processed
+- `llm_requests_made` - Number of AI API calls made
+- `llm_cost_incurred` - Total AI cost in USD
+- `processing_summary` - JSON object with detailed results
+
+## 🔧 Advanced Examples
+
+### Multi-Platform with Custom Labels
+
+```yaml
+- uses: vishrutkmr7/testflight-pm@v1
+  with:
+    testflight_issuer_id: ${{ secrets.TESTFLIGHT_ISSUER_ID }}
+    testflight_key_id: ${{ secrets.TESTFLIGHT_KEY_ID }}
+    testflight_private_key: ${{ secrets.TESTFLIGHT_PRIVATE_KEY }}
+    app_id: ${{ secrets.TESTFLIGHT_APP_ID }}
+    
+    # Create issues in both GitHub and Linear
+    platform: 'both'
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    linear_api_token: ${{ secrets.LINEAR_API_TOKEN }}
+    linear_team_id: ${{ secrets.LINEAR_TEAM_ID }}
+    
+    # Custom labeling
+    crash_labels: 'critical,crash,ios,needs-triage'
+    feedback_labels: 'enhancement,user-request,ios'
+    additional_labels: 'mobile,testflight'
+```
+
+### AI-Enhanced with Multiple Providers
+
+```yaml
+- uses: vishrutkmr7/testflight-pm@v1
+  with:
+    testflight_issuer_id: ${{ secrets.TESTFLIGHT_ISSUER_ID }}
+    testflight_key_id: ${{ secrets.TESTFLIGHT_KEY_ID }}
+    testflight_private_key: ${{ secrets.TESTFLIGHT_PRIVATE_KEY }}
+    app_id: ${{ secrets.TESTFLIGHT_APP_ID }}
+    
+    platform: 'github'
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    
+    # AI configuration with fallbacks
+    enable_llm_enhancement: 'true'
+    llm_provider: 'openai'
+    llm_fallback_providers: 'anthropic,google,deepseek'
+    
+    # API keys for multiple providers
+    openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    google_api_key: ${{ secrets.GOOGLE_API_KEY }}
+    deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
+    
+    # Cost controls
+    max_llm_cost_per_run: '10.00'
+    max_llm_cost_per_month: '500.00'
+```
+
+### High-Frequency Processing
+
+```yaml
+name: TestFlight Real-time Processing
+
 on:
   schedule:
     - cron: '0 * * * *'  # Every hour
+  workflow_dispatch:
 
 jobs:
-  monitor-crashes:
+  testflight-pm:
     runs-on: ubuntu-latest
     steps:
       - uses: vishrutkmr7/testflight-pm@v1
         with:
-          app-store-connect-issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          app-store-connect-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          app-store-connect-private-key: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
-          testflight-bundle-id: 'com.yourcompany.yourapp'
-          feedback-types: 'crashes'
-          crash-issue-labels: 'critical,bug,crash,urgent'
-          max-issues-per-run: 5
+          testflight_issuer_id: ${{ secrets.TESTFLIGHT_ISSUER_ID }}
+          testflight_key_id: ${{ secrets.TESTFLIGHT_KEY_ID }}
+          testflight_private_key: ${{ secrets.TESTFLIGHT_PRIVATE_KEY }}
+          app_id: ${{ secrets.TESTFLIGHT_APP_ID }}
+          
+          platform: 'github'
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          
+          # Process only last 2 hours to avoid duplicates
+          processing_window_hours: '2'
+          
+          # Enable all enhancements for critical issues
+          enable_llm_enhancement: 'true'
+          enable_codebase_analysis: 'true'
+          enable_duplicate_detection: 'true'
+          
+          openai_api_key: ${{ secrets.OPENAI_API_KEY }}
 ```
 
-### Dual Integration (GitHub + Linear)
+## 🔒 Security Best Practices
 
-```yaml
-name: Full Integration Monitor
-on:
-  schedule:
-    - cron: '0 8,20 * * *'  # 8 AM and 8 PM daily
+1. **Never commit API keys** - Always use GitHub Secrets
+2. **Use least privilege tokens** - GitHub tokens should only have necessary permissions
+3. **Monitor costs** - Set reasonable LLM cost limits
+4. **Review generated content** - AI-generated issues may need human review for sensitive projects
 
-jobs:
-  monitor:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: vishrutkmr7/testflight-pm@v1
-        with:
-          app-store-connect-issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          app-store-connect-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          app-store-connect-private-key: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
-          testflight-bundle-id: 'com.yourcompany.yourapp'
-          create-github-issues: true
-          create-linear-issues: true
-          linear-api-token: ${{ secrets.LINEAR_API_TOKEN }}
-          linear-team-id: ${{ secrets.LINEAR_TEAM_ID }}
-```
-
-## 🔒 Security
-
-- **Zero Hardcoded Secrets**: All credentials managed through GitHub repository secrets
-- **Secure JWT Authentication**: Industry-standard ES256 token generation for App Store Connect
-- **No Secret Exposure**: Credentials never appear in logs or error messages
-- **Rate Limiting**: Intelligent API rate limit handling with automatic backoff
-- **Input Validation**: Strict validation of all inputs and credentials
-
-## 🛠️ Troubleshooting
+## ❓ Troubleshooting
 
 ### Common Issues
 
-**Authentication Fails**
-- Verify your App Store Connect API credentials are correct
-- Ensure the API key has sufficient permissions (App Manager minimum)
-- Check that the private key includes the full PEM format with headers
+**"TestFlight credentials invalid"**
+- Verify your App Store Connect API credentials
+- Ensure the private key is the complete .p8 file content
+- Check that the Issuer ID and Key ID match your App Store Connect API key
 
-**No Issues Created**
-- Verify there's TestFlight feedback in the specified time period
-- Check the `dry-run` input isn't set to `true`
-- Ensure the bundle ID matches your TestFlight app
+**"No issues created"**
+- Check if there's new TestFlight feedback in the processing window
+- Verify the app_id matches your TestFlight app
+- Enable debug mode: `debug: 'true'`
 
-**Rate Limiting**
-- The action automatically handles rate limits with backoff
-- Consider reducing `max-issues-per-run` if encountering persistent rate limits
+**"AI enhancement failed"**
+- Verify your AI provider API key is valid
+- Check cost limits aren't exceeded
+- Try enabling fallback providers
 
-## 📄 License
+**"Permission denied"**
+- Ensure GitHub token has `repo` permissions
+- For Linear, verify the API token has write access to your team
 
-MIT License - See [LICENSE](LICENSE) for details.
+### Getting Help
 
----
+- 🐛 [Report Issues](https://github.com/vishrutkmr7/testflight-pm/issues)
+- 💬 [Discussions](https://github.com/vishrutkmr7/testflight-pm/discussions)
+- 📖 [Full Documentation](https://github.com/vishrutkmr7/testflight-pm/wiki)
 
-**Security Notice**: Keep your App Store Connect API credentials secure. If compromised, immediately revoke the API key in App Store Connect and generate a new one.
+## 📜 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

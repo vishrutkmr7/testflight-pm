@@ -1,484 +1,316 @@
-#!/usr/bin/env bun
-
 /**
- * TestFlight PM GitHub Action Entry Point
- * Main script that runs when the action is executed
+ * GitHub Action Entrypoint for TestFlight PM Enhanced Processing
+ * Integrates LLM enhancement and codebase analysis for intelligent issue creation
  */
 
-import { getAuthInstance } from "./src/api/app-store-connect-auth.js";
-import { validateLinearConfig } from "./src/api/linear-client.js";
+import * as core from "@actions/core";
+import type { CodebaseAnalyzer } from "./src/analysis/codebase-analyzer.js";
+import { getCodebaseAnalyzer } from "./src/analysis/codebase-analyzer.js";
+import type { LLMClient } from "./src/api/llm-client.js";
+import { getLLMClient } from "./src/api/llm-client.js";
 import { getTestFlightClient } from "./src/api/testflight-client.js";
-import { ACTION_DEFAULTS, DEFAULT_LABELS } from "./src/config/constants.js";
 import { getConfig } from "./src/config/environment.js";
-import type { LinearIssueCreationOptions } from "./src/utils/linear-utils.js";
+import type { EnhancedIssueCreationResult } from "./src/integrations/llm-enhanced-creator.js";
+import type { IdempotencyService } from "./src/utils/idempotency-service.js";
+import { getIdempotencyService } from "./src/utils/idempotency-service.js";
+import type { ProcessingWindow } from "./src/utils/processing-window.js";
 import {
-	createLinearIssueFromFeedback,
-	determineFeedbackPriority,
-	generateFeedbackLabels,
-	getLinearIntegrationHealth,
-} from "./src/utils/linear-utils.js";
+	type IssueCreationResult,
+	IssueServiceFactory,
+} from "./src/utils/service-factory.js";
+import { getStateManager } from "./src/utils/state-manager.js";
 import type { ProcessedFeedbackData } from "./types/testflight.js";
 
-interface ActionInputs {
-	createGithubIssues: boolean;
-	createLinearIssues: boolean;
-	monitorSince?: string;
-	maxIssuesPerRun: number;
-	feedbackTypes: "crashes" | "screenshots" | "all";
-	issueLabels: string[];
-	crashIssueLabels: string[];
-	feedbackIssueLabels: string[];
-	duplicateDetection: boolean;
-	includeDeviceInfo: boolean;
-	includeAppVersion: boolean;
-	dryRun: boolean;
+interface ActionResults {
+	feedbackId: string;
+	issueCreated: boolean;
+	issueUpdated: boolean;
+	issueUrl: string;
+	processingTime: number;
 }
 
-interface ActionOutputs {
-	issuesCreated: number;
-	crashesProcessed: number;
-	feedbackProcessed: number;
-	errorsEncountered: number;
-	summary: string;
+interface WorkflowState {
+	testFlightClient: ReturnType<typeof getTestFlightClient>;
+	processingWindow: ProcessingWindow;
+	enableLLMEnhancement: boolean;
+	enableCodebaseAnalysis: boolean;
+	enableDuplicateDetection: boolean;
+	llmClient: LLMClient | null;
+	codebaseAnalyzer: CodebaseAnalyzer | null;
+	serviceFactory: IssueServiceFactory;
+	idempotencyService: IdempotencyService;
+	isDryRun: boolean;
 }
 
-/**
- * GitHub Actions output functions
- */
-function setOutput(name: string, value: string): void {
-	console.log(`::set-output name=${name}::${value}`);
-}
-
-function setInfo(message: string): void {
-	console.log(`::notice::${message}`);
-}
-
-function setWarning(message: string): void {
-	console.log(`::warning::${message}`);
-}
-
-function setError(message: string): void {
-	console.log(`::error::${message}`);
-}
-
-function _setDebug(message: string): void {
-	console.log(`::debug::${message}`);
-}
-
-/**
- * Parse action inputs from environment variables
- */
-function parseActionInputs(): ActionInputs {
-	return {
-		createGithubIssues:
-			process.env.INPUT_CREATE_GITHUB_ISSUES?.toLowerCase() === "true",
-		createLinearIssues:
-			process.env.INPUT_CREATE_LINEAR_ISSUES?.toLowerCase() === "true",
-		monitorSince: process.env.INPUT_MONITOR_SINCE,
-		maxIssuesPerRun: Number.parseInt(
-			process.env.INPUT_MAX_ISSUES_PER_RUN ||
-				ACTION_DEFAULTS.MAX_ISSUES_PER_RUN.toString(),
-			10,
-		),
-		feedbackTypes:
-			(process.env.INPUT_FEEDBACK_TYPES as "crashes" | "screenshots" | "all") ||
-			ACTION_DEFAULTS.FEEDBACK_TYPES,
-		issueLabels: (
-			process.env.INPUT_ISSUE_LABELS || DEFAULT_LABELS.BASE.join(",")
-		)
-			.split(",")
-			.map((l) => l.trim()),
-		crashIssueLabels: (
-			process.env.INPUT_CRASH_ISSUE_LABELS || DEFAULT_LABELS.CRASH.join(",")
-		)
-			.split(",")
-			.map((l) => l.trim()),
-		feedbackIssueLabels: (
-			process.env.INPUT_FEEDBACK_ISSUE_LABELS ||
-			DEFAULT_LABELS.FEEDBACK.join(",")
-		)
-			.split(",")
-			.map((l) => l.trim()),
-		duplicateDetection:
-			(
-				process.env.INPUT_DUPLICATE_DETECTION ||
-				ACTION_DEFAULTS.DUPLICATE_DETECTION.toString()
-			).toLowerCase() === "true",
-		includeDeviceInfo:
-			(
-				process.env.INPUT_INCLUDE_DEVICE_INFO ||
-				ACTION_DEFAULTS.INCLUDE_DEVICE_INFO.toString()
-			).toLowerCase() === "true",
-		includeAppVersion:
-			(
-				process.env.INPUT_INCLUDE_APP_VERSION ||
-				ACTION_DEFAULTS.INCLUDE_APP_VERSION.toString()
-			).toLowerCase() === "true",
-		dryRun:
-			(
-				process.env.INPUT_DRY_RUN || ACTION_DEFAULTS.DRY_RUN.toString()
-			).toLowerCase() === "true",
-	};
-}
-
-/**
- * Determines monitoring start date
- */
-function getMonitoringSince(inputs: ActionInputs): Date {
-	if (inputs.monitorSince) {
-		try {
-			return new Date(inputs.monitorSince);
-		} catch (_error) {
-			setWarning(
-				`Invalid monitor-since date: ${inputs.monitorSince}. Using default (24 hours ago).`,
-			);
-		}
-	}
-
-	// Default to 24 hours ago
-	const since = new Date();
-	since.setHours(since.getHours() - 24);
-	return since;
-}
-
-/**
- * Filters feedback based on input configuration
- */
-function filterFeedback(
-	allFeedback: ProcessedFeedbackData[],
-	inputs: ActionInputs,
-): ProcessedFeedbackData[] {
-	let filtered = allFeedback;
-
-	// Filter by feedback type
-	if (inputs.feedbackTypes !== "all") {
-		if (inputs.feedbackTypes === "crashes") {
-			filtered = filtered.filter((f) => f.type === "crash");
-		} else if (inputs.feedbackTypes === "screenshots") {
-			filtered = filtered.filter((f) => f.type === "screenshot");
-		}
-	}
-
-	// Limit the number of items to process
-	if (filtered.length > inputs.maxIssuesPerRun) {
-		setWarning(
-			`Found ${filtered.length} feedback items, but limiting to ${inputs.maxIssuesPerRun} per action run.`,
-		);
-		filtered = filtered.slice(0, inputs.maxIssuesPerRun);
-	}
-
-	return filtered;
-}
-
-/**
- * Generates issue title with configurable options
- */
-function generateIssueTitle(
-	feedback: ProcessedFeedbackData,
-	inputs: ActionInputs,
-): string {
-	const typeIcon = feedback.type === "crash" ? "💥" : "📱";
-	const typeLabel = feedback.type === "crash" ? "Crash" : "Feedback";
-
-	let title = `${typeIcon} ${typeLabel}`;
-
-	if (inputs.includeAppVersion) {
-		title += `: ${feedback.appVersion}`;
-		if (feedback.buildNumber) {
-			title += ` (${feedback.buildNumber})`;
-		}
-	}
-
-	if (feedback.type === "crash" && feedback.crashData?.exceptionType) {
-		title += ` - ${feedback.crashData.exceptionType}`;
-	} else if (feedback.type === "screenshot" && feedback.screenshotData?.text) {
-		const shortText = feedback.screenshotData.text.substring(0, 50);
-		title += ` - ${shortText}${shortText.length < feedback.screenshotData.text.length ? "..." : ""}`;
-	}
-
-	if (inputs.includeDeviceInfo) {
-		title += ` (${feedback.deviceInfo.model})`;
-	}
-
-	return title;
-}
-
-/**
- * Create GitHub issue (placeholder - will be implemented when GitHub API integration is ready)
- */
-async function createGitHubIssue(
-	feedback: ProcessedFeedbackData,
-	inputs: ActionInputs,
-): Promise<boolean> {
-	if (inputs.dryRun) {
-		setInfo(
-			`[DRY RUN] Would create GitHub issue: ${generateIssueTitle(feedback, inputs)}`,
-		);
-		return true;
-	}
-
-	// TODO: Implement GitHub Issues API integration (VJ-17)
-	setWarning(
-		"GitHub Issues integration not yet implemented. Issue creation skipped.",
-	);
-	return false;
-}
-
-/**
- * Create Linear issue using the new Linear integration
- */
-async function createLinearIssue(
-	feedback: ProcessedFeedbackData,
-	inputs: ActionInputs,
-): Promise<boolean> {
-	if (inputs.dryRun) {
-		setInfo(
-			`[DRY RUN] Would create Linear issue: ${generateIssueTitle(feedback, inputs)}`,
-		);
-		return true;
-	}
-
+async function run(): Promise<void> {
 	try {
-		// Check if Linear is configured
-		if (!validateLinearConfig()) {
-			setWarning(
-				"Linear integration not configured. Please set LINEAR_API_TOKEN and LINEAR_TEAM_ID.",
-			);
-			return false;
-		}
+		// Load and validate configuration
+		core.info("🚀 Starting TestFlight PM Enhanced Processing");
+		const _config = getConfig();
 
-		// Determine priority and labels based on feedback type
-		const priority = determineFeedbackPriority(feedback);
-		const feedbackLabels = generateFeedbackLabels(feedback);
+		// Get processing configuration
+		const enableLLMEnhancement = core.getBooleanInput("enable_llm_enhancement");
+		const enableCodebaseAnalysis = core.getBooleanInput(
+			"enable_codebase_analysis",
+		);
+		const enableDuplicateDetection = core.getBooleanInput(
+			"enable_duplicate_detection",
+		);
+		const isDryRun = core.getBooleanInput("dry_run");
 
-		// Combine with action-configured labels
-		const baseLabels = [...inputs.issueLabels];
-		if (feedback.type === "crash") {
-			baseLabels.push(...inputs.crashIssueLabels);
-		} else {
-			baseLabels.push(...inputs.feedbackIssueLabels);
-		}
+		core.info(
+			`🔧 Configuration: LLM=${enableLLMEnhancement}, Analysis=${enableCodebaseAnalysis}, Duplicates=${enableDuplicateDetection}, DryRun=${isDryRun}`,
+		);
 
-		const allLabels = [...new Set([...baseLabels, ...feedbackLabels])]; // Remove duplicates
+		// Initialize services
+		const testFlightClient = getTestFlightClient();
+		const llmClient = enableLLMEnhancement ? getLLMClient() : null;
+		const codebaseAnalyzer = enableCodebaseAnalysis
+			? getCodebaseAnalyzer()
+			: null;
+		const serviceFactory = IssueServiceFactory.getInstance();
+		const idempotencyService = getIdempotencyService();
 
-		const options: LinearIssueCreationOptions = {
-			priority,
-			additionalLabels: allLabels,
-			enableDuplicateDetection: inputs.duplicateDetection,
+		// Calculate processing window
+		const windowCalculator = await import(
+			"./src/utils/processing-window.js"
+		).then((m) => m.getProcessingWindowCalculator());
+		const explicitSince = core.getInput("since");
+		const processingWindow = await windowCalculator.calculateOptimalWindow(
+			explicitSince || undefined,
+		);
+
+		core.info(
+			`⏰ Processing window: ${processingWindow.startTime.toISOString()} to ${processingWindow.endTime.toISOString()}`,
+		);
+
+		const workflowState: WorkflowState = {
+			testFlightClient,
+			processingWindow,
+			enableLLMEnhancement,
+			enableCodebaseAnalysis,
+			enableDuplicateDetection,
+			isDryRun,
+			llmClient,
+			codebaseAnalyzer,
+			serviceFactory,
+			idempotencyService,
 		};
 
-		const result = await createLinearIssueFromFeedback(feedback, options);
-
-		setInfo(`✅ ${result.message}`);
-
-		if (result.action === "created") {
-			setInfo(`📋 Linear issue created: ${result.issue.url}`);
-		} else {
-			setInfo(`💬 Added comment to existing Linear issue: ${result.issue.url}`);
-		}
-
-		return true;
-	} catch (error) {
-		setError(`Failed to create Linear issue: ${error}`);
-		return false;
-	}
-}
-
-/**
- * Main action runner
- */
-async function runAction(): Promise<ActionOutputs> {
-	const outputs: ActionOutputs = {
-		issuesCreated: 0,
-		crashesProcessed: 0,
-		feedbackProcessed: 0,
-		errorsEncountered: 0,
-		summary: "",
-	};
-
-	try {
-		setInfo("🚀 Starting TestFlight PM Action");
-
-		// Parse inputs
-		const inputs = parseActionInputs();
-		const since = getMonitoringSince(inputs);
-
-		setInfo(
-			`📊 Configuration: ${inputs.feedbackTypes} feedback since ${since.toISOString()}`,
-		);
-		setInfo(
-			`🎯 Targets: GitHub=${inputs.createGithubIssues}, Linear=${inputs.createLinearIssues}`,
+		// Get TestFlight feedback
+		core.info("📱 Fetching TestFlight feedback...");
+		const feedbackData = await testFlightClient.getRecentFeedback(
+			processingWindow.startTime,
 		);
 
-		if (inputs.dryRun) {
-			setInfo("🧪 Running in DRY RUN mode - no issues will be created");
+		if (feedbackData.length === 0) {
+			core.info("✅ No new TestFlight feedback found");
+			return;
 		}
 
-		// Validate configuration
-		const _config = getConfig();
-		setInfo("✅ Configuration loaded and validated");
+		core.info(`📊 Found ${feedbackData.length} feedback items to process`);
 
-		// Check Linear health if enabled
-		if (inputs.createLinearIssues) {
-			setInfo("🔍 Checking Linear integration health...");
-			const linearHealth = await getLinearIntegrationHealth();
+		// Filter unprocessed feedback
+		const stateManager = getStateManager();
+		const unprocessedFeedback =
+			await stateManager.filterUnprocessed(feedbackData);
 
-			if (linearHealth.status === "unhealthy") {
-				setError(
-					`Linear integration is unhealthy: ${JSON.stringify(linearHealth.details)}`,
-				);
-				if (linearHealth.recommendations) {
-					for (const rec of linearHealth.recommendations) {
-						setWarning(`💡 Recommendation: ${rec}`);
-					}
-				}
-				outputs.errorsEncountered++;
-				return outputs;
-			}
-			if (linearHealth.status === "degraded") {
-				setWarning(
-					`Linear integration is degraded: ${JSON.stringify(linearHealth.details)}`,
-				);
-				if (linearHealth.recommendations) {
-					for (const rec of linearHealth.recommendations) {
-						setWarning(`💡 Recommendation: ${rec}`);
-					}
-				}
-			} else {
-				setInfo(
-					`✅ Linear integration healthy: ${linearHealth.details.teamName} (${linearHealth.details.currentUser})`,
-				);
-			}
+		if (unprocessedFeedback.length === 0) {
+			core.info("✅ All feedback has already been processed");
+			return;
 		}
 
-		// Test authentication
-		setInfo("🔐 Testing App Store Connect authentication...");
-		const authInstance = getAuthInstance();
-		await authInstance.getValidToken();
-		setInfo("✅ App Store Connect authentication successful");
-
-		// Initialize TestFlight client
-		setInfo("📱 Initializing TestFlight data client...");
-		const testFlightClient = getTestFlightClient();
-
-		// Fetch feedback
-		setInfo(`📥 Fetching TestFlight feedback since ${since.toISOString()}...`);
-		const allFeedback = await testFlightClient.getRecentFeedback(since);
-		setInfo(`📊 Found ${allFeedback.length} total feedback items`);
-
-		if (allFeedback.length === 0) {
-			setInfo("ℹ️ No feedback found for the specified period");
-			outputs.summary = JSON.stringify(
-				{
-					feedbackItemsFound: 0,
-					feedbackItemsProcessed: 0,
-					crashReports: 0,
-					userFeedback: 0,
-					issuesCreated: 0,
-					errorsEncountered: 0,
-					monitoringSince: since.toISOString(),
-					dryRun: inputs.dryRun,
-				},
-				null,
-				2,
-			);
-			return outputs;
-		}
-
-		// Filter feedback based on inputs
-		const feedbackToProcess = filterFeedback(allFeedback, inputs);
-		setInfo(`🔄 Processing ${feedbackToProcess.length} feedback items`);
-
-		// Count by type
-		const crashes = feedbackToProcess.filter((f) => f.type === "crash");
-		const screenshots = feedbackToProcess.filter(
-			(f) => f.type === "screenshot",
-		);
-		outputs.crashesProcessed = crashes.length;
-		outputs.feedbackProcessed = screenshots.length;
-
-		setInfo(
-			`📋 Breakdown: ${crashes.length} crash reports, ${screenshots.length} user feedback items`,
-		);
+		core.info(`🔄 Processing ${unprocessedFeedback.length} new feedback items`);
 
 		// Process each feedback item
-		for (const feedback of feedbackToProcess) {
+		const results: ActionResults[] = [];
+		let totalLLMRequests = 0;
+		let totalLLMCost = 0;
+
+		if (llmClient) {
+			const stats = llmClient.getUsageStats();
+			totalLLMRequests = stats.requestCount;
+			totalLLMCost = stats.totalCostAccrued;
+		}
+
+		for (const feedback of unprocessedFeedback) {
 			try {
-				setInfo(`Processing ${feedback.type} feedback: ${feedback.id}`);
+				core.info(`🔍 Processing feedback: ${feedback.id} (${feedback.type})`);
 
-				let issueCreated = false;
+				const result = await processFeedbackItem(feedback, workflowState);
+				results.push(result);
 
-				// Create GitHub issue if requested
-				if (inputs.createGithubIssues) {
-					const success = await createGitHubIssue(feedback, inputs);
-					if (success) issueCreated = true;
+				if (!isDryRun) {
+					await stateManager.markAsProcessed([feedback.id]);
 				}
 
-				// Create Linear issue if requested
-				if (inputs.createLinearIssues) {
-					const success = await createLinearIssue(feedback, inputs);
-					if (success) issueCreated = true;
-				}
-
-				if (issueCreated) {
-					outputs.issuesCreated++;
-				}
+				core.info(`✅ Successfully processed: ${feedback.id}`);
 			} catch (error) {
-				setError(`Failed to process feedback ${feedback.id}: ${error}`);
-				outputs.errorsEncountered++;
+				core.error(
+					`❌ Failed to process feedback ${feedback.id}: ${error instanceof Error ? error.message : String(error)}`,
+				);
 			}
 		}
 
-		// Generate summary
+		// Output results
 		const summary = {
-			feedbackItemsFound: allFeedback.length,
-			feedbackItemsProcessed: feedbackToProcess.length,
-			crashReports: outputs.crashesProcessed,
-			userFeedback: outputs.feedbackProcessed,
-			issuesCreated: outputs.issuesCreated,
-			errorsEncountered: outputs.errorsEncountered,
-			monitoringSince: since.toISOString(),
-			dryRun: inputs.dryRun,
+			totalProcessed: results.length,
+			issuesCreated: results.filter((r) => r.issueCreated).length,
+			issuesUpdated: results.filter((r) => r.issueUpdated).length,
+			llmRequestsMade: totalLLMRequests,
+			llmCostIncurred: totalLLMCost,
+			processingTime: results.reduce((sum, r) => sum + r.processingTime, 0),
+			timestamp: new Date().toISOString(),
 		};
 
-		outputs.summary = JSON.stringify(summary, null, 2);
+		core.setOutput("processing_summary", JSON.stringify(summary, null, 2));
+		core.setOutput("issues_created", String(summary.issuesCreated));
+		core.setOutput("issues_updated", String(summary.issuesUpdated));
+		core.setOutput("llm_requests_made", String(summary.llmRequestsMade));
+		core.setOutput("llm_cost_incurred", String(summary.llmCostIncurred));
 
-		setInfo("✅ TestFlight PM Action completed successfully");
-		setInfo(
-			`📊 Summary: ${outputs.issuesCreated} issues created, ${outputs.errorsEncountered} errors`,
+		core.info(
+			`🎉 Processing complete! Created: ${summary.issuesCreated}, Updated: ${summary.issuesUpdated}, Cost: $${summary.llmCostIncurred.toFixed(4)}`,
 		);
 	} catch (error) {
-		setError(`Action failed: ${error}`);
-		outputs.errorsEncountered++;
-		throw error;
+		core.setFailed(
+			`Action failed: ${error instanceof Error ? error.message : String(error)}`,
+		);
 	}
-
-	return outputs;
 }
 
-/**
- * Main entry point
- */
-async function main(): Promise<void> {
+async function processFeedbackItem(
+	feedback: ProcessedFeedbackData,
+	state: WorkflowState,
+): Promise<ActionResults> {
+	const startTime = Date.now();
+	const {
+		enableLLMEnhancement,
+		enableDuplicateDetection,
+		llmClient,
+		codebaseAnalyzer,
+		serviceFactory,
+		isDryRun,
+	} = state;
+
+	let issueCreated = false;
+	let issueUpdated = false;
+	const _issueResult: unknown = null;
+
 	try {
-		const outputs = await runAction();
+		// Check for duplicates first
+		if (enableDuplicateDetection) {
+			core.info(
+				`🔍 Checking for duplicate issues for feedback: ${feedback.id}`,
+			);
 
-		// Set GitHub Actions outputs
-		setOutput("issues-created", outputs.issuesCreated.toString());
-		setOutput("crashes-processed", outputs.crashesProcessed.toString());
-		setOutput("feedback-processed", outputs.feedbackProcessed.toString());
-		setOutput("errors-encountered", outputs.errorsEncountered.toString());
-		setOutput("summary", outputs.summary);
+			const duplicateResult =
+				await serviceFactory.findDuplicatesAcrossServices(feedback);
 
-		// Exit with appropriate code
-		process.exit(outputs.errorsEncountered > 0 ? 1 : 0);
+			if (duplicateResult.length > 0) {
+				const duplicate = duplicateResult[0];
+				if (duplicate?.isDuplicate && duplicate.existingIssue) {
+					core.info(`⚠️ Duplicate found: ${duplicate.existingIssue.url}`);
+					issueUpdated = true;
+					// Add comment to existing issue would go here
+					return {
+						feedbackId: feedback.id,
+						issueCreated: false,
+						issueUpdated: true,
+						issueUrl: duplicate.existingIssue.url,
+						processingTime: Date.now() - startTime,
+					};
+				}
+			}
+		}
+
+		// Perform codebase analysis if enabled
+		let codebaseAnalysis = null;
+		if (codebaseAnalyzer) {
+			core.info(`🔍 Analyzing codebase for feedback: ${feedback.id}`);
+			codebaseAnalysis = await codebaseAnalyzer.analyzeForFeedback(feedback);
+			core.info(
+				`📊 Found ${codebaseAnalysis.relevantFiles.length} relevant code areas`,
+			);
+		}
+
+		// Create or enhance issue
+		let issueResult: EnhancedIssueCreationResult | IssueCreationResult | null =
+			null;
+
+		if (enableLLMEnhancement && llmClient) {
+			core.info(`🤖 Using LLM enhancement for feedback: ${feedback.id}`);
+
+			// Use LLM enhanced creator
+			const enhancedCreator = await import(
+				"./src/integrations/llm-enhanced-creator.js"
+			).then((m) => m.getLLMEnhancedIssueCreator());
+
+			issueResult = await enhancedCreator.createEnhancedIssue(feedback, {
+				platform: "github", // Could be configurable
+				enableLLMEnhancement: true,
+				enableCodebaseAnalysis: !!codebaseAnalyzer,
+				analysisDepth: "moderate",
+				includeRecentChanges: true,
+				fallbackToStandard: true,
+				skipDuplicateDetection: !enableDuplicateDetection,
+				dryRun: isDryRun,
+			});
+
+			if ("success" in issueResult && issueResult.success) {
+				issueCreated = true;
+				core.info(
+					`✅ Enhanced issue created: ${
+						issueResult.github?.issue?.url ||
+						issueResult.linear?.issue?.url ||
+						"URL not available"
+					}`,
+				);
+			}
+		} else {
+			// Standard issue creation
+			core.info(`📝 Creating standard issue for feedback: ${feedback.id}`);
+
+			issueResult = await serviceFactory.createIssueWithDefault(feedback);
+			issueCreated = true;
+			core.info(`✅ Standard issue created: ${issueResult.url}`);
+		}
+
+		// Extract URL from different result types
+		let issueUrl = "";
+		if (issueResult) {
+			if ("url" in issueResult) {
+				// IssueCreationResult
+				issueUrl = issueResult.url;
+			} else if ("github" in issueResult || "linear" in issueResult) {
+				// EnhancedIssueCreationResult
+				issueUrl =
+					issueResult.github?.issue?.url ||
+					issueResult.linear?.issue?.url ||
+					"";
+			}
+		}
+
+		return {
+			feedbackId: feedback.id,
+			issueCreated,
+			issueUpdated,
+			issueUrl,
+			processingTime: Date.now() - startTime,
+		};
 	} catch (error) {
-		setError(`Fatal error: ${error}`);
-		process.exit(1);
+		core.error(
+			`❌ Error processing feedback ${feedback.id}: ${error instanceof Error ? error.message : String(error)}`,
+		);
+		return {
+			feedbackId: feedback.id,
+			issueCreated: false,
+			issueUpdated: false,
+			issueUrl: "",
+			processingTime: Date.now() - startTime,
+		};
 	}
 }
 
-// Run the action if this file is the main module
-if (import.meta.main) {
-	main();
-}
+// Run the action
+run();

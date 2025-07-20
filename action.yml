@@ -1,152 +1,205 @@
-name: 'TestFlight PM'
-description: 'Automatically monitor TestFlight feedback and create GitHub/Linear issues from crashes and user feedback'
-author: 'TestFlight PM Team'
-
-branding:
-  icon: 'smartphone'
-  color: 'blue'
+name: "TestFlight PM - Enhanced Issue Management"
+description: "Intelligent TestFlight feedback processing with LLM enhancement and automated issue creation"
+author: "TestFlight PM Team"
 
 inputs:
-  # Required App Store Connect Configuration
-  app-store-connect-issuer-id:
-    description: 'App Store Connect API Issuer ID'
+  # Core Configuration
+  testflight_issuer_id:
+    description: "App Store Connect API Issuer ID"
     required: true
-  
-  app-store-connect-key-id:
-    description: 'App Store Connect API Key ID'
+  testflight_key_id:
+    description: "App Store Connect API Key ID" 
     required: true
-  
-  app-store-connect-private-key:
-    description: 'App Store Connect API Private Key (PEM format)'
+  testflight_private_key:
+    description: "App Store Connect API Private Key (base64 encoded)"
     required: true
-  
-  # TestFlight App Configuration
-  testflight-app-id:
-    description: 'TestFlight App ID to monitor'
+  app_id:
+    description: "TestFlight App ID"
+    required: true
+
+  # Issue Management Platform Configuration
+  platform:
+    description: "Issue management platform (github or linear)"
     required: false
+    default: "github"
   
-  testflight-bundle-id:
-    description: 'App Bundle ID (e.g., com.company.app)'
+  # GitHub Configuration
+  github_token:
+    description: "GitHub Personal Access Token"
     required: false
-  
-  # Issue Creation Configuration
-  create-github-issues:
-    description: 'Create GitHub issues for TestFlight feedback'
+  github_owner:
+    description: "GitHub repository owner"
     required: false
-    default: 'true'
-  
-  create-linear-issues:
-    description: 'Create Linear issues for TestFlight feedback'
+  github_repo:
+    description: "GitHub repository name"
     required: false
-    default: 'false'
-  
-  # GitHub Configuration (uses action context by default)
-  github-token:
-    description: 'GitHub token for creating issues (defaults to GITHUB_TOKEN)'
+
+  # Linear Configuration  
+  linear_api_token:
+    description: "Linear API Token"
     required: false
-    default: ${{ github.token }}
-  
-  github-owner:
-    description: 'GitHub repository owner (defaults to current repo)'
+  linear_team_id:
+    description: "Linear Team ID"
     required: false
-    default: ${{ github.repository_owner }}
-  
-  github-repo:
-    description: 'GitHub repository name (defaults to current repo)'
+
+  # LLM Enhancement Configuration
+  enable_llm_enhancement:
+    description: "Enable LLM-powered issue enhancement"
     required: false
-    default: ${{ github.event.repository.name }}
+    default: "false"
   
-  # Linear Configuration (optional)
-  linear-api-token:
-    description: 'Linear API token for creating issues'
+  llm_provider:
+    description: "Primary LLM provider (openai, anthropic, google, deepseek, xai)"
     required: false
+    default: "openai"
   
-  linear-team-id:
-    description: 'Linear team ID for issue assignment'
+  llm_fallback_providers:
+    description: "Comma-separated list of fallback providers"
     required: false
-  
-  # Monitoring Configuration
-  monitor-since:
-    description: 'Monitor feedback since this date (ISO format, defaults to last run or 24h ago)'
+    default: "anthropic,google"
+
+  # LLM API Keys
+  openai_api_key:
+    description: "OpenAI API Key for LLM enhancement"
     required: false
-  
-  max-issues-per-run:
-    description: 'Maximum number of issues to create per run'
+  anthropic_api_key:
+    description: "Anthropic API Key for Claude models"
     required: false
-    default: '10'
-  
-  feedback-types:
-    description: 'Types of feedback to monitor (crashes,screenshots,all)'
+  google_api_key:
+    description: "Google API Key for Gemini models"
     required: false
-    default: 'all'
-  
-  # Issue Configuration
-  issue-labels:
-    description: 'Comma-separated labels to add to created issues'
+  deepseek_api_key:
+    description: "DeepSeek API Key for DeepSeek models"
     required: false
-    default: 'testflight,feedback'
-  
-  crash-issue-labels:
-    description: 'Additional labels for crash issues'
+  xai_api_key:
+    description: "xAI API Key for Grok models"
     required: false
-    default: 'bug,crash'
-  
-  feedback-issue-labels:
-    description: 'Additional labels for feedback issues'
+
+  # LLM Model Configuration
+  openai_model:
+    description: "OpenAI model to use"
     required: false
-    default: 'enhancement,user-feedback'
+    default: "gpt-4.1-mini"
+  anthropic_model:
+    description: "Anthropic model to use"
+    required: false
+    default: "claude-3.7-sonnet"
+  google_model:
+    description: "Google model to use" 
+    required: false
+    default: "gemini-2.0-flash"
+  deepseek_model:
+    description: "DeepSeek model to use"
+    required: false
+    default: "deepseek-v3"
+  xai_model:
+    description: "xAI model to use"
+    required: false
+    default: "grok-3"
+
+  # LLM Cost Controls
+  max_llm_cost_per_run:
+    description: "Maximum LLM cost per action run (USD)"
+    required: false
+    default: "5.00"
+  max_llm_cost_per_month:
+    description: "Maximum LLM cost per month (USD)"
+    required: false
+    default: "200.00"
+  max_tokens_per_issue:
+    description: "Maximum tokens per issue enhancement"
+    required: false
+    default: "4000"
+
+  # Processing Configuration
+  enable_duplicate_detection:
+    description: "Enable duplicate issue detection"
+    required: false
+    default: "true"
+  duplicate_detection_days:
+    description: "Number of days to look back for duplicates"
+    required: false
+    default: "7"
   
+  enable_codebase_analysis:
+    description: "Enable codebase analysis for enhanced issue correlation"
+    required: false
+    default: "true"
+  
+  codebase_analysis_depth:
+    description: "Depth of codebase analysis (basic, moderate, deep)"
+    required: false
+    default: "moderate"
+
+  # Processing Filters
+  enable_crash_processing:
+    description: "Process crash reports"
+    required: false
+    default: "true"
+  enable_feedback_processing:
+    description: "Process user feedback"
+    required: false
+    default: "true"
+  
+  min_feedback_length:
+    description: "Minimum feedback text length to process"
+    required: false
+    default: "10"
+  
+  processing_window_hours:
+    description: "Hours to look back for new feedback"
+    required: false
+    default: "24"
+
+  # Issue Labeling
+  crash_labels:
+    description: "Comma-separated labels for crash issues"
+    required: false
+    default: "bug,crash,testflight"
+  feedback_labels:
+    description: "Comma-separated labels for feedback issues"
+    required: false
+    default: "enhancement,feedback,testflight"
+  additional_labels:
+    description: "Additional labels to apply to all issues"
+    required: false
+    default: ""
+
   # Advanced Configuration
-  duplicate-detection:
-    description: 'Enable duplicate issue detection'
+  dry_run:
+    description: "Run in dry-run mode (no issues created)"
     required: false
-    default: 'true'
+    default: "false"
+  debug:
+    description: "Enable debug logging"
+    required: false
+    default: "false"
   
-  include-device-info:
-    description: 'Include device information in issues'
+  workspace_root:
+    description: "Root directory for codebase analysis"
     required: false
-    default: 'true'
-  
-  include-app-version:
-    description: 'Include app version in issue titles'
-    required: false
-    default: 'true'
-  
-  dry-run:
-    description: 'Run in dry-run mode (no issues created)'
-    required: false
-    default: 'false'
+    default: "."
 
 outputs:
-  issues-created:
-    description: 'Number of issues created'
-  
-  crashes-processed:
-    description: 'Number of crash reports processed'
-  
-  feedback-processed:
-    description: 'Number of feedback items processed'
-  
-  errors-encountered:
-    description: 'Number of errors encountered'
-  
-  summary:
-    description: 'JSON summary of the action results'
+  issues_created:
+    description: "Number of issues created"
+  issues_updated:
+    description: "Number of issues updated"
+  crashes_processed:
+    description: "Number of crash reports processed"
+  feedback_processed:
+    description: "Number of feedback items processed"
+  llm_requests_made:
+    description: "Number of LLM API requests made"
+  llm_cost_incurred:
+    description: "Total LLM cost incurred (USD)"
+  processing_summary:
+    description: "JSON summary of processing results"
 
 runs:
-  using: 'docker'
-  image: 'Dockerfile'
-  env:
-    # Map inputs to environment variables for the container
-    APP_STORE_CONNECT_ISSUER_ID: ${{ inputs.app-store-connect-issuer-id }}
-    APP_STORE_CONNECT_KEY_ID: ${{ inputs.app-store-connect-key-id }}
-    APP_STORE_CONNECT_PRIVATE_KEY: ${{ inputs.app-store-connect-private-key }}
-    TESTFLIGHT_APP_ID: ${{ inputs.testflight-app-id }}
-    TESTFLIGHT_BUNDLE_ID: ${{ inputs.testflight-bundle-id }}
-    GITHUB_TOKEN: ${{ inputs.github-token }}
-    GITHUB_OWNER: ${{ inputs.github-owner }}
-    GITHUB_REPO: ${{ inputs.github-repo }}
-    LINEAR_API_TOKEN: ${{ inputs.linear-api-token }}
-    LINEAR_TEAM_ID: ${{ inputs.linear-team-id }}
-    GITHUB_ACTION: 'true'
-    NODE_ENV: 'production' 
+  using: "node20"
+  main: "dist/index.js"
+
+branding:
+  icon: "alert-circle"
+  color: "blue" 

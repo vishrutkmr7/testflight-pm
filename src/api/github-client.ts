@@ -209,107 +209,239 @@ export class GitHubClient {
 	}
 
 	/**
-	 * Searches for existing issues to detect duplicates
+	 * Searches for existing issues to detect duplicates with enhanced detection and retry logic
 	 */
 	public async findDuplicateIssue(
 		feedback: ProcessedFeedbackData,
 	): Promise<GitHubDuplicateDetectionResult> {
-		try {
-			const since = new Date();
-			since.setDate(since.getDate() - this.config.duplicateDetectionDays);
+		const maxRetries = 3;
+		const retryDelay = 1000; // 1 second
 
-			// Build search query with proper escaping
-			const searchTerms: string[] = [
-				`repo:${this.config.owner}/${this.config.repo}`,
-				"is:issue",
-				`created:>=${since.toISOString().split("T")[0]}`,
-				`"TestFlight ID: ${this.escapeSearchTerm(feedback.id)}"`, // Exact TestFlight ID match
-			];
+		for (let attempt = 0; attempt <= maxRetries; attempt++) {
+			try {
+				const since = new Date();
+				since.setDate(since.getDate() - this.config.duplicateDetectionDays);
 
-			// Add additional search terms based on feedback type
-			if (feedback.type === "crash" && feedback.crashData?.exceptionType) {
-				const escapedExceptionType = this.escapeSearchTerm(
-					feedback.crashData.exceptionType,
-				);
-				searchTerms.push(`"${escapedExceptionType}"`);
-			}
+				// Generate feedback hash for enhanced matching
+				const feedbackHash = this.generateFeedbackHash(feedback);
 
-			if (feedback.screenshotData?.text) {
-				const cleanText = feedback.screenshotData.text.substring(0, 50);
-				const escapedText = this.escapeSearchTerm(cleanText);
-				searchTerms.push(`"${escapedText}"`);
-			}
+				// Multiple search strategies for enhanced duplicate detection
+				const searchStrategies = [
+					// Strategy 1: Exact TestFlight ID match
+					{
+						name: "exact_id",
+						query: `repo:${this.config.owner}/${this.config.repo} is:issue "TestFlight ID: ${this.escapeSearchTerm(feedback.id)}"`,
+						confidence: 1.0,
+					},
+					// Strategy 2: Feedback hash match
+					{
+						name: "feedback_hash",
+						query: `repo:${this.config.owner}/${this.config.repo} is:issue "FEEDBACK_HASH:${feedbackHash}"`,
+						confidence: 1.0,
+					},
+					// Strategy 3: Comment search for existing TestFlight ID
+					{
+						name: "comment_search",
+						query: `repo:${this.config.owner}/${this.config.repo} is:issue commenter:app/github-actions "TestFlight ID: ${this.escapeSearchTerm(feedback.id)}"`,
+						confidence: 0.95,
+					},
+				];
 
-			const searchQuery = searchTerms.join(" ");
-
-			const searchParams: GitHubIssueSearchParams = {
-				q: searchQuery,
-				sort: "created",
-				order: "desc",
-				per_page: 5,
-			};
-
-			const searchResults = await this.searchIssues(searchParams);
-
-			// Look for exact matches based on TestFlight feedback ID
-			const exactMatch = searchResults.items.find((issue) =>
-				issue.body?.includes(`TestFlight ID: ${feedback.id}`),
-			);
-
-			if (exactMatch) {
-				return {
-					isDuplicate: true,
-					existingIssue: exactMatch,
-					confidence: 1.0,
-					reasons: ["Exact TestFlight ID match found in issue body"],
-				};
-			}
-
-			// Look for potential duplicates based on content similarity
-			const potentialDuplicate = searchResults.items.find((issue) => {
+				// Add content-based search strategies
 				if (feedback.type === "crash" && feedback.crashData?.exceptionType) {
-					return (
-						issue.title.includes(feedback.crashData.exceptionType) ||
-						issue.body?.includes(feedback.crashData.exceptionType)
+					const escapedExceptionType = this.escapeSearchTerm(
+						feedback.crashData.exceptionType,
 					);
+					searchStrategies.push({
+						name: "exception_type",
+						query: `repo:${this.config.owner}/${this.config.repo} is:issue "${escapedExceptionType}" ${feedback.appVersion}`,
+						confidence: 0.8,
+					});
 				}
+
 				if (feedback.screenshotData?.text) {
-					const feedbackWords = feedback.screenshotData.text
-						.toLowerCase()
-						.split(" ");
-					const issueText = `${issue.title} ${issue.body || ""}`.toLowerCase();
-					const matchingWords = feedbackWords.filter(
-						(word) => word.length > 3 && issueText.includes(word),
-					).length;
-					return matchingWords >= Math.min(3, feedbackWords.length * 0.3);
+					const cleanText = feedback.screenshotData.text.substring(0, 50);
+					const escapedText = this.escapeSearchTerm(cleanText);
+					searchStrategies.push({
+						name: "screenshot_text",
+						query: `repo:${this.config.owner}/${this.config.repo} is:issue "${escapedText}"`,
+						confidence: 0.7,
+					});
 				}
-				return false;
-			});
 
-			if (potentialDuplicate) {
+				// Execute search strategies in order of confidence
+				for (const strategy of searchStrategies) {
+					try {
+						const searchParams: GitHubIssueSearchParams = {
+							q: strategy.query,
+							sort: "created",
+							order: "desc",
+							per_page: 10,
+						};
+
+						const searchResults = await this.searchIssues(searchParams);
+
+						// Check for matches using multiple criteria
+						for (const issue of searchResults.items) {
+							const matchResult = this.analyzeIssueMatch(
+								issue,
+								feedback,
+								strategy,
+							);
+							if (matchResult.isMatch && matchResult.confidence >= 0.7) {
+								return {
+									isDuplicate: true,
+									existingIssue: issue,
+									confidence: matchResult.confidence,
+									reasons: [
+										`Match found via ${strategy.name} strategy`,
+										...matchResult.reasons,
+									],
+								};
+							}
+						}
+					} catch (strategyError) {
+						console.warn(
+							`Search strategy ${strategy.name} failed: ${strategyError}`,
+						);
+					}
+				}
+
+				// No duplicates found
 				return {
-					isDuplicate: true,
-					existingIssue: potentialDuplicate,
-					confidence: 0.7,
-					reasons: ["Content similarity detected"],
+					isDuplicate: false,
+					confidence: 0,
+					reasons: ["No duplicates found after comprehensive search"],
 				};
-			}
+			} catch (error) {
+				const errorMessage =
+					error instanceof Error ? error.message : String(error);
 
+				if (attempt === maxRetries) {
+					console.error(
+						`Duplicate detection failed after ${maxRetries + 1} attempts: ${errorMessage}`,
+					);
+					return {
+						isDuplicate: false,
+						confidence: 0,
+						reasons: [`Duplicate detection failed: ${errorMessage}`],
+					};
+				}
+
+				console.warn(
+					`Duplicate detection attempt ${attempt + 1} failed: ${errorMessage}. Retrying...`,
+				);
+				await this.sleep(retryDelay * 2 ** attempt);
+			}
+		}
+
+		// This should never be reached due to the maxRetries check above
+		throw new Error("Unexpected end of retry loop");
+	}
+
+	/**
+	 * Analyzes if an issue matches the given feedback
+	 */
+	private analyzeIssueMatch(
+		issue: GitHubIssue,
+		feedback: ProcessedFeedbackData,
+		strategy: { name: string; confidence: number },
+	): { isMatch: boolean; confidence: number; reasons: string[] } {
+		const reasons: string[] = [];
+		let baseConfidence = strategy.confidence;
+
+		// Check for exact TestFlight ID in body
+		if (issue.body?.includes(`TestFlight ID: ${feedback.id}`)) {
 			return {
-				isDuplicate: false,
-				confidence: 0,
-				reasons: ["No similar issues found"],
-			};
-		} catch (error) {
-			const errorMessage =
-				error instanceof Error ? error.message : String(error);
-			console.warn(`Failed to search for duplicate issues: ${errorMessage}`);
-			return {
-				isDuplicate: false,
-				confidence: 0,
-				reasons: ["Duplicate detection failed"],
+				isMatch: true,
+				confidence: 1.0,
+				reasons: ["Exact TestFlight ID match in issue body"],
 			};
 		}
+
+		// Check for feedback hash in body
+		const feedbackHash = this.generateFeedbackHash(feedback);
+		if (issue.body?.includes(`FEEDBACK_HASH:${feedbackHash}`)) {
+			return {
+				isMatch: true,
+				confidence: 1.0,
+				reasons: ["Exact feedback hash match in issue body"],
+			};
+		}
+
+		// Check for TestFlight ID in HTML comments
+		if (issue.body?.includes(`<!-- TESTFLIGHT_ID:${feedback.id} -->`)) {
+			return {
+				isMatch: true,
+				confidence: 1.0,
+				reasons: ["TestFlight ID found in issue metadata"],
+			};
+		}
+
+		// Content-based matching
+		if (feedback.type === "crash" && feedback.crashData?.exceptionType) {
+			const hasExceptionInTitle = issue.title.includes(
+				feedback.crashData.exceptionType,
+			);
+			const hasExceptionInBody = issue.body?.includes(
+				feedback.crashData.exceptionType,
+			);
+
+			if (hasExceptionInTitle || hasExceptionInBody) {
+				reasons.push("Exception type match found");
+
+				// Check for same app version
+				if (issue.body?.includes(feedback.appVersion)) {
+					reasons.push("Same app version detected");
+					baseConfidence += 0.1;
+				}
+
+				// Check for same device
+				if (issue.body?.includes(feedback.deviceInfo.model)) {
+					reasons.push("Same device model detected");
+					baseConfidence += 0.05;
+				}
+
+				return {
+					isMatch: baseConfidence >= 0.7,
+					confidence: Math.min(baseConfidence, 0.95),
+					reasons,
+				};
+			}
+		}
+
+		if (feedback.screenshotData?.text && strategy.name === "screenshot_text") {
+			const feedbackWords = feedback.screenshotData.text
+				.toLowerCase()
+				.split(/\s+/);
+			const issueText = `${issue.title} ${issue.body || ""}`.toLowerCase();
+
+			const significantWords = feedbackWords.filter((word) => word.length > 3);
+			const matchingWords = significantWords.filter((word) =>
+				issueText.includes(word),
+			);
+
+			if (matchingWords.length >= Math.min(3, significantWords.length * 0.4)) {
+				const confidence = Math.min(
+					baseConfidence,
+					0.6 + (matchingWords.length / significantWords.length) * 0.3,
+				);
+
+				return {
+					isMatch: confidence >= 0.7,
+					confidence,
+					reasons: [
+						`${matchingWords.length}/${significantWords.length} significant words match`,
+					],
+				};
+			}
+		}
+
+		return {
+			isMatch: false,
+			confidence: 0,
+			reasons: ["No significant matches found"],
+		};
 	}
 
 	/**
@@ -855,6 +987,11 @@ export class GitHubClient {
 
 		let body = `## ${typeIcon} ${typeLabel} from TestFlight\n\n`;
 
+		// Add multiple unique identifiers for enhanced duplicate detection
+		body += `<!-- TESTFLIGHT_ID:${feedback.id} -->\n`;
+		body += `<!-- FEEDBACK_HASH:${this.generateFeedbackHash(feedback)} -->\n`;
+		body += `<!-- CREATION_TIMESTAMP:${Date.now()} -->\n\n`;
+
 		// Metadata table
 		body += "| Field | Value |\n";
 		body += "|-------|-------|\n";
@@ -974,6 +1111,32 @@ export class GitHubClient {
 	 */
 	private escapeSearchTerm(term: string): string {
 		return term.replace(/['"\\]/g, "\\$&");
+	}
+
+	/**
+	 * Generates a unique hash for feedback content to aid in duplicate detection
+	 */
+	private generateFeedbackHash(feedback: ProcessedFeedbackData): string {
+		const hashInput = [
+			feedback.id,
+			feedback.type,
+			feedback.appVersion,
+			feedback.buildNumber,
+			feedback.deviceInfo.model,
+			feedback.deviceInfo.osVersion,
+			feedback.crashData?.exceptionType || "",
+			feedback.screenshotData?.text?.substring(0, 100) || "",
+		].join("|");
+
+		// Simple hash function for duplicate detection
+		let hash = 0;
+		for (let i = 0; i < hashInput.length; i++) {
+			const char = hashInput.charCodeAt(i);
+			hash = (hash << 5) - hash + char;
+			hash = hash & hash; // Convert to 32-bit integer
+		}
+
+		return Math.abs(hash).toString(36);
 	}
 
 	/**
