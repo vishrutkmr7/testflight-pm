@@ -20,7 +20,6 @@ import {
 import {
     type UniversalRequest,
     type UniversalResponse,
-    type UniversalError,
     fromUniversal,
     normalizeError,
     getProviderAdapter,
@@ -660,7 +659,7 @@ ${change.diff.substring(0, 300)}${change.diff.length > 300 ? "..." : ""}
         response: LLMResponse,
         startTime: number,
     ): LLMEnhancementResponse {
-        const content = response.content;
+        const { content } = response;
 
         // Extract title from first line or heading
         const titleMatch = content.match(/^#\s*(.+)$/m) || content.match(/^(.+)$/m);
@@ -672,8 +671,12 @@ ${change.diff.substring(0, 300)}${change.diff.length > 300 ? "..." : ""}
 
         // Extract labels from content
         const labels = ["testflight", "llm-enhanced"];
-        if (content.toLowerCase().includes("crash")) labels.push("crash", "bug");
-        if (content.toLowerCase().includes("feedback")) labels.push("feedback", "enhancement");
+        if (content.toLowerCase().includes("crash")) {
+            labels.push("crash", "bug");
+        }
+        if (content.toLowerCase().includes("feedback")) {
+            labels.push("feedback", "enhancement");
+        }
 
         return {
             title,

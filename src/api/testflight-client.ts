@@ -320,9 +320,15 @@ export class TestFlightClient {
 		const url = new URL(endpoint, this.baseUrl);
 
 		if (params) {
-			if (params.limit) url.searchParams.set("limit", params.limit.toString());
-			if (params.sort) url.searchParams.set("sort", params.sort);
-			if (params.include) url.searchParams.set("include", params.include);
+			if (params.limit) {
+				url.searchParams.set("limit", params.limit.toString());
+			}
+			if (params.sort) {
+				url.searchParams.set("sort", params.sort);
+			}
+			if (params.include) {
+				url.searchParams.set("include", params.include);
+			}
 
 			// Add filter parameters
 			if (params.filter) {
@@ -363,7 +369,9 @@ export class TestFlightClient {
 	 * Waits if we're close to hitting rate limits
 	 */
 	private async waitForRateLimit(): Promise<void> {
-		if (!this.rateLimitInfo) return;
+		if (!this.rateLimitInfo) {
+			return;
+		}
 
 		// If we have very few requests remaining, wait until reset
 		if (this.rateLimitInfo.remaining <= 5) {

@@ -461,10 +461,10 @@ export async function getLinearIntegrationHealth(): Promise<{
 			recommendations:
 				healthCheck.status !== "healthy"
 					? [
-							"Verify Linear API token is valid",
-							"Check Linear team ID is correct",
-							"Ensure network connectivity to Linear API",
-						]
+						"Verify Linear API token is valid",
+						"Check Linear team ID is correct",
+						"Ensure network connectivity to Linear API",
+					]
 					: undefined,
 		};
 	} catch (error) {

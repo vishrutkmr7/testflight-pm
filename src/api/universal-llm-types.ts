@@ -309,7 +309,9 @@ class AnthropicAdapter implements LLMProviderAdapter {
 
     validateConfig(config: Record<string, unknown>): { valid: boolean; errors: string[] } {
         const errors: string[] = [];
-        if (!config.apiKey) errors.push("Anthropic API key is required");
+        if (!config.apiKey) {
+            errors.push("Anthropic API key is required");
+        }
         return { valid: errors.length === 0, errors };
     }
 }
@@ -372,7 +374,9 @@ class GoogleAdapter implements LLMProviderAdapter {
 
     validateConfig(config: Record<string, unknown>): { valid: boolean; errors: string[] } {
         const errors: string[] = [];
-        if (!config.apiKey) errors.push("Google API key is required");
+        if (!config.apiKey) {
+            errors.push("Google API key is required");
+        }
         return { valid: errors.length === 0, errors };
     }
 }
@@ -406,7 +410,9 @@ class DeepSeekAdapter implements LLMProviderAdapter {
 
     validateConfig(config: Record<string, unknown>): { valid: boolean; errors: string[] } {
         const errors: string[] = [];
-        if (!config.apiKey) errors.push("DeepSeek API key is required");
+        if (!config.apiKey) {
+            errors.push("DeepSeek API key is required");
+        }
         return { valid: errors.length === 0, errors };
     }
 }
@@ -440,7 +446,9 @@ class XAIAdapter implements LLMProviderAdapter {
 
     validateConfig(config: Record<string, unknown>): { valid: boolean; errors: string[] } {
         const errors: string[] = [];
-        if (!config.apiKey) errors.push("xAI API key is required");
+        if (!config.apiKey) {
+            errors.push("xAI API key is required");
+        }
         return { valid: errors.length === 0, errors };
     }
 } 

@@ -167,13 +167,17 @@ export abstract class BaseApiClient {
 	 * Wait for rate limits if needed
 	 */
 	protected async waitForRateLimit(): Promise<void> {
-		if (!this.rateLimitInfo) return;
+		if (!this.rateLimitInfo) {
+			return;
+		}
 
 		const { remaining, reset } = this.rateLimitInfo;
 		const now = new Date();
 
 		// If we have requests remaining, proceed
-		if (remaining > 0) return;
+		if (remaining > 0) {
+			return;
+		}
 
 		// If reset time has passed, proceed
 		if (now >= reset) {

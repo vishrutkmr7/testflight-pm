@@ -86,7 +86,7 @@ export interface HealthCheckResult {
  * Concrete GitHub issue creation service
  */
 export class GitHubIssueService implements IssueCreationService {
-	constructor(private githubClient: GitHubClientInterface) {}
+	constructor(private githubClient: GitHubClientInterface) { }
 
 	async createIssueFromFeedback(
 		feedback: ProcessedFeedbackData,
@@ -124,11 +124,11 @@ export class GitHubIssueService implements IssueCreationService {
 			reasons: result.reasons,
 			existingIssue: result.issue
 				? {
-						id: result.issue.id.toString(),
-						url: result.issue.html_url,
-						title: result.issue.title,
-						number: result.issue.number,
-					}
+					id: result.issue.id.toString(),
+					url: result.issue.html_url,
+					title: result.issue.title,
+					number: result.issue.number,
+				}
 				: undefined,
 		};
 	}
@@ -142,7 +142,7 @@ export class GitHubIssueService implements IssueCreationService {
  * Concrete Linear issue creation service
  */
 export class LinearIssueService implements IssueCreationService {
-	constructor(private linearClient: LinearClientInterface) {}
+	constructor(private linearClient: LinearClientInterface) { }
 
 	async createIssueFromFeedback(
 		feedback: ProcessedFeedbackData,
