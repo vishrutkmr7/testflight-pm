@@ -3,6 +3,11 @@
  * Implements Dependency Inversion and Factory patterns for better testability and extensibility
  */
 
+import type {
+	GitHubDuplicateDetectionResult,
+	GitHubIssueCreationResult,
+} from "../../types/github.js";
+import type { LinearIssue } from "../../types/linear.js";
 import type { ProcessedFeedbackData } from "../../types/testflight.js";
 
 // Type imports for proper client typing
@@ -10,8 +15,10 @@ interface GitHubClientInterface {
 	createIssueFromTestFlight(
 		feedback: ProcessedFeedbackData,
 		options?: Record<string, unknown>,
-	): Promise<any>;
-	findDuplicateIssue(feedback: ProcessedFeedbackData): Promise<any>;
+	): Promise<GitHubIssueCreationResult>;
+	findDuplicateIssue(
+		feedback: ProcessedFeedbackData,
+	): Promise<GitHubDuplicateDetectionResult>;
 	healthCheck(): Promise<HealthCheckResult>;
 }
 
@@ -21,8 +28,10 @@ interface LinearClientInterface {
 		additionalLabels?: string[],
 		assigneeId?: string,
 		projectId?: string,
-	): Promise<any>;
-	findDuplicateIssue(feedback: ProcessedFeedbackData): Promise<any>;
+	): Promise<LinearIssue>;
+	findDuplicateIssue(
+		feedback: ProcessedFeedbackData,
+	): Promise<LinearIssue | null>;
 	healthCheck(): Promise<HealthCheckResult>;
 }
 
@@ -86,7 +95,7 @@ export interface HealthCheckResult {
  * Concrete GitHub issue creation service
  */
 export class GitHubIssueService implements IssueCreationService {
-	constructor(private githubClient: GitHubClientInterface) { }
+	constructor(private githubClient: GitHubClientInterface) {}
 
 	async createIssueFromFeedback(
 		feedback: ProcessedFeedbackData,
@@ -98,13 +107,13 @@ export class GitHubIssueService implements IssueCreationService {
 		);
 
 		return {
-			id: result.id.toString(),
-			url: result.html_url,
-			title: result.title,
-			number: result.number,
+			id: result.issue.id.toString(),
+			url: result.issue.html_url,
+			title: result.issue.title,
+			number: result.issue.number,
 			wasExisting: result.wasExisting || false,
 			action: result.wasExisting ? "comment_added" : "created",
-			message: `GitHub issue ${result.wasExisting ? "updated" : "created"}: #${result.number}`,
+			message: `GitHub issue ${result.wasExisting ? "updated" : "created"}: #${result.issue.number}`,
 			platform: "github",
 		};
 	}
@@ -122,13 +131,13 @@ export class GitHubIssueService implements IssueCreationService {
 			isDuplicate: true,
 			confidence: result.confidence,
 			reasons: result.reasons,
-			existingIssue: result.issue
+			existingIssue: result.existingIssue
 				? {
-					id: result.issue.id.toString(),
-					url: result.issue.html_url,
-					title: result.issue.title,
-					number: result.issue.number,
-				}
+						id: result.existingIssue.id.toString(),
+						url: result.existingIssue.html_url,
+						title: result.existingIssue.title,
+						number: result.existingIssue.number,
+					}
 				: undefined,
 		};
 	}
@@ -142,15 +151,22 @@ export class GitHubIssueService implements IssueCreationService {
  * Concrete Linear issue creation service
  */
 export class LinearIssueService implements IssueCreationService {
-	constructor(private linearClient: LinearClientInterface) { }
+	constructor(private linearClient: LinearClientInterface) {}
 
 	async createIssueFromFeedback(
 		feedback: ProcessedFeedbackData,
 		options?: Record<string, unknown>,
 	): Promise<IssueCreationResult> {
+		// Extract Linear-specific options from the generic options object
+		const additionalLabels = (options?.additionalLabels as string[]) || [];
+		const assigneeId = options?.assigneeId as string | undefined;
+		const projectId = options?.projectId as string | undefined;
+
 		const result = await this.linearClient.createIssueFromTestFlight(
 			feedback,
-			options,
+			additionalLabels,
+			assigneeId,
+			projectId,
 		);
 
 		return {
@@ -158,9 +174,9 @@ export class LinearIssueService implements IssueCreationService {
 			url: result.url,
 			title: result.title,
 			identifier: result.identifier,
-			wasExisting: result.wasExisting || false,
-			action: result.wasExisting ? "comment_added" : "created",
-			message: `Linear issue ${result.wasExisting ? "updated" : "created"}: ${result.identifier}`,
+			wasExisting: false, // Linear client doesn't provide this info, defaulting to false
+			action: "created", // Defaulting to created since we can't determine from current API
+			message: `Linear issue created: ${result.identifier}`,
 			platform: "linear",
 		};
 	}

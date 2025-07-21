@@ -37,7 +37,7 @@ export const CACHE_CONFIG = {
  * Default Issue Labels
  */
 export const DEFAULT_LABELS = {
-	BASE: ["testflight", "feedback"],
+	BASE: ["testflight", "testflight-pm", "feedback"],
 	CRASH: ["bug", "crash", "urgent"],
 	FEEDBACK: ["enhancement", "user-feedback"],
 	PRIORITY: {

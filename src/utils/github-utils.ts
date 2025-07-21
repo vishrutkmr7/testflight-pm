@@ -258,6 +258,7 @@ export function generateFeedbackLabels(
 			if (
 				text.includes("feature") ||
 				text.includes("improvement") ||
+				text.includes("improved") ||
 				text.includes("enhancement") ||
 				text.includes("add") ||
 				text.includes("would like") ||
@@ -503,11 +504,11 @@ export async function getGitHubIntegrationHealth(): Promise<{
 			recommendations:
 				healthCheck.status !== "healthy"
 					? [
-							"Verify GitHub token is valid and has proper permissions",
-							"Check repository owner and name are correct",
-							"Ensure network connectivity to GitHub API",
-							"Verify repository access permissions",
-						]
+						"Verify GitHub token is valid and has proper permissions",
+						"Check repository owner and name are correct",
+						"Ensure network connectivity to GitHub API",
+						"Verify repository access permissions",
+					]
 					: undefined,
 		};
 	} catch (error) {

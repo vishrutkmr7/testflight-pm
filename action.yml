@@ -155,11 +155,11 @@ inputs:
   crash_labels:
     description: "Comma-separated labels for crash issues"
     required: false
-    default: "bug,crash,testflight"
+    default: "bug,crash,testflight,testflight-pm"
   feedback_labels:
     description: "Comma-separated labels for feedback issues"
     required: false
-    default: "enhancement,feedback,testflight"
+    default: "enhancement,feedback,testflight,testflight-pm"
   additional_labels:
     description: "Additional labels to apply to all issues"
     required: false

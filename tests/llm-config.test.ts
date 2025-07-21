@@ -328,11 +328,9 @@ describe("LLM Configuration", () => {
 				requests: 10,
 			},
 			providerUsage: {
-				openai: { tokens: 10000, cost: 25.0, requests: 10, successRate: 1.0 },
+				openai: { tokens: 0, cost: 0, requests: 0, successRate: 1.0 },
 				anthropic: { tokens: 0, cost: 0, requests: 0, successRate: 1.0 },
 				google: { tokens: 0, cost: 0, requests: 0, successRate: 1.0 },
-				deepseek: { tokens: 0, cost: 0, requests: 0, successRate: 1.0 },
-				xai: { tokens: 0, cost: 0, requests: 0, successRate: 1.0 },
 			},
 		};
 

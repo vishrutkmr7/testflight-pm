@@ -38,22 +38,6 @@ const mockConfig: LLMEnhancementConfig = {
 			timeout: 30000,
 			maxRetries: 3,
 		},
-		deepseek: {
-			apiKey: "test-deepseek-key",
-			model: "deepseek-v3",
-			maxTokens: 1000,
-			temperature: 0.1,
-			timeout: 30000,
-			maxRetries: 3,
-		},
-		xai: {
-			apiKey: "test-xai-key",
-			model: "grok-3",
-			maxTokens: 1000,
-			temperature: 0.1,
-			timeout: 30000,
-			maxRetries: 3,
-		},
 	},
 	costLimits: {
 		maxCostPerRun: 1.0,

@@ -4,7 +4,7 @@ Intelligent TestFlight feedback processing with AI-powered issue enhancement and
 
 ## ✨ Features
 
-- 🤖 **AI-Enhanced Issues** - Intelligent issue titles, descriptions, and categorization using OpenAI, Anthropic, Google, DeepSeek, or xAI
+- 🤖 **AI-Enhanced Issues** - Intelligent issue titles, descriptions, and categorization using OpenAI, Anthropic, or Google Gemini
 - 🔍 **Smart Code Analysis** - Automatically correlate feedback with relevant code areas in your repository
 - 📱 **TestFlight Integration** - Process crash reports and user feedback from TestFlight automatically
 - 🎯 **Multi-Platform** - Create issues in GitHub Issues or Linear
@@ -44,8 +44,6 @@ LINEAR_TEAM_ID             # Your Linear Team ID
 OPENAI_API_KEY             # OpenAI API key for GPT models
 ANTHROPIC_API_KEY          # Anthropic API key for Claude models (optional)
 GOOGLE_API_KEY             # Google API key for Gemini models (optional)
-DEEPSEEK_API_KEY           # DeepSeek API key (optional)
-XAI_API_KEY                # xAI API key for Grok models (optional)
 ```
 
 ### 2. Create Workflow File
@@ -118,7 +116,7 @@ That's it! The action will process your TestFlight feedback and create enhanced 
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `enable_llm_enhancement` | ❌ | `false` | Enable AI-powered issue enhancement |
-| `llm_provider` | ❌ | `openai` | Primary AI provider: `openai`, `anthropic`, `google`, `deepseek`, `xai` |
+| `llm_provider` | ❌ | `openai` | Primary AI provider: `openai`, `anthropic`, `google` |
 | `llm_fallback_providers` | ❌ | `anthropic,google` | Comma-separated fallback providers |
 | `max_llm_cost_per_run` | ❌ | `5.00` | Maximum AI cost per workflow run (USD) |
 | `max_llm_cost_per_month` | ❌ | `200.00` | Maximum AI cost per month (USD) |
@@ -241,13 +239,12 @@ Available outputs:
     # AI configuration with fallbacks
     enable_llm_enhancement: 'true'
     llm_provider: 'openai'
-    llm_fallback_providers: 'anthropic,google,deepseek'
+    llm_fallback_providers: 'anthropic,google'
     
     # API keys for multiple providers
     openai_api_key: ${{ secrets.OPENAI_API_KEY }}
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     google_api_key: ${{ secrets.GOOGLE_API_KEY }}
-    deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
     
     # Cost controls
     max_llm_cost_per_run: '10.00'

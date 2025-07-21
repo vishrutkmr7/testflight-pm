@@ -8,9 +8,7 @@ import { getConfig } from "./environment.js";
 export type LLMProvider =
 	| "openai"
 	| "anthropic"
-	| "google"
-	| "deepseek"
-	| "xai";
+	| "google";
 
 export interface LLMProviderConfig {
 	apiKey: string;
@@ -79,57 +77,21 @@ export const LLM_MODEL_PRICING: Record<
 	{ input: number; output: number }
 > = {
 	// OpenAI models (2025)
-	"gpt-4.1": { input: 0.002, output: 0.008 },
-	"gpt-4.1-mini": { input: 0.0004, output: 0.0016 },
-	"gpt-4.1-nano": { input: 0.0001, output: 0.0004 },
 	"gpt-4o": { input: 0.0025, output: 0.01 },
 	"gpt-4o-mini": { input: 0.00015, output: 0.0006 },
 	"gpt-4-turbo": { input: 0.01, output: 0.03 },
+	"gpt-4": { input: 0.03, output: 0.06 },
 	"gpt-3.5-turbo": { input: 0.0005, output: 0.0015 },
-	o3: { input: 0.01, output: 0.04 },
-	"o3-mini": { input: 0.0011, output: 0.0044 },
-	o1: { input: 0.015, output: 0.06 },
-	"o1-mini": { input: 0.0011, output: 0.0044 },
 
 	// Anthropic models (2025)
-	"claude-4-sonnet": { input: 0.003, output: 0.015 },
-	"claude-4-opus": { input: 0.015, output: 0.075 },
-	"claude-3.7-sonnet": { input: 0.003, output: 0.015 },
 	"claude-3-5-sonnet-20241022": { input: 0.003, output: 0.015 },
 	"claude-3-5-haiku-20241022": { input: 0.0008, output: 0.004 },
 	"claude-3-opus-20240229": { input: 0.015, output: 0.075 },
-	"claude-3-sonnet-20240229": { input: 0.003, output: 0.015 },
-	"claude-3-haiku-20240307": { input: 0.00025, output: 0.00125 },
 
 	// Google models (2025)
-	"gemini-2.5-pro": { input: 0.0025, output: 0.015 },
-	"gemini-2.5-flash": { input: 0.00015, output: 0.0006 },
-	"gemini-2.0-flash": { input: 0.0001, output: 0.0004 },
-	"gemini-2.0-flash-lite": { input: 0.000075, output: 0.0003 },
 	"gemini-1.5-pro": { input: 0.00125, output: 0.005 },
 	"gemini-1.5-flash": { input: 0.000075, output: 0.0003 },
-	"gemini-1.5-flash-8b": { input: 0.0000375, output: 0.00015 },
-
-	// xAI models (2025)
-	"grok-3": { input: 0.003, output: 0.015 },
-	"grok-3-mini": { input: 0.0003, output: 0.0005 },
-
-	// DeepSeek models (2025)
-	"deepseek-v3": { input: 0.00027, output: 0.0011 },
-	"deepseek-r1": { input: 0.00055, output: 0.00219 },
-
-	// Mistral AI models (2025)
-	"mistral-large": { input: 0.002, output: 0.006 },
-	"mistral-small": { input: 0.0002, output: 0.0006 },
-	"mistral-nemo": { input: 0.00015, output: 0.00015 },
-	codestral: { input: 0.0002, output: 0.0006 },
-	"pixtral-12b": { input: 0.00015, output: 0.00015 },
-
-	// Cohere models
-	"command-a": { input: 0.0025, output: 0.01 },
-	"command-r-plus": { input: 0.0025, output: 0.01 },
-	"command-r": { input: 0.00015, output: 0.0006 },
-	"command-r7b": { input: 0.0000375, output: 0.00015 },
+	"gemini-1.0-pro": { input: 0.0005, output: 0.0015 },
 };
 
 /**
@@ -138,45 +100,29 @@ export const LLM_MODEL_PRICING: Record<
 export const DEFAULT_LLM_CONFIG: LLMEnhancementConfig = {
 	enabled: false,
 	primaryProvider: "openai",
-	fallbackProviders: ["anthropic", "google", "deepseek"],
+	fallbackProviders: ["anthropic", "google"],
 	providers: {
 		openai: {
 			apiKey: "",
-			model: "gpt-4.1-mini", // Updated to latest cost-effective model
+			model: "gpt-4o",
 			maxTokens: 4000,
-			temperature: 0.1,
+			temperature: 0.7,
 			timeout: 30000,
 			maxRetries: 3,
 		},
 		anthropic: {
 			apiKey: "",
-			model: "claude-3.7-sonnet", // Updated to latest model
+			model: "claude-3-5-sonnet-20241022",
 			maxTokens: 4000,
-			temperature: 0.1,
+			temperature: 0.7,
 			timeout: 30000,
 			maxRetries: 3,
 		},
 		google: {
 			apiKey: "",
-			model: "gemini-2.5-flash", // Updated to latest cost-effective model
+			model: "gemini-1.5-pro",
 			maxTokens: 4000,
-			temperature: 0.1,
-			timeout: 30000,
-			maxRetries: 3,
-		},
-		deepseek: {
-			apiKey: "",
-			model: "deepseek-v3", // Added DeepSeek as new provider
-			maxTokens: 4000,
-			temperature: 0.1,
-			timeout: 30000,
-			maxRetries: 3,
-		},
-		xai: {
-			apiKey: "",
-			model: "grok-3-mini", // Added xAI as new provider
-			maxTokens: 4000,
-			temperature: 0.1,
+			temperature: 0.7,
 			timeout: 30000,
 			maxRetries: 3,
 		},
@@ -215,15 +161,11 @@ export const LLM_ENV_VARS = {
 	OPENAI_API_KEY: "OPENAI_API_KEY",
 	ANTHROPIC_API_KEY: "ANTHROPIC_API_KEY",
 	GOOGLE_API_KEY: "GOOGLE_API_KEY",
-	DEEPSEEK_API_KEY: "DEEPSEEK_API_KEY",
-	XAI_API_KEY: "XAI_API_KEY",
 
 	// Models
 	OPENAI_MODEL: "OPENAI_MODEL",
 	ANTHROPIC_MODEL: "ANTHROPIC_MODEL",
 	GOOGLE_MODEL: "GOOGLE_MODEL",
-	DEEPSEEK_MODEL: "DEEPSEEK_MODEL",
-	XAI_MODEL: "XAI_MODEL",
 
 	// Cost Controls
 	MAX_LLM_COST_PER_RUN: "MAX_LLM_COST_PER_RUN",
@@ -325,16 +267,6 @@ export function loadLLMConfig(): LLMEnhancementConfig {
 		config.providers.google.apiKey = googleKey;
 	}
 
-	const deepseekKey = getEnvVar(LLM_ENV_VARS.DEEPSEEK_API_KEY);
-	if (deepseekKey) {
-		config.providers.deepseek.apiKey = deepseekKey;
-	}
-
-	const xaiKey = getEnvVar(LLM_ENV_VARS.XAI_API_KEY);
-	if (xaiKey) {
-		config.providers.xai.apiKey = xaiKey;
-	}
-
 	// Models
 	const openaiModel = getEnvVar(LLM_ENV_VARS.OPENAI_MODEL);
 	if (openaiModel) {
@@ -349,16 +281,6 @@ export function loadLLMConfig(): LLMEnhancementConfig {
 	const googleModel = getEnvVar(LLM_ENV_VARS.GOOGLE_MODEL);
 	if (googleModel) {
 		config.providers.google.model = googleModel;
-	}
-
-	const deepseekModel = getEnvVar(LLM_ENV_VARS.DEEPSEEK_MODEL);
-	if (deepseekModel) {
-		config.providers.deepseek.model = deepseekModel;
-	}
-
-	const xaiModel = getEnvVar(LLM_ENV_VARS.XAI_MODEL);
-	if (xaiModel) {
-		config.providers.xai.model = xaiModel;
 	}
 
 	// Unified model configuration (for convenience)
@@ -484,29 +406,7 @@ export function validateLLMConfig(config: LLMEnhancementConfig): {
 	}
 
 	// Provider-specific validations
-	if (
-		config.primaryProvider === "deepseek" ||
-		config.fallbackProviders.includes("deepseek")
-	) {
-		const deepseekConfig = config.providers.deepseek;
-		if (deepseekConfig.model && !deepseekConfig.model.startsWith("deepseek")) {
-			warnings.push(
-				"DeepSeek provider should use DeepSeek models for optimal performance",
-			);
-		}
-	}
-
-	if (
-		config.primaryProvider === "xai" ||
-		config.fallbackProviders.includes("xai")
-	) {
-		const xaiConfig = config.providers.xai;
-		if (xaiConfig.model && !xaiConfig.model.startsWith("grok")) {
-			warnings.push(
-				"xAI provider should use Grok models for optimal performance",
-			);
-		}
-	}
+	// Note: Additional provider-specific validations can be added here for supported providers
 
 	// Validate cost controls
 	if (config.costControls.maxCostPerRun <= 0) {

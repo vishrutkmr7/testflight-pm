@@ -26,7 +26,7 @@ import type {
     GitHubUser,
 } from "../../types/github.js";
 import type { ProcessedFeedbackData } from "../../types/testflight.js";
-import { API_ENDPOINTS, HTTP_CONFIG } from "../config/constants.js";
+import { API_ENDPOINTS, DEFAULT_LABELS, HTTP_CONFIG } from "../config/constants.js";
 import { getConfig } from "../config/environment.js";
 import { getTestFlightClient } from "./testflight-client.js";
 
@@ -58,9 +58,9 @@ export class GitHubClient {
             token: envConfig.github.token,
             owner: envConfig.github.owner,
             repo: envConfig.github.repo,
-            defaultLabels: ["testflight", "feedback"],
-            crashLabels: ["bug", "crash", "urgent"],
-            feedbackLabels: ["enhancement", "user-feedback"],
+            defaultLabels: [...DEFAULT_LABELS.BASE],
+            crashLabels: [...DEFAULT_LABELS.CRASH],
+            feedbackLabels: [...DEFAULT_LABELS.FEEDBACK],
             enableDuplicateDetection: true,
             duplicateDetectionDays: 7,
             enableScreenshotUpload: true,
