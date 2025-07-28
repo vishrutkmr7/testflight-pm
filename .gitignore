@@ -3,7 +3,7 @@ node_modules
 
 # output
 out
-dist
+# dist  # commented out for GitHub Action - built files need to be committed
 *.tgz
 
 # code coverage
