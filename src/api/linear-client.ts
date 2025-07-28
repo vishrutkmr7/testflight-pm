@@ -1,23 +1,18 @@
 /**
  * Linear API Client
- * Secure utility for managing Linear issues, projects, and workflow integration via MCP
+ * Secure utility for managing Linear issues, projects, and workflow integration via official Linear SDK
  */
 
+import { LinearClient as LinearSDK } from "@linear/sdk";
 import type {
 	LinearComment,
-	LinearCreateCommentRequest,
-	LinearCreateIssueLinkInput,
-	LinearCreateIssueRequest,
 	LinearIntegrationConfig,
 	LinearIssue,
-	LinearIssueFromTestFlight,
 	LinearIssueLabel,
-	LinearIssueSearchParams,
 	LinearIssueStatus,
 	LinearPriority,
 	LinearProject,
 	LinearTeam,
-	LinearUpdateIssueRequest,
 	LinearUser,
 } from "../../types/linear.js";
 import type { ProcessedFeedbackData } from "../../types/testflight.js";
@@ -29,13 +24,12 @@ import {
 import { getConfig } from "../config/environment.js";
 
 /**
- * Linear API Client with MCP integration, rate limiting awareness, and secure configuration
+ * Linear API Client with official SDK integration, rate limiting awareness, and secure configuration
  */
 export class LinearClient {
 	private readonly config: LinearIntegrationConfig;
+	private readonly sdk: LinearSDK;
 	private teamCache: LinearTeam | null = null;
-	private statusCache: Map<string, LinearIssueStatus> = new Map();
-	private labelCache: Map<string, LinearIssueLabel> = new Map();
 
 	constructor() {
 		const envConfig = getConfig();
@@ -54,6 +48,11 @@ export class LinearClient {
 			enableDuplicateDetection: true,
 			duplicateDetectionDays: 7,
 		};
+
+		// Initialize the Linear SDK
+		this.sdk = new LinearSDK({
+			apiKey: this.config.apiToken,
+		});
 	}
 
 	/**
@@ -85,27 +84,33 @@ export class LinearClient {
 				projectId,
 			);
 
-			// Get label IDs
-			const labelIds = await this.resolveLabelIds(issueData.labels);
-
-			const createRequest: LinearCreateIssueRequest = {
+			// Create issue using Linear SDK
+			const issueCreatePayload = await this.sdk.createIssue({
 				title: issueData.title,
 				description: issueData.description,
 				teamId: issueData.teamId,
-				priority: issueData.priority,
+				priority: this.mapPriorityToLinearPriority(issueData.priority),
 				assigneeId: issueData.assigneeId,
 				projectId: issueData.projectId,
-				labelIds,
-				links: issueData.links,
-			};
+			});
 
-			// Use MCP function to create issue
-			const createdIssue = await this.mcpCreateIssue(createRequest);
+			if (!issueCreatePayload.success) {
+				throw new Error("Linear API error: Failed to create issue");
+			}
+
+			const createdIssue = await issueCreatePayload.issue;
+			if (!createdIssue) {
+				throw new Error("Failed to retrieve created issue from Linear");
+			}
+
+			// Convert to simplified LinearIssue format
+			const linearIssue: LinearIssue =
+				await this.convertToLinearIssue(createdIssue);
 
 			console.log(
-				`✅ Created Linear issue: ${createdIssue.identifier} - ${createdIssue.title}`,
+				`✅ Created Linear issue: ${linearIssue.identifier} - ${linearIssue.title}`,
 			);
-			return createdIssue;
+			return linearIssue;
 		} catch (error) {
 			throw new Error(
 				`Failed to create Linear issue from TestFlight feedback: ${error}`,
@@ -123,16 +128,20 @@ export class LinearClient {
 		try {
 			const status = await this.getIssueStatusByName(statusName);
 
-			const updateRequest: LinearUpdateIssueRequest = {
-				id: issueId,
+			const updatePayload = await this.sdk.updateIssue(issueId, {
 				stateId: status.id,
-			};
+			});
 
-			const updatedIssue = await this.mcpUpdateIssue(updateRequest);
-			console.log(
-				`✅ Updated Linear issue ${updatedIssue.identifier} status to: ${statusName}`,
-			);
-			return updatedIssue;
+			if (!updatePayload.success) {
+				throw new Error("Linear API error: Failed to update issue");
+			}
+
+			const updatedIssue = await updatePayload.issue;
+			if (!updatedIssue) {
+				throw new Error("Failed to retrieve updated issue from Linear");
+			}
+
+			return await this.convertToLinearIssue(updatedIssue);
 		} catch (error) {
 			throw new Error(`Failed to update Linear issue status: ${error}`);
 		}
@@ -146,64 +155,110 @@ export class LinearClient {
 		body: string,
 	): Promise<LinearComment> {
 		try {
-			const commentRequest: LinearCreateCommentRequest = {
+			const commentPayload = await this.sdk.createComment({
 				issueId,
 				body,
-			};
+			});
 
-			const comment = await this.mcpCreateComment(commentRequest);
-			console.log(`✅ Added comment to Linear issue: ${issueId}`);
-			return comment;
+			if (!commentPayload.success) {
+				throw new Error("Linear API error: Failed to create comment");
+			}
+
+			const comment = await commentPayload.comment;
+			if (!comment) {
+				throw new Error("Failed to retrieve created comment from Linear");
+			}
+
+			const issueBasic = await comment.issue;
+			const team = await this.getTeam();
+
+			// Create a minimal LinearIssue object for the comment
+			const issueForComment: LinearIssue = issueBasic
+				? await this.convertToLinearIssue(issueBasic)
+				: {
+						id: "unknown",
+						identifier: "unknown",
+						title: "Unknown Issue",
+						description: "",
+						url: "",
+						priority: 3,
+						state: {
+							id: "unknown",
+							name: "Unknown",
+							description: "",
+							color: "#000000",
+							position: 0,
+							type: "backlog",
+							createdAt: new Date().toISOString(),
+							updatedAt: new Date().toISOString(),
+							team,
+						},
+						assignee: undefined,
+						team,
+						labels: [],
+						createdAt: new Date().toISOString(),
+						updatedAt: new Date().toISOString(),
+						estimate: 0,
+						sortOrder: 0,
+						number: 0,
+						creator: await this.createFallbackUser(),
+						parent: undefined,
+						children: [],
+						relations: [],
+						comments: [],
+						attachments: [],
+						project: undefined,
+						cycle: undefined,
+						previousIdentifiers: [],
+						customerTicketCount: 0,
+						subscribers: [],
+					};
+
+			return {
+				id: comment.id,
+				body: comment.body,
+				user: await this.convertToLinearUser(comment.user),
+				issue: issueForComment,
+				url: issueBasic ? `${issueBasic.url}#comment-${comment.id}` : "",
+				createdAt: comment.createdAt.toISOString(),
+				updatedAt: comment.updatedAt.toISOString(),
+			};
 		} catch (error) {
 			throw new Error(`Failed to add comment to Linear issue: ${error}`);
 		}
 	}
 
 	/**
-	 * Searches for existing issues to detect duplicates
+	 * Searches for duplicate issues in Linear
 	 */
 	public async findDuplicateIssue(
 		feedback: ProcessedFeedbackData,
 	): Promise<LinearIssue | null> {
 		try {
-			const since = new Date();
-			since.setDate(since.getDate() - this.config.duplicateDetectionDays);
+			// Simple search for issues containing the TestFlight ID
+			const searchQuery = `TestFlight ID: ${feedback.id}`;
 
-			let searchQuery = `feedback:${feedback.id}`;
+			const issues = await this.sdk.issues({
+				filter: {
+					team: { id: { eq: this.config.teamId } },
+					or: [
+						{ title: { containsIgnoreCase: feedback.id } },
+						{ description: { containsIgnoreCase: searchQuery } },
+					],
+				},
+				first: 5,
+			});
 
-			// For crashes, also search by exception type and app version
-			if (feedback.crashData) {
-				if (feedback.crashData.exceptionType) {
-					searchQuery += ` OR "${feedback.crashData.exceptionType}"`;
+			for (const issue of issues.nodes) {
+				const description = await issue.description;
+				if (description?.includes(`TestFlight ID: ${feedback.id}`)) {
+					return await this.convertToLinearIssue(issue);
 				}
-				searchQuery += ` AND version:${feedback.appVersion}`;
 			}
 
-			// For screenshots, search by feedback text
-			if (feedback.screenshotData?.text) {
-				const cleanText = feedback.screenshotData.text
-					.substring(0, 50)
-					.replace(/"/g, "");
-				searchQuery += ` OR "${cleanText}"`;
-			}
-
-			const searchParams: LinearIssueSearchParams = {
-				query: searchQuery,
-				teamId: this.config.teamId,
-				createdAt: `>${since.toISOString()}`,
-				limit: 5,
-			};
-
-			const issues = await this.mcpListIssues(searchParams);
-
-			// Look for exact matches based on TestFlight feedback ID in issue description
-			const duplicateIssue = issues.find((issue: LinearIssue) =>
-				issue.description?.includes(`TestFlight ID: ${feedback.id}`),
-			);
-
-			return duplicateIssue || null;
+			return null;
 		} catch (error) {
-			console.warn(`Failed to search for duplicate issues: ${error}`);
+			console.warn(`Error searching for duplicate issues: ${error}`);
 			return null;
 		}
 	}
@@ -217,24 +272,29 @@ export class LinearClient {
 		}
 
 		try {
-			const team = await this.mcpGetTeam(this.config.teamId);
-			this.teamCache = team;
-			return team;
+			const team = await this.sdk.team(this.config.teamId);
+
+			this.teamCache = await this.convertToLinearTeam(team);
+			return this.teamCache;
 		} catch (error) {
 			throw new Error(`Failed to get Linear team: ${error}`);
 		}
 	}
 
 	/**
-	 * Gets all available issue statuses for the team
+	 * Gets available issue statuses for the team
 	 */
 	public async getIssueStatuses(): Promise<LinearIssueStatus[]> {
 		try {
-			const statuses = await this.mcpListIssueStatuses(this.config.teamId);
+			const states = await this.sdk.workflowStates({
+				filter: {
+					team: { id: { eq: this.config.teamId } },
+				},
+			});
 
-			// Cache the statuses
-			for (const status of statuses) {
-				this.statusCache.set(status.name.toLowerCase(), status);
+			const statuses: LinearIssueStatus[] = [];
+			for (const state of states.nodes) {
+				statuses.push(await this.convertToLinearIssueStatus(state));
 			}
 
 			return statuses;
@@ -244,75 +304,87 @@ export class LinearClient {
 	}
 
 	/**
-	 * Gets an issue status by name
+	 * Gets a specific issue status by name
 	 */
 	public async getIssueStatusByName(
 		statusName: string,
 	): Promise<LinearIssueStatus> {
-		const normalizedName = statusName.toLowerCase();
-
-		if (this.statusCache.has(normalizedName)) {
-			const status = this.statusCache.get(normalizedName);
-			if (status) {
-				return status;
-			}
-		}
-
 		try {
-			const status = await this.mcpGetIssueStatus(
-				statusName,
-				this.config.teamId,
-			);
-			this.statusCache.set(normalizedName, status);
-			return status;
+			const states = await this.sdk.workflowStates({
+				filter: {
+					team: { id: { eq: this.config.teamId } },
+					name: { eq: statusName },
+				},
+			});
+
+			if (states.nodes.length === 0) {
+				throw new Error(`Issue status '${statusName}' not found`);
+			}
+
+			return await this.convertToLinearIssueStatus(states.nodes[0]);
 		} catch (error) {
-			throw new Error(
-				`Failed to get Linear issue status '${statusName}': ${error}`,
-			);
+			throw new Error(`Failed to get Linear issue status: ${error}`);
 		}
 	}
 
 	/**
-	 * Gets all available labels for the team
+	 * Gets available issue labels for the team
 	 */
 	public async getIssueLabels(): Promise<LinearIssueLabel[]> {
 		try {
-			const labels = await this.mcpListIssueLabels(this.config.teamId);
+			const labels = await this.sdk.issueLabels({
+				filter: {
+					team: { id: { eq: this.config.teamId } },
+				},
+			});
 
-			// Cache the labels
-			for (const label of labels) {
-				this.labelCache.set(label.name.toLowerCase(), label);
+			const issueLabels: LinearIssueLabel[] = [];
+			for (const label of labels.nodes) {
+				issueLabels.push(await this.convertToLinearIssueLabel(label));
 			}
 
-			return labels;
+			return issueLabels;
 		} catch (error) {
 			throw new Error(`Failed to get Linear issue labels: ${error}`);
 		}
 	}
 
 	/**
-	 * Lists recent issues for the team
+	 * Gets recent issues from Linear
 	 */
 	public async getRecentIssues(limit = 20): Promise<LinearIssue[]> {
 		try {
-			const searchParams: LinearIssueSearchParams = {
-				teamId: this.config.teamId,
-				limit,
-				orderBy: "updatedAt",
-			};
+			const issues = await this.sdk.issues({
+				filter: {
+					team: { id: { eq: this.config.teamId } },
+				},
+				first: limit,
+			});
 
-			return await this.mcpListIssues(searchParams);
+			const linearIssues: LinearIssue[] = [];
+			for (const issue of issues.nodes) {
+				linearIssues.push(await this.convertToLinearIssue(issue));
+			}
+
+			return linearIssues;
 		} catch (error) {
 			throw new Error(`Failed to get recent Linear issues: ${error}`);
 		}
 	}
 
 	/**
-	 * Lists all projects for the team
+	 * Gets projects from Linear
 	 */
 	public async getProjects(): Promise<LinearProject[]> {
 		try {
-			return await this.mcpListProjects(this.config.teamId);
+			const projects = await this.sdk.projects();
+
+			const linearProjects: LinearProject[] = [];
+			for (const project of projects.nodes) {
+				linearProjects.push(await this.convertToLinearProject(project));
+			}
+
+			return linearProjects;
 		} catch (error) {
 			throw new Error(`Failed to get Linear projects: ${error}`);
 		}
@@ -323,14 +395,8 @@ export class LinearClient {
 	 */
 	public async getCurrentUser(): Promise<LinearUser> {
 		try {
-			const users = await this.mcpListUsers();
-			const currentUser = users.find((user: LinearUser) => user.isMe);
-
-			if (!currentUser) {
-				throw new Error("Current user not found in Linear workspace");
-			}
-
-			return currentUser;
+			const viewer = await this.sdk.viewer;
+			return await this.convertToLinearUser(viewer);
 		} catch (error) {
 			throw new Error(`Failed to get current Linear user: ${error}`);
 		}
@@ -351,15 +417,18 @@ export class LinearClient {
 		};
 	}> {
 		try {
-			const team = await this.getTeam();
-			const currentUser = await this.getCurrentUser();
+			// Test basic connectivity
+			const [team, user] = await Promise.all([
+				this.getTeam(),
+				this.getCurrentUser(),
+			]);
 
 			return {
 				status: "healthy",
 				details: {
 					teamName: team.name,
 					teamKey: team.key,
-					currentUser: currentUser.displayName,
+					currentUser: user.name,
 					configuredTeamId: this.config.teamId,
 					timestamp: new Date().toISOString(),
 				},
@@ -376,104 +445,218 @@ export class LinearClient {
 		}
 	}
 
-	// Private MCP wrapper methods
-	// These will be implemented to use the actual MCP tools at runtime
+	/**
+	 * Helper method to convert Linear SDK issue to our LinearIssue interface
+	 */
+	private async convertToLinearIssue(issue: any): Promise<LinearIssue> {
+		const team = await this.getTeam();
+		const state = await issue.state;
+		const assignee = await issue.assignee;
+		const creator = await issue.creator;
 
-	private async mcpCreateIssue(
-		_request: LinearCreateIssueRequest,
-	): Promise<LinearIssue> {
-		// This will be implemented to use the MCP Linear tools
-		// For now, return a mock response to satisfy TypeScript
-		throw new Error(
-			"MCP Linear integration not yet connected. Please implement MCP tool integration.",
-		);
-	}
-
-	private async mcpUpdateIssue(
-		_request: LinearUpdateIssueRequest,
-	): Promise<LinearIssue> {
-		// This will be implemented to use the MCP Linear tools
-		throw new Error(
-			"MCP Linear integration not yet connected. Please implement MCP tool integration.",
-		);
-	}
-
-	private async mcpCreateComment(
-		_request: LinearCreateCommentRequest,
-	): Promise<LinearComment> {
-		// This will be implemented to use the MCP Linear tools
-		throw new Error(
-			"MCP Linear integration not yet connected. Please implement MCP tool integration.",
-		);
-	}
-
-	private async mcpListIssues(
-		_params: LinearIssueSearchParams,
-	): Promise<LinearIssue[]> {
-		// This will be implemented to use the MCP Linear tools
-		throw new Error(
-			"MCP Linear integration not yet connected. Please implement MCP tool integration.",
-		);
-	}
-
-	private async mcpGetTeam(_teamId: string): Promise<LinearTeam> {
-		// This will be implemented to use the MCP Linear tools
-		throw new Error(
-			"MCP Linear integration not yet connected. Please implement MCP tool integration.",
-		);
-	}
-
-	private async mcpListIssueStatuses(
-		_teamId: string,
-	): Promise<LinearIssueStatus[]> {
-		// This will be implemented to use the MCP Linear tools
-		throw new Error(
-			"MCP Linear integration not yet connected. Please implement MCP tool integration.",
-		);
-	}
-
-	private async mcpGetIssueStatus(
-		_statusName: string,
-		_teamId: string,
-	): Promise<LinearIssueStatus> {
-		// This will be implemented to use the MCP Linear tools
-		throw new Error(
-			"MCP Linear integration not yet connected. Please implement MCP tool integration.",
-		);
-	}
-
-	private async mcpListIssueLabels(
-		_teamId: string,
-	): Promise<LinearIssueLabel[]> {
-		// This will be implemented to use the MCP Linear tools
-		throw new Error(
-			"MCP Linear integration not yet connected. Please implement MCP tool integration.",
-		);
-	}
-
-	private async mcpListProjects(_teamId: string): Promise<LinearProject[]> {
-		// This will be implemented to use the MCP Linear tools
-		throw new Error(
-			"MCP Linear integration not yet connected. Please implement MCP tool integration.",
-		);
-	}
-
-	private async mcpListUsers(): Promise<LinearUser[]> {
-		// This will be implemented to use the MCP Linear tools
-		throw new Error(
-			"MCP Linear integration not yet connected. Please implement MCP tool integration.",
-		);
+		return {
+			id: issue.id,
+			identifier: issue.identifier,
+			title: issue.title,
+			description: (await issue.description) || "",
+			url: issue.url,
+			priority: this.mapLinearPriorityToPriority(issue.priority),
+			state: await this.convertToLinearIssueStatus(state),
+			assignee: assignee ? await this.convertToLinearUser(assignee) : undefined,
+			team,
+			labels: [],
+			createdAt: issue.createdAt.toISOString(),
+			updatedAt: issue.updatedAt.toISOString(),
+			estimate: issue.estimate || 0,
+			sortOrder: issue.sortOrder || 0,
+			number: issue.number,
+			dueDate: issue.dueDate?.toISOString(),
+			completedAt: issue.completedAt?.toISOString(),
+			canceledAt: issue.canceledAt?.toISOString(),
+			autoClosedAt: issue.autoClosedAt?.toISOString(),
+			autoArchivedAt: issue.autoArchivedAt?.toISOString(),
+			archivedAt: issue.archivedAt?.toISOString(),
+			creator: creator
+				? await this.convertToLinearUser(creator)
+				: await this.createFallbackUser(),
+			parent: undefined,
+			children: [],
+			relations: [],
+			comments: [],
+			attachments: [],
+			project: undefined,
+			cycle: undefined,
+			previousIdentifiers: [],
+			customerTicketCount: 0,
+			subscribers: [],
+		};
 	}
 
 	/**
-	 * Prepares issue data from TestFlight feedback
+	 * Creates a fallback user when no creator is available
+	 */
+	private async createFallbackUser(): Promise<LinearUser> {
+		return {
+			id: "unknown",
+			name: "Unknown User",
+			displayName: "Unknown User",
+			email: "",
+			avatarUrl: undefined,
+			isMe: false,
+			isAdmin: false,
+			isGuest: true,
+			active: false,
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		};
+	}
+
+	/**
+	 * Helper method to convert Linear SDK user to our LinearUser interface
+	 */
+	private async convertToLinearUser(user: any): Promise<LinearUser> {
+		return {
+			id: user.id,
+			name: user.name,
+			displayName: user.displayName || user.name,
+			email: user.email,
+			avatarUrl: user.avatarUrl,
+			isMe: user.isMe || false,
+			isAdmin: user.admin || false,
+			isGuest: user.guest || false,
+			active: user.active || true,
+			createdAt: user.createdAt?.toISOString() || new Date().toISOString(),
+			updatedAt: user.updatedAt?.toISOString() || new Date().toISOString(),
+		};
+	}
+
+	/**
+	 * Helper method to convert Linear SDK team to our LinearTeam interface
+	 */
+	private async convertToLinearTeam(team: any): Promise<LinearTeam> {
+		return {
+			id: team.id,
+			name: team.name,
+			key: team.key,
+			description: (await team.description) || "",
+			icon: team.icon,
+			color: team.color,
+			private: team.private || false,
+			autoArchivePeriod: team.autoArchivePeriod || 0,
+			autoCloseParentIssues: team.autoCloseParentIssues || false,
+			cyclesEnabled: team.cyclesEnabled || false,
+			cycleStartDay: team.cycleStartDay || 0,
+			cycleDuration: team.cycleDuration || 1,
+			cycleCooldownTime: team.cycleCooldownTime || 0,
+			upcomingCycleCount: team.upcomingCycleCount || 0,
+			timezone: team.timezone || "UTC",
+			inviteHash: team.inviteHash || "",
+			issueEstimationType: team.issueEstimationType || "notUsed",
+			issueEstimationAllowZero: team.issueEstimationAllowZero || false,
+			issueEstimationExtended: team.issueEstimationExtended || false,
+			issueOrderingNoPriorityFirst: team.issueOrderingNoPriorityFirst || false,
+			issueSortOrderDefaultToBottom:
+				team.issueSortOrderDefaultToBottom || false,
+			defaultIssueEstimate: team.defaultIssueEstimate,
+			defaultTemplateForMembersId: team.defaultTemplateForMembersId,
+			defaultTemplateForNonMembersId: team.defaultTemplateForNonMembersId,
+			triageEnabled: team.triageEnabled || false,
+			requirePriorityToLeaveTriage: team.requirePriorityToLeaveTriage || false,
+			createdAt: team.createdAt?.toISOString() || new Date().toISOString(),
+			updatedAt: team.updatedAt?.toISOString() || new Date().toISOString(),
+			archivedAt: team.archivedAt?.toISOString(),
+		};
+	}
+
+	/**
+	 * Helper method to convert Linear SDK state to our LinearIssueStatus interface
+	 */
+	private async convertToLinearIssueStatus(
+		state: any,
+	): Promise<LinearIssueStatus> {
+		const team = await this.getTeam();
+
+		return {
+			id: state.id,
+			name: state.name,
+			description: state.description,
+			color: state.color,
+			position: state.position || 0,
+			type: this.mapStateTypeToLinearIssueState(state.type),
+			createdAt: state.createdAt?.toISOString() || new Date().toISOString(),
+			updatedAt: state.updatedAt?.toISOString() || new Date().toISOString(),
+			archivedAt: state.archivedAt?.toISOString(),
+			team,
+		};
+	}
+
+	/**
+	 * Helper method to convert Linear SDK label to our LinearIssueLabel interface
+	 */
+	private async convertToLinearIssueLabel(
+		label: any,
+	): Promise<LinearIssueLabel> {
+		const team = await this.getTeam();
+
+		return {
+			id: label.id,
+			name: label.name,
+			color: label.color,
+			description: (await label.description) || "",
+			parent: undefined,
+			children: [],
+			createdAt: label.createdAt?.toISOString() || new Date().toISOString(),
+			updatedAt: label.updatedAt?.toISOString() || new Date().toISOString(),
+			archivedAt: label.archivedAt?.toISOString(),
+			creator: await this.createFallbackUser(),
+			team,
+		};
+	}
+
+	/**
+	 * Helper method to convert Linear SDK project to our LinearProject interface
+	 */
+	private async convertToLinearProject(project: any): Promise<LinearProject> {
+		return {
+			id: project.id,
+			name: project.name,
+			description: (await project.description) || "",
+			slug: project.slug || project.name.toLowerCase().replace(/\s+/g, "-"),
+			icon: project.icon,
+			color: project.color,
+			state: project.state || "planned",
+			content: await project.content,
+			priority: this.mapLinearPriorityToPriority(project.priority) as any,
+			sortOrder: project.sortOrder || 0,
+			startDate: project.startDate?.toISOString(),
+			targetDate: project.targetDate?.toISOString(),
+			completedAt: project.completedAt?.toISOString(),
+			canceledAt: project.canceledAt?.toISOString(),
+			autoArchivedAt: project.autoArchivedAt?.toISOString(),
+			createdAt: project.createdAt?.toISOString() || new Date().toISOString(),
+			updatedAt: project.updatedAt?.toISOString() || new Date().toISOString(),
+			archivedAt: project.archivedAt?.toISOString(),
+			creator: await this.convertToLinearUser(await project.creator),
+			lead: undefined,
+			members: [],
+			teams: [],
+			milestones: [],
+			documents: [],
+			links: [],
+			requirements: [],
+			roadmaps: [],
+		};
+	}
+
+	/**
+	 * Prepares Linear issue data from TestFlight feedback
 	 */
 	private prepareIssueFromTestFlight(
 		feedback: ProcessedFeedbackData,
 		additionalLabels: string[] = [],
 		assigneeId?: string,
 		projectId?: string,
-	): LinearIssueFromTestFlight {
+	) {
 		const isCrash = feedback.type === "crash";
 		const typeIcon = isCrash ? "💥" : "📱";
 		const typeLabel = isCrash ? "Crash Report" : "User Feedback";
@@ -484,50 +667,80 @@ export class LinearClient {
 		if (isCrash && feedback.crashData?.exceptionType) {
 			title += ` - ${feedback.crashData.exceptionType}`;
 		} else if (feedback.screenshotData?.text) {
-			const shortText = feedback.screenshotData.text.substring(0, 50);
+			const shortText = feedback.screenshotData.text.substring(0, 40);
 			title += ` - ${shortText}${shortText.length < feedback.screenshotData.text.length ? "..." : ""}`;
 		}
 
 		// Generate description
-		let description = `## ${typeLabel} from TestFlight\n\n`;
-		description += `**TestFlight ID:** ${feedback.id}\n`;
-		description += `**App Version:** ${feedback.appVersion} (${feedback.buildNumber})\n`;
-		description += `**Submitted:** ${feedback.submittedAt.toISOString()}\n`;
-		description += `**Device:** ${feedback.deviceInfo.model} (${feedback.deviceInfo.osVersion})\n`;
-		description += `**Locale:** ${feedback.deviceInfo.locale}\n\n`;
+		let description = `## ${typeIcon} ${typeLabel} from TestFlight\n\n`;
+
+		// Metadata table
+		description += "| Field | Value |\n";
+		description += "|-------|-------|\n";
+		description += `| **TestFlight ID** | \`${feedback.id}\` |\n`;
+		description += `| **App Version** | ${feedback.appVersion} (Build ${feedback.buildNumber}) |\n`;
+		description += `| **Submitted** | ${feedback.submittedAt.toISOString()} |\n`;
+		description += `| **Device** | ${feedback.deviceInfo.model} |\n`;
+		description += `| **OS Version** | ${feedback.deviceInfo.osVersion} |\n`;
+		description += `| **Locale** | ${feedback.deviceInfo.locale} |\n\n`;
 
 		if (isCrash && feedback.crashData) {
-			description += "### Crash Details\n";
-			description += `**Type:** ${feedback.crashData.type}\n`;
+			description += "### 🔍 Crash Details\n\n";
+			description += `**Type:** ${feedback.crashData.type}\n\n`;
+
 			if (feedback.crashData.exceptionType) {
-				description += `**Exception:** ${feedback.crashData.exceptionType}\n`;
+				description += `**Exception:** \`${feedback.crashData.exceptionType}\`\n\n`;
 			}
+
 			if (feedback.crashData.exceptionMessage) {
-				description += `**Message:** ${feedback.crashData.exceptionMessage}\n`;
+				description += `**Message:**\n\`\`\`\n${feedback.crashData.exceptionMessage}\n\`\`\`\n\n`;
 			}
-			description += `\n### Stack Trace\n\`\`\`\n${feedback.crashData.trace}\n\`\`\`\n`;
+
+			description += `### Stack Trace\n\`\`\`\n${feedback.crashData.trace}\n\`\`\`\n\n`;
+
+			if (feedback.crashData.logs.length > 0) {
+				description += "### Crash Logs\n";
+				feedback.crashData.logs.forEach((log, index) => {
+					description += `- [Crash Log ${index + 1}](${log.url}) (expires: ${log.expiresAt.toLocaleDateString()})\n`;
+				});
+				description += "\n";
+			}
 		}
 
 		if (feedback.screenshotData) {
-			description += "### User Feedback\n";
+			description += "### 📝 User Feedback\n\n";
+
 			if (feedback.screenshotData.text) {
-				description += `**Feedback Text:**\n${feedback.screenshotData.text}\n\n`;
+				description += `**Feedback Text:**\n> ${feedback.screenshotData.text.replace(/\n/g, "\n> ")}\n\n`;
 			}
-			description += `**Screenshots:** ${feedback.screenshotData.images.length} attached\n`;
+
+			if (feedback.screenshotData.images.length > 0) {
+				description += `**Screenshots:** ${feedback.screenshotData.images.length} attached\n\n`;
+			}
+
+			if (
+				feedback.screenshotData.annotations &&
+				feedback.screenshotData.annotations.length > 0
+			) {
+				description += `**Annotations:** ${feedback.screenshotData.annotations.length} user annotation(s)\n\n`;
+			}
 		}
 
-		// Determine priority
-		let priority: LinearPriority = this.config.defaultPriority;
-		if (isCrash) {
-			// Crashes get higher priority
-			priority = feedback.crashData?.exceptionType
-				?.toLowerCase()
-				.includes("fatal")
-				? 1
-				: 2;
-		}
+		// Technical details
+		description += "### 🛠️ Technical Information\n\n";
+		description +=
+			"<details>\n<summary>Device & Environment Details</summary>\n\n";
+		description += `- **Device Family:** ${feedback.deviceInfo.family}\n`;
+		description += `- **Device Model:** ${feedback.deviceInfo.model}\n`;
+		description += `- **OS Version:** ${feedback.deviceInfo.osVersion}\n`;
+		description += `- **Locale:** ${feedback.deviceInfo.locale}\n`;
+		description += `- **Bundle ID:** ${feedback.bundleId}\n`;
+		description += `- **Submission Time:** ${feedback.submittedAt.toISOString()}\n`;
+		description += "\n</details>\n\n";
 
-		// Combine labels
+		description += `---\n*Automatically created from TestFlight feedback. ID: \`${feedback.id}\`*`;
+
+		// Determine labels
 		const baseLabels = isCrash
 			? this.config.crashLabels
 			: this.config.feedbackLabels;
@@ -537,25 +750,10 @@ export class LinearClient {
 			...additionalLabels,
 		];
 
-		// Create links for crash logs and screenshots
-		const links: LinearCreateIssueLinkInput[] = [];
-
-		if (feedback.crashData?.logs) {
-			feedback.crashData.logs.forEach((log, index) => {
-				links.push({
-					url: log.url,
-					title: `Crash Log ${index + 1}`,
-				});
-			});
-		}
-
-		if (feedback.screenshotData?.images) {
-			feedback.screenshotData.images.forEach((image, index) => {
-				links.push({
-					url: image.url,
-					title: `Screenshot ${index + 1}: ${image.fileName}`,
-				});
-			});
+		// Determine priority based on feedback type
+		let priority = this.config.defaultPriority;
+		if (isCrash) {
+			priority = 2; // High priority for crashes
 		}
 
 		return {
@@ -563,57 +761,10 @@ export class LinearClient {
 			description,
 			teamId: this.config.teamId,
 			priority,
+			assigneeId,
+			projectId,
 			labels: allLabels,
-			links,
-			assigneeId: assigneeId || this.config.autoAssigneeId,
-			projectId: projectId || this.config.defaultProjectId,
-			metadata: {
-				testflightFeedbackId: feedback.id,
-				testflightFeedbackType: feedback.type,
-				appVersion: feedback.appVersion,
-				buildNumber: feedback.buildNumber,
-				deviceModel: feedback.deviceInfo.model,
-				osVersion: feedback.deviceInfo.osVersion,
-				submittedAt: feedback.submittedAt.toISOString(),
-			},
 		};
-	}
-
-	/**
-	 * Resolves label names to IDs
-	 */
-	private async resolveLabelIds(labelNames: string[]): Promise<string[]> {
-		try {
-			// Ensure labels are cached
-			if (this.labelCache.size === 0) {
-				await this.getIssueLabels();
-			}
-
-			const labelIds: string[] = [];
-			const missingLabels: string[] = [];
-
-			for (const labelName of labelNames) {
-				const normalizedName = labelName.toLowerCase();
-				const label = this.labelCache.get(normalizedName);
-
-				if (label) {
-					labelIds.push(label.id);
-				} else {
-					missingLabels.push(labelName);
-				}
-			}
-
-			if (missingLabels.length > 0) {
-				console.warn(
-					`Labels not found in Linear workspace: ${missingLabels.join(", ")}`,
-				);
-			}
-
-			return labelIds;
-		} catch (error) {
-			console.warn(`Failed to resolve label IDs: ${error}`);
-			return [];
-		}
 	}
 
 	/**
@@ -631,17 +782,78 @@ export class LinearClient {
 		commentBody += `**Device:** ${feedback.deviceInfo.model} (${feedback.deviceInfo.osVersion})\n`;
 
 		if (feedback.screenshotData?.text) {
-			commentBody += `\n**User Feedback:**\n${feedback.screenshotData.text}`;
+			commentBody += `\n**User Feedback:**\n> ${feedback.screenshotData.text}`;
 		}
 
 		return await this.addCommentToIssue(issueId, commentBody);
 	}
+
+	/**
+	 * Maps our priority enum to Linear's priority number
+	 */
+	private mapPriorityToLinearPriority(
+		priority: LinearPriority | number,
+	): number {
+		if (typeof priority === "number") {
+			return priority;
+		}
+
+		switch (priority) {
+			case 1:
+				return 1; // Urgent
+			case 2:
+				return 2; // High
+			case 3:
+				return 3; // Normal
+			case 4:
+				return 4; // Low
+			default:
+				return 3; // Normal
+		}
+	}
+
+	/**
+	 * Maps Linear's priority number to our priority enum
+	 */
+	private mapLinearPriorityToPriority(priority?: number): LinearPriority {
+		switch (priority) {
+			case 1:
+				return 1; // Urgent
+			case 2:
+				return 2; // High
+			case 3:
+				return 3; // Normal
+			case 4:
+				return 4; // Low
+			default:
+				return 3; // Normal
+		}
+	}
+
+	/**
+	 * Maps Linear state type to our issue state enum
+	 */
+	private mapStateTypeToLinearIssueState(
+		stateType: string,
+	): "backlog" | "unstarted" | "started" | "completed" | "canceled" {
+		switch (stateType) {
+			case "backlog":
+				return "backlog";
+			case "unstarted":
+				return "unstarted";
+			case "started":
+				return "started";
+			case "completed":
+				return "completed";
+			case "canceled":
+				return "canceled";
+			default:
+				return "backlog";
+		}
+	}
 }
 
-/**
- * Global Linear client instance
- * Singleton pattern for Linear client management
- */
+// Global Linear client instance
 let _linearClientInstance: LinearClient | null = null;
 
 export function getLinearClient(): LinearClient {

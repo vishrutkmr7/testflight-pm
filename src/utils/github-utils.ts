@@ -504,11 +504,11 @@ export async function getGitHubIntegrationHealth(): Promise<{
 			recommendations:
 				healthCheck.status !== "healthy"
 					? [
-						"Verify GitHub token is valid and has proper permissions",
-						"Check repository owner and name are correct",
-						"Ensure network connectivity to GitHub API",
-						"Verify repository access permissions",
-					]
+							"Verify GitHub token is valid and has proper permissions",
+							"Check repository owner and name are correct",
+							"Ensure network connectivity to GitHub API",
+							"Verify repository access permissions",
+						]
 					: undefined,
 		};
 	} catch (error) {

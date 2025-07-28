@@ -75,11 +75,11 @@ export interface UniversalToolCall {
 
 export interface UniversalError {
 	type:
-	| "authentication_error"
-	| "rate_limit_error"
-	| "invalid_request_error"
-	| "api_error"
-	| "timeout_error";
+		| "authentication_error"
+		| "rate_limit_error"
+		| "invalid_request_error"
+		| "api_error"
+		| "timeout_error";
 	message: string;
 	provider: LLMProvider;
 	status?: number;
@@ -221,10 +221,10 @@ class OpenAIAdapter implements LLMProviderAdapter {
 			| undefined;
 		const usage = response.usage as
 			| {
-				prompt_tokens: number;
-				completion_tokens: number;
-				total_tokens: number;
-			}
+					prompt_tokens: number;
+					completion_tokens: number;
+					total_tokens: number;
+			  }
 			| undefined;
 
 		return {
@@ -441,5 +441,3 @@ class GoogleAdapter implements LLMProviderAdapter {
 		return { valid: errors.length === 0, errors };
 	}
 }
-
-

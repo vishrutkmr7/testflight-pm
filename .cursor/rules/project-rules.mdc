@@ -1,31 +1,28 @@
----
-alwaysApply: true
----
 
 # TestFlight PM Project Rules
 
 ## 🎯 Project Management & Linear Integration
 
-### Linear MCP as Single Source of Truth
+### Linear SDK as Single Source of Truth
 - **ALWAYS** check Linear for existing issues before starting any development task
-- **REQUIRED**: Create Linear issues for any new development work using `mcp_Linear_create_issue`
-- **REQUIRED**: Update Linear issue status using `mcp_Linear_update_issue` when work is completed
+- **REQUIRED**: Create Linear issues for any new development work using `LinearClient.createIssueFromTestFlight()`
+- **REQUIRED**: Update Linear issue status using `LinearClient.updateIssueStatus()` when work is completed
 - **REQUIRED**: Use Linear issue IDs in commit messages (format: `[VJ-##] Description`)
 - **REQUIRED**: Reference Linear issues in PR descriptions and code comments when relevant
 
 ### Task Management Workflow
-1. **Before Starting Work**: Search Linear for existing issues using `mcp_Linear_list_issues`
-2. **New Tasks**: Create Linear issue with proper team, priority, and labels using `mcp_Linear_create_issue`
-3. **During Development**: Update issue status to "In Progress" using `mcp_Linear_update_issue`
+1. **Before Starting Work**: Search Linear for existing issues using `LinearClient.getRecentIssues()` or `LinearClient.findDuplicateIssue()`
+2. **New Tasks**: Create Linear issue with proper team, priority, and labels using `LinearClient.createIssueFromTestFlight()`
+3. **During Development**: Update issue status to "In Progress" using `LinearClient.updateIssueStatus()`
 4. **Code Reviews**: Reference issue ID in PR title and description
-5. **Completion**: Mark issue as "Done" and add completion comment using `mcp_Linear_create_comment`
+5. **Completion**: Mark issue as "Done" and add completion comment using `LinearClient.addCommentToIssue()`
 
 ### Issue Creation Standards
 - **Title**: Clear, actionable description (e.g., "TF-001: TestFlight Connect API integration")
 - **Description**: Include acceptance criteria, technical approach, and context
 - **Labels**: Apply appropriate labels (Feature, Bug, Improvement, Research)
 - **Priority**: Set based on project roadmap (Urgent, High, Medium, Low)
-- **Team**: Always assign to "TestFlight PM" team (use `mcp_Linear_get_team` to get team ID)
+- **Team**: Always assign to "TestFlight PM" team (use `LinearClient.getTeam()` to get team info)
 
 ## 🏗️ Code Quality & Architecture Standards
 
@@ -183,5 +180,8 @@ src/
 - **MONITORING**: Track post-deployment metrics and issues
 
 ---
+
+*These rules ensure consistent, maintainable code while keeping Linear as the authoritative project management source.*
+
 
 *These rules ensure consistent, maintainable code while keeping Linear as the authoritative project management source.*

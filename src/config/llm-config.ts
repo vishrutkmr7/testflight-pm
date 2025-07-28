@@ -5,10 +5,7 @@
 
 import { getConfig } from "./environment.js";
 
-export type LLMProvider =
-	| "openai"
-	| "anthropic"
-	| "google";
+export type LLMProvider = "openai" | "anthropic" | "google";
 
 export interface LLMProviderConfig {
 	apiKey: string;

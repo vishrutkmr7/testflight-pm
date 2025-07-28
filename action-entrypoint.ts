@@ -1,6 +1,6 @@
 /**
  * GitHub Action Entrypoint for TestFlight PM Enhanced Processing
- * Integrates LLM enhancement and codebase analysis for intelligent issue creation
+ * Production-ready entrypoint with comprehensive validation, health checks, and monitoring
  */
 
 import * as core from "@actions/core";
@@ -13,12 +13,17 @@ import { getConfig } from "./src/config/environment.js";
 import type { EnhancedIssueCreationResult } from "./src/integrations/llm-enhanced-creator.js";
 import type { IdempotencyService } from "./src/utils/idempotency-service.js";
 import { getIdempotencyService } from "./src/utils/idempotency-service.js";
+import {
+	getSystemHealthMonitor,
+	quickHealthCheck,
+} from "./src/utils/monitoring.js";
 import type { ProcessingWindow } from "./src/utils/processing-window.js";
 import {
 	type IssueCreationResult,
 	IssueServiceFactory,
 } from "./src/utils/service-factory.js";
 import { getStateManager } from "./src/utils/state-manager.js";
+import { Validation } from "./src/utils/validation.js";
 import type { ProcessedFeedbackData } from "./types/testflight.js";
 
 interface ActionResults {
@@ -44,9 +49,44 @@ interface WorkflowState {
 
 async function run(): Promise<void> {
 	try {
-		// Load and validate configuration
+		// Initialize and validate system
 		core.info("🚀 Starting TestFlight PM Enhanced Processing");
+
+		// Perform initial health check
+		core.info("🔍 Performing system health check...");
+		const healthCheck = await quickHealthCheck();
+
+		if (healthCheck.status === "unhealthy") {
+			core.setFailed(`System health check failed: ${healthCheck.message}`);
+			core.error(`Critical issues: ${healthCheck.criticalIssues.join(", ")}`);
+			return;
+		}
+
+		if (healthCheck.status === "degraded") {
+			core.warning(`System health degraded: ${healthCheck.message}`);
+		} else {
+			core.info(`✅ System health check passed: ${healthCheck.message}`);
+		}
+
+		// Load and validate configuration
 		const _config = getConfig();
+
+		// Validate configuration
+		core.info("🔧 Validating configuration...");
+		const envValidation = Validation.environment(process.env);
+
+		if (!envValidation.valid) {
+			core.setFailed(
+				`Configuration validation failed: ${envValidation.errors.join(", ")}`,
+			);
+			return;
+		}
+
+		if (envValidation.warnings.length > 0) {
+			envValidation.warnings.forEach((warning) => core.warning(warning));
+		}
+
+		core.info("✅ Configuration validation passed");
 
 		// Get processing configuration
 		const enableLLMEnhancement = core.getBooleanInput("enable_llm_enhancement");
@@ -172,10 +212,70 @@ async function run(): Promise<void> {
 		core.info(
 			`🎉 Processing complete! Created: ${summary.issuesCreated}, Updated: ${summary.issuesUpdated}, Cost: $${summary.llmCostIncurred.toFixed(4)}`,
 		);
+
+		// Final health check and monitoring
+		core.info("🔍 Performing final system health check...");
+		try {
+			const finalHealthCheck = await quickHealthCheck();
+			if (finalHealthCheck.status === "unhealthy") {
+				core.warning(
+					`Final health check shows issues: ${finalHealthCheck.message}`,
+				);
+				core.warning(
+					`Critical issues: ${finalHealthCheck.criticalIssues.join(", ")}`,
+				);
+			} else {
+				core.info(`✅ Final health check passed: ${finalHealthCheck.message}`);
+			}
+
+			// Get detailed system health for debugging
+			const monitor = getSystemHealthMonitor();
+			const detailedHealth = await monitor.checkSystemHealth();
+
+			if (detailedHealth.recommendations.length > 0) {
+				core.info("📋 System recommendations:");
+				detailedHealth.recommendations.forEach((rec) =>
+					core.info(`  • ${rec}`),
+				);
+			}
+		} catch (healthError) {
+			core.warning(`Final health check failed: ${healthError}`);
+		}
 	} catch (error) {
-		core.setFailed(
-			`Action failed: ${error instanceof Error ? error.message : String(error)}`,
+		const errorMessage = error instanceof Error ? error.message : String(error);
+
+		// Enhanced error reporting
+		core.error(`❌ Action failed: ${errorMessage}`);
+
+		if (error instanceof Error && error.stack) {
+			core.debug(`Error stack: ${error.stack}`);
+		}
+
+		// Try to perform health check to understand failure
+		try {
+			const failureHealthCheck = await quickHealthCheck();
+			core.error(`System status at failure: ${failureHealthCheck.status}`);
+			if (failureHealthCheck.criticalIssues.length > 0) {
+				core.error(
+					`Critical issues: ${failureHealthCheck.criticalIssues.join(", ")}`,
+				);
+			}
+		} catch (healthError) {
+			core.error(
+				`Could not perform health check after failure: ${healthError}`,
+			);
+		}
+
+		// Provide helpful debugging information
+		core.error("🔍 Debugging information:");
+		core.error(`  Node.js version: ${process.version}`);
+		core.error(`  Environment: ${process.env.NODE_ENV || "unknown"}`);
+		core.error(
+			`  Memory usage: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`,
 		);
+		core.error(`  Uptime: ${Math.round(process.uptime())}s`);
+
+		core.setFailed(errorMessage);
 	}
 }
 

@@ -5,6 +5,7 @@ Intelligent TestFlight feedback processing with AI-powered issue enhancement and
 ## ✨ Features
 
 - 🤖 **AI-Enhanced Issues** - Intelligent issue titles, descriptions, and categorization using OpenAI, Anthropic, or Google Gemini
+- 🌉 **Universal LLM Bridge** - Seamless translation between AI providers with automatic fallback and cost optimization
 - 🔍 **Smart Code Analysis** - Automatically correlate feedback with relevant code areas in your repository
 - 📱 **TestFlight Integration** - Process crash reports and user feedback from TestFlight automatically
 - 🎯 **Multi-Platform** - Create issues in GitHub Issues or Linear
@@ -111,15 +112,17 @@ That's it! The action will process your TestFlight feedback and create enhanced 
 | `linear_api_token` | ❌ | - | Linear API token (required if platform includes `linear`) |
 | `linear_team_id` | ❌ | - | Linear team ID (required if platform includes `linear`) |
 
-### AI Enhancement
+### AI Enhancement with Universal LLM Bridge
 
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `enable_llm_enhancement` | ❌ | `false` | Enable AI-powered issue enhancement |
 | `llm_provider` | ❌ | `openai` | Primary AI provider: `openai`, `anthropic`, `google` |
-| `llm_fallback_providers` | ❌ | `anthropic,google` | Comma-separated fallback providers |
+| `llm_fallback_providers` | ❌ | `anthropic,google` | Comma-separated fallback providers with automatic translation |
 | `max_llm_cost_per_run` | ❌ | `5.00` | Maximum AI cost per workflow run (USD) |
 | `max_llm_cost_per_month` | ❌ | `200.00` | Maximum AI cost per month (USD) |
+
+The action uses [llm-bridge](https://github.com/supermemoryai/llm-bridge) for seamless AI provider interoperability, automatic cost optimization, and universal error handling across OpenAI, Anthropic, and Google APIs.
 
 ### Processing Options
 
@@ -223,7 +226,7 @@ Available outputs:
     additional_labels: 'mobile,testflight'
 ```
 
-### AI-Enhanced with Multiple Providers
+### AI-Enhanced with Multiple Providers & Universal Bridge
 
 ```yaml
 - uses: vishrutkmr7/testflight-pm@v1
@@ -236,20 +239,26 @@ Available outputs:
     platform: 'github'
     github_token: ${{ secrets.GITHUB_TOKEN }}
     
-    # AI configuration with fallbacks
+    # AI configuration with automatic provider translation
     enable_llm_enhancement: 'true'
     llm_provider: 'openai'
     llm_fallback_providers: 'anthropic,google'
     
-    # API keys for multiple providers
+    # API keys for multiple providers (automatic cost-based selection)
     openai_api_key: ${{ secrets.OPENAI_API_KEY }}
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     google_api_key: ${{ secrets.GOOGLE_API_KEY }}
     
-    # Cost controls
+    # Cost controls with intelligent provider switching
     max_llm_cost_per_run: '10.00'
     max_llm_cost_per_month: '500.00'
 ```
+
+**LLM Bridge Benefits:**
+- 🔄 **Automatic Fallback**: Seamlessly switch between providers when one fails
+- 💰 **Cost Optimization**: Automatically selects cheapest provider for each request
+- 🌐 **Universal Format**: Consistent API interactions across all providers
+- 🛡️ **Error Translation**: Unified error handling with provider-specific translation
 
 ### High-Frequency Processing
 

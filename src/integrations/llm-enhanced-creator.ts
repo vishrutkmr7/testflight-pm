@@ -677,9 +677,9 @@ export class LLMEnhancedIssueCreator {
 	}
 
 	/**
-	 * Gets recent changes for context (simplified version)
+	 * Gets recent changes for context using git integration
 	 */
-	private async getRecentChanges(_feedback: ProcessedFeedbackData): Promise<
+	private async getRecentChanges(feedback: ProcessedFeedbackData): Promise<
 		Array<{
 			file: string;
 			diff: string;
@@ -687,9 +687,205 @@ export class LLMEnhancedIssueCreator {
 			timestamp: string;
 		}>
 	> {
-		// This would integrate with git history analysis
-		// For now, return empty array as this requires git integration
-		return [];
+		try {
+			// Check if git is available
+			const isGitRepo = await this.checkGitRepository();
+			if (!isGitRepo) {
+				return [];
+			}
+
+			// Get recent commits (last 7 days)
+			const recentCommits = await this.getRecentCommits(7);
+
+			// Filter commits relevant to the feedback
+			const relevantCommits = this.filterRelevantCommits(
+				recentCommits,
+				feedback,
+			);
+
+			// Get simplified change info for relevant commits
+			const changes: Array<{
+				file: string;
+				diff: string;
+				author: string;
+				timestamp: string;
+			}> = [];
+
+			for (const commit of relevantCommits.slice(0, 5)) {
+				// Limit to 5 most relevant
+				for (const file of commit.files.slice(0, 3)) {
+					// Limit files per commit
+					changes.push({
+						file,
+						diff: `Recent change in ${file} by ${commit.author}`,
+						author: commit.author,
+						timestamp: commit.timestamp,
+					});
+				}
+			}
+
+			return changes;
+		} catch (error) {
+			console.warn(`Failed to get recent changes: ${error}`);
+			return [];
+		}
+	}
+
+	/**
+	 * Check if the current directory is a git repository
+	 */
+	private async checkGitRepository(): Promise<boolean> {
+		try {
+			const { exec } = await import("node:child_process");
+			const { promisify } = await import("node:util");
+			const execAsync = promisify(exec);
+
+			await execAsync("git rev-parse --git-dir", { cwd: process.cwd() });
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	/**
+	 * Get recent commits from git log
+	 */
+	private async getRecentCommits(days: number): Promise<
+		Array<{
+			hash: string;
+			author: string;
+			timestamp: string;
+			message: string;
+			files: string[];
+		}>
+	> {
+		try {
+			const { exec } = await import("node:child_process");
+			const { promisify } = await import("node:util");
+			const execAsync = promisify(exec);
+
+			const since = new Date();
+			since.setDate(since.getDate() - days);
+			const sinceStr = since.toISOString().split("T")[0];
+
+			const { stdout } = await execAsync(
+				`git log --since="${sinceStr}" --pretty=format:"%H|%an|%ai|%s" --name-only`,
+				{ cwd: process.cwd() },
+			);
+
+			return this.parseGitLog(stdout);
+		} catch (error) {
+			console.warn(`Failed to get recent commits: ${error}`);
+			return [];
+		}
+	}
+
+	/**
+	 * Parse git log output into structured commit data
+	 */
+	private parseGitLog(gitLogOutput: string): Array<{
+		hash: string;
+		author: string;
+		timestamp: string;
+		message: string;
+		files: string[];
+	}> {
+		const commits = [];
+		const commitBlocks = gitLogOutput
+			.split("\n\n")
+			.filter((block) => block.trim());
+
+		for (const block of commitBlocks) {
+			const lines = block.split("\n").filter((line) => line.trim());
+			if (lines.length === 0) continue;
+
+			const firstLine = lines[0];
+			if (!firstLine) continue;
+
+			const commitInfo = firstLine.split("|");
+			if (commitInfo.length !== 4) continue;
+
+			const [hash, author, timestamp, message] = commitInfo;
+			if (!hash || !author || !timestamp || !message) continue;
+
+			const files = lines
+				.slice(1)
+				.filter((line) => line.trim() && !line.includes("|"));
+
+			commits.push({
+				hash,
+				author,
+				timestamp,
+				message,
+				files,
+			});
+		}
+
+		return commits;
+	}
+
+	/**
+	 * Filter commits that might be relevant to the feedback
+	 */
+	private filterRelevantCommits(
+		commits: Array<{
+			hash: string;
+			author: string;
+			timestamp: string;
+			message: string;
+			files: string[];
+		}>,
+		feedback: ProcessedFeedbackData,
+	): Array<{
+		hash: string;
+		author: string;
+		timestamp: string;
+		message: string;
+		files: string[];
+	}> {
+		const relevantKeywords: string[] = [];
+
+		// Extract keywords from crash data
+		if (feedback.type === "crash" && feedback.crashData) {
+			if (feedback.crashData.exceptionType) {
+				relevantKeywords.push(feedback.crashData.exceptionType.toLowerCase());
+			}
+			// Extract file names from stack trace
+			const stackTraceFiles =
+				feedback.crashData.trace?.match(/[\w-]+\.(swift|m|h|mm|kt|java)/gi) ||
+				[];
+			relevantKeywords.push(...stackTraceFiles.map((f) => f.toLowerCase()));
+		}
+
+		// Extract keywords from screenshot feedback
+		if (feedback.screenshotData?.text) {
+			const words =
+				feedback.screenshotData.text.toLowerCase().match(/\b\w{4,}\b/g) || [];
+			relevantKeywords.push(...words.slice(0, 5)); // Limit keywords
+		}
+
+		// Filter commits by relevance
+		return commits
+			.filter((commit) => {
+				const searchText =
+					`${commit.message} ${commit.files.join(" ")}`.toLowerCase();
+
+				// Check for relevant keywords
+				const hasRelevantKeywords = relevantKeywords.some((keyword) =>
+					searchText.includes(keyword),
+				);
+
+				// Check for relevant file types
+				const hasRelevantFiles = commit.files.some((file) =>
+					/\.(swift|m|h|mm|kt|java|tsx?|jsx?)$/i.test(file),
+				);
+
+				return hasRelevantKeywords || hasRelevantFiles;
+			})
+			.sort(
+				(a, b) =>
+					new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+			);
 	}
 
 	/**

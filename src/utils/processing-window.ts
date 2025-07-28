@@ -424,20 +424,87 @@ export class ProcessingWindowCalculator {
 	}> {
 		const reasoning: string[] = [];
 
-		// This is a placeholder for more sophisticated historical analysis
-		// In a real implementation, we would analyze timestamps of past processing
-		// to detect patterns like:
-		// - Regular intervals between runs
-		// - Time of day patterns
-		// - Weekend vs weekday patterns
+		// Enhanced historical pattern analysis
+		let detectedFrequency: ScheduleFrequency = "daily";
+		let confidence = 0.3;
 
-		reasoning.push("Historical pattern analysis not yet implemented");
-		reasoning.push(`Current cache age: ${stats.cacheAge || "unknown"}`);
-		reasoning.push(`Total processed: ${stats.totalProcessed || 0}`);
+		try {
+			const { totalProcessed, lastProcessedAt, actionRunId } = stats;
+
+			reasoning.push(`Total processed: ${totalProcessed || 0}`);
+			reasoning.push(`Cache age: ${stats.cacheAge || "unknown"}`);
+
+			// Analyze processing frequency based on historical data
+			if (totalProcessed > 0 && lastProcessedAt) {
+				const lastProcessedDate = new Date(lastProcessedAt);
+				const timeSinceLastRun = Date.now() - lastProcessedDate.getTime();
+				const hoursSinceLastRun = timeSinceLastRun / (1000 * 60 * 60);
+
+				reasoning.push(`Hours since last run: ${hoursSinceLastRun.toFixed(1)}`);
+
+				// Determine frequency based on time gaps
+				if (hoursSinceLastRun <= 1.5) {
+					detectedFrequency = "hourly";
+					confidence = 0.8;
+					reasoning.push("Recent processing indicates hourly schedule");
+				} else if (hoursSinceLastRun <= 3) {
+					detectedFrequency = "every-2-hours";
+					confidence = 0.7;
+					reasoning.push("Processing pattern suggests 2-hour intervals");
+				} else if (hoursSinceLastRun <= 6) {
+					detectedFrequency = "every-4-hours";
+					confidence = 0.6;
+					reasoning.push("Processing pattern suggests 4-hour intervals");
+				} else if (hoursSinceLastRun <= 12) {
+					detectedFrequency = "every-6-hours";
+					confidence = 0.5;
+					reasoning.push("Processing pattern suggests 6-hour intervals");
+				} else if (hoursSinceLastRun <= 36) {
+					detectedFrequency = "daily";
+					confidence = 0.7;
+					reasoning.push("Processing pattern indicates daily schedule");
+				} else {
+					detectedFrequency = "weekly";
+					confidence = 0.4;
+					reasoning.push("Infrequent processing suggests weekly schedule");
+				}
+
+				// Check for GitHub Action run ID pattern
+				if (actionRunId) {
+					reasoning.push(
+						`Automated execution detected (Run ID: ${actionRunId})`,
+					);
+					confidence += 0.1;
+				}
+
+				// Volume-based adjustments
+				if (totalProcessed > 100) {
+					reasoning.push("High processing volume suggests frequent monitoring");
+					if (detectedFrequency === "weekly") {
+						detectedFrequency = "daily";
+						confidence += 0.1;
+					}
+				} else if (totalProcessed < 10) {
+					reasoning.push(
+						"Low processing volume suggests less frequent monitoring",
+					);
+					confidence = Math.max(0.3, confidence - 0.1);
+				}
+			} else {
+				reasoning.push(
+					"No historical data available - using default frequency detection",
+				);
+				detectedFrequency = "daily";
+				confidence = 0.4;
+			}
+		} catch (error) {
+			reasoning.push(`Historical analysis failed: ${error}`);
+			confidence = 0.3;
+		}
 
 		return {
-			frequency: "daily",
-			confidence: 0.3,
+			frequency: detectedFrequency,
+			confidence: Math.min(1.0, Math.max(0.1, confidence)),
 			reasoning,
 		};
 	}
