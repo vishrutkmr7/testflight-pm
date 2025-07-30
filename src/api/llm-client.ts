@@ -18,6 +18,7 @@ import type {
 	LLMUsageStats,
 } from "../config/llm-config.js";
 import { getLLMConfig, validateLLMConfig } from "../config/llm-config.js";
+import { getSecurePromptManager } from "../config/secure-prompts.js";
 
 export interface LLMMessage {
 	role: "system" | "user" | "assistant";
@@ -692,49 +693,57 @@ export class LLMClient {
 	}
 
 	/**
-	 * Build enhancement prompt with multimodal support
+	 * Build enhancement prompt with multimodal support and security validation
 	 */
 	private buildEnhancementPrompt(request: LLMEnhancementRequest): LLMRequest {
-		const systemPrompt = `You are an expert software engineer and technical issue analyst. Your role is to enhance bug reports and feature requests with detailed technical analysis.
-
-Context:
-- Feedback Type: ${request.feedbackType}
-- You have access to codebase context and recent changes
-- Provide actionable insights and technical recommendations
-
-Response Format (JSON):
-{
-  "enhancedTitle": "Clear, technical title",
-  "enhancedDescription": "Detailed technical description with context",
-  "priority": "urgent|high|medium|low",
-  "labels": ["bug", "crash", "ios", ...],
-  "analysis": {
-    "rootCause": "Technical analysis of the cause",
-    "affectedComponents": ["component1", "component2"],
-    "suggestedFix": "Specific technical recommendations",
-    "confidence": 0.95
-  }
-}`;
+		const securePromptManager = getSecurePromptManager();
+		const promptTemplate = securePromptManager.getEnhancementTemplate(request.feedbackType);
+		
+		// Validate and sanitize the request inputs
+		const titleValidation = securePromptManager.validateUserInput(request.title, 'title');
+		const descriptionValidation = securePromptManager.validateUserInput(request.description, 'description');
+		
+		if (!titleValidation.isValid || !descriptionValidation.isValid) {
+			console.warn('[SECURITY] Invalid input detected in enhancement request', {
+				titleWarnings: titleValidation.warnings,
+				descriptionWarnings: descriptionValidation.warnings
+			});
+			// Use sanitized versions or fallback
+		}
+		
+		const systemPrompt = promptTemplate.systemPrompt;
 
 		const userContent: Array<{ type: "text"; text: string }> = [
 			{
 				type: "text",
 				text: `## Original Issue
-**Title**: ${request.title}
-**Description**: ${request.description}`,
+**Title**: ${titleValidation.sanitized || request.title}
+**Description**: ${descriptionValidation.sanitized || request.description}`,
 			},
 		];
 
 		// Add crash data if available
 		if (request.crashData) {
+			// Sanitize crash data inputs
+			const deviceValidation = securePromptManager.validateUserInput(request.crashData.device, 'crash_device');
+			const osValidation = securePromptManager.validateUserInput(request.crashData.osVersion, 'crash_os');
+			const traceValidation = request.crashData.trace.map((trace, index) => 
+				securePromptManager.validateUserInput(trace, `crash_trace_${index}`)
+			);
+			
+			const sanitizedTrace = traceValidation
+				.filter(v => v.isValid)
+				.map(v => v.sanitized)
+				.slice(0, 50); // Limit trace length for security
+			
 			userContent.push({
 				type: "text",
 				text: `\n## Crash Information
-**Device**: ${request.crashData.device}
-**OS Version**: ${request.crashData.osVersion}
+**Device**: ${deviceValidation.sanitized || 'Unknown'}
+**OS Version**: ${osValidation.sanitized || 'Unknown'}
 **Stack Trace**:
 \`\`\`
-${request.crashData.trace.join("\n")}
+${sanitizedTrace.join("\n")}
 \`\`\``,
 			});
 		}
@@ -744,10 +753,13 @@ ${request.crashData.trace.join("\n")}
 			const contextText = request.codebaseContext
 				.sort((a, b) => b.relevance - a.relevance)
 				.slice(0, 5) // Top 5 most relevant files
-				.map(
-					(ctx) =>
-						`**${ctx.file}** (relevance: ${ctx.relevance.toFixed(2)}):\n\`\`\`\n${ctx.content.slice(0, 1000)}${ctx.content.length > 1000 ? "..." : ""}\n\`\`\``,
-				)
+				.map((ctx) => {
+					// Sanitize file paths and content
+					const fileValidation = securePromptManager.validateUserInput(ctx.file, 'codebase_file');
+					const contentValidation = securePromptManager.validateUserInput(ctx.content.slice(0, 1000), 'codebase_content');
+					
+					return `**${fileValidation.sanitized || 'unknown.file'}** (relevance: ${ctx.relevance.toFixed(2)}):\n\`\`\`\n${contentValidation.sanitized}${ctx.content.length > 1000 ? "..." : ""}\n\`\`\``;
+				})
 				.join("\n\n");
 
 			userContent.push({
@@ -760,10 +772,15 @@ ${request.crashData.trace.join("\n")}
 		if (request.recentChanges?.length) {
 			const changesText = request.recentChanges
 				.slice(0, 3) // Most recent 3 changes
-				.map(
-					(change) =>
-						`**${change.file}** (${change.author}, ${change.timestamp}):\n\`\`\`diff\n${change.diff.slice(0, 500)}${change.diff.length > 500 ? "..." : ""}\n\`\`\``,
-				)
+				.map((change) => {
+					// Sanitize change data
+					const fileValidation = securePromptManager.validateUserInput(change.file, 'change_file');
+					const authorValidation = securePromptManager.validateUserInput(change.author, 'change_author');
+					const timestampValidation = securePromptManager.validateUserInput(change.timestamp, 'change_timestamp');
+					const diffValidation = securePromptManager.validateUserInput(change.diff.slice(0, 500), 'change_diff');
+					
+					return `**${fileValidation.sanitized || 'unknown.file'}** (${authorValidation.sanitized || 'unknown'}, ${timestampValidation.sanitized || 'unknown'}):\n\`\`\`diff\n${diffValidation.sanitized}${change.diff.length > 500 ? "..." : ""}\n\`\`\``;
+				})
 				.join("\n\n");
 
 			userContent.push({
