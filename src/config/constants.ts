@@ -92,7 +92,7 @@ export const ERROR_MESSAGES = {
 		"Invalid private key format. Must be a PEM formatted private key.",
 	MISSING_ENV_VAR: "Required environment variable not found",
 	GITHUB_CONFIG_MISSING:
-		"GitHub configuration not found. Please set GITHUB_TOKEN, GITHUB_OWNER, and GITHUB_REPO.",
+		"GitHub configuration not found. Please set GTHB_TOKEN, GITHUB_OWNER, and GITHUB_REPO.",
 	LINEAR_CONFIG_MISSING:
 		"Linear configuration not found. Please set LINEAR_API_TOKEN and LINEAR_TEAM_ID.",
 	APP_STORE_CONFIG_MISSING:
@@ -140,7 +140,7 @@ export const VALIDATION_PATTERNS = {
 	BUNDLE_ID: /^[a-zA-Z0-9.-]+\.[a-zA-Z0-9.-]+$/,
 	API_KEY_ID: /^[A-Z0-9]{10}$/,
 	ISSUER_ID: /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i,
-	GITHUB_TOKEN: /^gh[ps]_[A-Za-z0-9_]{36,255}$/,
+	GTHB_TOKEN: /^gh[ps]_[A-Za-z0-9_]{36,255}$/,
 } as const;
 
 /**

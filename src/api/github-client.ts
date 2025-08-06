@@ -54,7 +54,7 @@ export class GitHubClient {
 
 		if (!envConfig.github) {
 			throw new Error(
-				"GitHub configuration not found. Please set GITHUB_TOKEN, GITHUB_OWNER, and GITHUB_REPO.",
+				"GitHub configuration not found. Please set GTHB_TOKEN, GITHUB_OWNER, and GITHUB_REPO.",
 			);
 		}
 
@@ -112,15 +112,15 @@ export class GitHubClient {
 			// Handle screenshot attachments if enabled
 			let attachmentResults:
 				| {
-						uploaded: number;
-						failed: number;
-						details: Array<{
-							filename: string;
-							success: boolean;
-							error?: string;
-							url?: string;
-						}>;
-				  }
+					uploaded: number;
+					failed: number;
+					details: Array<{
+						filename: string;
+						success: boolean;
+						error?: string;
+						url?: string;
+					}>;
+				}
 				| undefined;
 			if (
 				options.attachScreenshots !== false &&

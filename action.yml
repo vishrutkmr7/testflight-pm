@@ -24,7 +24,7 @@ inputs:
     default: "github"
   
   # GitHub Configuration
-  github_token:
+  gthb_token:
     description: "GitHub Personal Access Token"
     required: false
   github_owner:

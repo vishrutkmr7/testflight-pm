@@ -56,16 +56,16 @@ export function validateEnvironmentConfiguration(
 	}
 
 	if (
-		config.GITHUB_TOKEN &&
-		typeof config.GITHUB_TOKEN === "string" &&
-		!VALIDATION_PATTERNS.GITHUB_TOKEN.test(config.GITHUB_TOKEN)
+		config.GTHB_TOKEN &&
+		typeof config.GTHB_TOKEN === "string" &&
+		!VALIDATION_PATTERNS.GTHB_TOKEN.test(config.GTHB_TOKEN)
 	) {
 		errors.push("Invalid GitHub token format");
 	}
 
 	// Security warnings
 	if (config.NODE_ENV === "production") {
-		if (!config.GITHUB_TOKEN && !config.LINEAR_API_TOKEN) {
+		if (!config.GTHB_TOKEN && !config.LINEAR_API_TOKEN) {
 			warnings.push("No issue tracking platform configured (GitHub or Linear)");
 		}
 

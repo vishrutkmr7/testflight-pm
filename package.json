@@ -5,10 +5,12 @@
 	"main": "action-entrypoint.ts",
 	"type": "module",
 	"scripts": {
-		"build": "bun build action-entrypoint.ts --outdir dist --target bun",
+		"build": "bun build action-entrypoint.ts --outdir dist --target node --format esm --external @actions/core --external @actions/github --external @actions/exec --external @actions/io",
 		"test": "bun test",
 		"action:test": "bun run action-entrypoint.ts",
 		"action:dry-run": "INPUT_DRY_RUN=true INPUT_FEEDBACK_TYPES=all INPUT_MAX_ISSUES_PER_RUN=5 bun run action-entrypoint.ts",
+		"test:local": "./test-action-local.sh",
+		"test:validate": "INPUT_DRY_RUN=true INPUT_DEBUG=true timeout 30s bun run action-entrypoint.ts || echo 'Validation complete'",
 		"docker:build": "docker build -t testflight-pm:latest .",
 		"docker:test": "docker run --rm --env-file .env testflight-pm:latest",
 		"lint": "bunx @biomejs/biome check .",

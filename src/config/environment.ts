@@ -194,7 +194,7 @@ export function loadEnvironmentConfig(): EnvironmentConfig {
 
 		// GitHub configuration (required in GitHub Actions, optional in local dev)
 		let github: GitHubConfig | undefined;
-		const githubToken = getEnvVar("GITHUB_TOKEN", "github-token");
+		const githubToken = getEnvVar("GTHB_TOKEN", "gthb-token");
 
 		if (githubToken) {
 			// In GitHub Actions, use context defaults if not explicitly provided
@@ -254,100 +254,100 @@ export function loadEnvironmentConfig(): EnvironmentConfig {
 		const llmConfig =
 			core.getInput("enable_llm_enhancement") === "true"
 				? {
-						enabled: true,
-						primaryProvider: (core.getInput("llm_provider") ||
-							"openai") as LLMProvider,
-						fallbackProviders: (
-							core.getInput("llm_fallback_providers") || "anthropic,google"
-						)
-							.split(",")
-							.map((p: string) => p.trim()) as LLMProvider[],
+					enabled: true,
+					primaryProvider: (core.getInput("llm_provider") ||
+						"openai") as LLMProvider,
+					fallbackProviders: (
+						core.getInput("llm_fallback_providers") || "anthropic,google"
+					)
+						.split(",")
+						.map((p: string) => p.trim()) as LLMProvider[],
 
-						providers: {
-							openai: {
-								apiKey:
-									core.getInput("openai_api_key") ||
-									process.env.OPENAI_API_KEY ||
-									"",
-								model: core.getInput("openai_model") || "gpt-4.1-mini",
-								maxTokens: 4000,
-								temperature: 0.1,
-								timeout: 30000,
-								maxRetries: 3,
-							},
-							anthropic: {
-								apiKey:
-									core.getInput("anthropic_api_key") ||
-									process.env.ANTHROPIC_API_KEY ||
-									"",
-								model: core.getInput("anthropic_model") || "claude-3.7-sonnet",
-								maxTokens: 4000,
-								temperature: 0.1,
-								timeout: 30000,
-								maxRetries: 3,
-							},
-							google: {
-								apiKey:
-									core.getInput("google_api_key") ||
-									process.env.GOOGLE_API_KEY ||
-									"",
-								model: core.getInput("google_model") || "gemini-2.0-flash",
-								maxTokens: 4000,
-								temperature: 0.1,
-								timeout: 30000,
-								maxRetries: 3,
-							},
-							deepseek: {
-								apiKey:
-									core.getInput("deepseek_api_key") ||
-									process.env.DEEPSEEK_API_KEY ||
-									"",
-								model: core.getInput("deepseek_model") || "deepseek-v3",
-								maxTokens: 4000,
-								temperature: 0.1,
-								timeout: 30000,
-								maxRetries: 3,
-							},
-							xai: {
-								apiKey:
-									core.getInput("xai_api_key") || process.env.XAI_API_KEY || "",
-								model: core.getInput("xai_model") || "grok-3",
-								maxTokens: 4000,
-								temperature: 0.1,
-								timeout: 30000,
-								maxRetries: 3,
-							},
+					providers: {
+						openai: {
+							apiKey:
+								core.getInput("openai_api_key") ||
+								process.env.OPENAI_API_KEY ||
+								"",
+							model: core.getInput("openai_model") || "gpt-4.1-mini",
+							maxTokens: 4000,
+							temperature: 0.1,
+							timeout: 30000,
+							maxRetries: 3,
 						},
+						anthropic: {
+							apiKey:
+								core.getInput("anthropic_api_key") ||
+								process.env.ANTHROPIC_API_KEY ||
+								"",
+							model: core.getInput("anthropic_model") || "claude-3.7-sonnet",
+							maxTokens: 4000,
+							temperature: 0.1,
+							timeout: 30000,
+							maxRetries: 3,
+						},
+						google: {
+							apiKey:
+								core.getInput("google_api_key") ||
+								process.env.GOOGLE_API_KEY ||
+								"",
+							model: core.getInput("google_model") || "gemini-2.0-flash",
+							maxTokens: 4000,
+							temperature: 0.1,
+							timeout: 30000,
+							maxRetries: 3,
+						},
+						deepseek: {
+							apiKey:
+								core.getInput("deepseek_api_key") ||
+								process.env.DEEPSEEK_API_KEY ||
+								"",
+							model: core.getInput("deepseek_model") || "deepseek-v3",
+							maxTokens: 4000,
+							temperature: 0.1,
+							timeout: 30000,
+							maxRetries: 3,
+						},
+						xai: {
+							apiKey:
+								core.getInput("xai_api_key") || process.env.XAI_API_KEY || "",
+							model: core.getInput("xai_model") || "grok-3",
+							maxTokens: 4000,
+							temperature: 0.1,
+							timeout: 30000,
+							maxRetries: 3,
+						},
+					},
 
-						costControls: {
-							maxCostPerRun: parseFloat(
-								core.getInput("max_llm_cost_per_run") || "5.00",
-							),
-							maxCostPerMonth: parseFloat(
-								core.getInput("max_llm_cost_per_month") || "200.00",
-							),
-							maxTokensPerIssue: parseInt(
-								core.getInput("max_tokens_per_issue") || "4000",
-								10,
-							),
-							enableCostAlerts: true,
-							preventOverage: true,
-						},
-						features: {
-							codebaseAnalysis:
-								core.getBooleanInput("enable_codebase_analysis") || true,
-							screenshotAnalysis: true,
-							priorityClassification: true,
-							labelGeneration: true,
-							assigneeRecommendation: false,
-						},
-						security: {
-							anonymizeData: false,
-							excludeSensitiveInfo: true,
-							logRequestsResponses: false,
-							enableDataRetentionPolicy: false,
-						},
-					}
+					costControls: {
+						maxCostPerRun: parseFloat(
+							core.getInput("max_llm_cost_per_run") || "5.00",
+						),
+						maxCostPerMonth: parseFloat(
+							core.getInput("max_llm_cost_per_month") || "200.00",
+						),
+						maxTokensPerIssue: parseInt(
+							core.getInput("max_tokens_per_issue") || "4000",
+							10,
+						),
+						enableCostAlerts: true,
+						preventOverage: true,
+					},
+					features: {
+						codebaseAnalysis:
+							core.getBooleanInput("enable_codebase_analysis") || true,
+						screenshotAnalysis: true,
+						priorityClassification: true,
+						labelGeneration: true,
+						assigneeRecommendation: false,
+					},
+					security: {
+						anonymizeData: false,
+						excludeSensitiveInfo: true,
+						logRequestsResponses: false,
+						enableDataRetentionPolicy: false,
+					},
+				}
 				: undefined;
 
 		// Enhanced environment configuration export

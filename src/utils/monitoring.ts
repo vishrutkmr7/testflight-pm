@@ -179,8 +179,8 @@ export class SystemHealthMonitor {
 				recommendations:
 					(health.details.rateLimit as any)?.remaining < 100
 						? [
-								"GitHub rate limit running low - consider reducing request frequency",
-							]
+							"GitHub rate limit running low - consider reducing request frequency",
+						]
 						: [],
 				lastChecked: new Date().toISOString(),
 			};
@@ -405,7 +405,7 @@ export class SystemHealthMonitor {
 				APP_STORE_CONNECT_KEY_ID: process.env.APP_STORE_CONNECT_KEY_ID,
 				APP_STORE_CONNECT_PRIVATE_KEY:
 					process.env.APP_STORE_CONNECT_PRIVATE_KEY,
-				GITHUB_TOKEN: process.env.GITHUB_TOKEN,
+				GTHB_TOKEN: process.env.GTHB_TOKEN,
 				LINEAR_API_TOKEN: process.env.LINEAR_API_TOKEN,
 			};
 
@@ -413,7 +413,7 @@ export class SystemHealthMonitor {
 
 			// Check API secrets
 			const secrets: Record<string, string> = {};
-			if (envConfig.GITHUB_TOKEN) secrets.GITHUB_TOKEN = envConfig.GITHUB_TOKEN;
+			if (envConfig.GTHB_TOKEN) secrets.GTHB_TOKEN = envConfig.GTHB_TOKEN;
 			if (envConfig.LINEAR_API_TOKEN)
 				secrets.LINEAR_API_TOKEN = envConfig.LINEAR_API_TOKEN;
 
@@ -423,7 +423,7 @@ export class SystemHealthMonitor {
 				!validation.valid || !secretValidation.valid
 					? "unhealthy"
 					: validation.warnings.length > 0 ||
-							secretValidation.warnings.length > 0
+						secretValidation.warnings.length > 0
 						? "degraded"
 						: "healthy";
 

@@ -31,7 +31,7 @@ TESTFLIGHT_APP_ID          # Your TestFlight App ID
 
 **For GitHub Issues:**
 ```
-GITHUB_TOKEN               # GitHub Personal Access Token with repo permissions
+GTHB_TOKEN                 # GitHub Personal Access Token with repo permissions
 ```
 
 **For Linear:**
@@ -74,7 +74,7 @@ jobs:
           
           # Platform (choose 'github', 'linear', or 'both')
           platform: 'github'
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          gthb_token: ${{ secrets.GTHB_TOKEN }}
           
           # AI Enhancement
           enable_llm_enhancement: 'true'
@@ -106,7 +106,7 @@ That's it! The action will process your TestFlight feedback and create enhanced 
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `platform` | ❌ | `github` | Where to create issues: `github`, `linear`, or `both` |
-| `github_token` | ❌ | - | GitHub token (required if platform includes `github`) |
+| `gthb_token` | ❌ | - | GitHub token (required if platform includes `github`) |
 | `github_owner` | ❌ | auto-detected | GitHub repository owner |
 | `github_repo` | ❌ | auto-detected | GitHub repository name |
 | `linear_api_token` | ❌ | - | Linear API token (required if platform includes `linear`) |
@@ -202,6 +202,134 @@ Available outputs:
 - `llm_cost_incurred` - Total AI cost in USD
 - `processing_summary` - JSON object with detailed results
 
+## 🧪 Testing
+
+### Local Testing
+
+Test the action locally before pushing to production:
+
+#### 1. Interactive Local Testing
+```bash
+# Run the interactive test script
+./test-action-local.sh
+
+# Or using npm/bun scripts
+bun run test:local
+```
+
+This script will:
+- Create a `.env.test` template if it doesn't exist
+- Validate your configuration
+- Offer different testing modes (dry-run, live test, validation only)
+
+#### 2. Quick Validation
+```bash
+# Quick configuration validation (30-second timeout)
+bun run test:validate
+
+# Manual dry run with your environment
+INPUT_DRY_RUN=true INPUT_DEBUG=true bun run action-entrypoint.ts
+```
+
+#### 3. Testing with nektos/act (GitHub Actions locally)
+
+Install [nektos/act](https://github.com/nektos/act):
+```bash
+# macOS
+brew install act
+
+# Windows
+choco install act-cli
+```
+
+Then run local GitHub Actions testing:
+```bash
+./test-with-act.sh
+```
+
+### GitHub Actions Testing
+
+#### Manual Testing Workflow
+
+Use the included test workflow to validate the action in your repository:
+
+1. **Navigate to Actions tab** in your GitHub repository
+2. **Select "Test TestFlight PM Action"** workflow
+3. **Click "Run workflow"** button
+4. **Configure test parameters:**
+   - **Dry Run**: `true` (recommended for testing)
+   - **Debug**: `true` (for verbose output)
+   - **Platform**: Choose `github`, `linear`, or `both`
+5. **Click "Run workflow"** to start the test
+
+#### Required Secrets for Testing
+
+Set up these secrets in your repository:
+
+**Core TestFlight Configuration:**
+- `TESTFLIGHT_ISSUER_ID`
+- `TESTFLIGHT_KEY_ID` 
+- `TESTFLIGHT_PRIVATE_KEY`
+- `APP_ID`
+
+**Platform Secrets:**
+- `GTHB_TOKEN` (for GitHub issues)
+- `LINEAR_API_TOKEN` (for Linear issues)
+- `LINEAR_TEAM_ID` (for Linear issues)
+
+**Optional LLM Secrets:**
+- `OPENAI_API_KEY`
+- `ANTHROPIC_API_KEY`
+- etc.
+
+#### Test Results
+
+After running tests, check:
+- ✅ **Action Summary**: View results in the workflow summary
+- 📝 **Logs**: Check detailed logs for any errors
+- 🎯 **Created Issues**: If `dry_run=false`, verify issues were created
+- 📊 **Outputs**: Review action outputs (counts, costs, etc.)
+
+### Troubleshooting Tests
+
+#### Common Issues
+
+**Authentication Errors:**
+```bash
+# Verify your tokens have correct permissions
+# GitHub: repo permissions required
+# Linear: full access to team required
+```
+
+**Configuration Errors:**
+```bash
+# Check your .env.test file format
+# Ensure no spaces around = signs
+# Verify base64 encoding for private keys
+```
+
+**Network/API Errors:**
+```bash
+# Test with shorter processing windows
+INPUT_PROCESSING_WINDOW_HOURS=1
+
+# Enable debug mode for detailed logs
+INPUT_DEBUG=true
+```
+
+#### Debug Mode
+
+Enable comprehensive debugging:
+```bash
+INPUT_DEBUG=true INPUT_DRY_RUN=true bun run action-entrypoint.ts
+```
+
+This provides:
+- 🔍 Detailed API request/response logs
+- 📊 Performance metrics
+- 🏥 Health check results
+- 💰 LLM usage and cost tracking
+
 ## 🔧 Advanced Examples
 
 ### Multi-Platform with Custom Labels
@@ -282,7 +410,7 @@ jobs:
           app_id: ${{ secrets.TESTFLIGHT_APP_ID }}
           
           platform: 'github'
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          gthb_token: ${{ secrets.GTHB_TOKEN }}
           
           # Process only last 2 hours to avoid duplicates
           processing_window_hours: '2'
