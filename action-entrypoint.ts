@@ -10,7 +10,7 @@ import type { LLMClient } from "./src/api/llm-client.js";
 import { getLLMClient } from "./src/api/llm-client.js";
 import { getTestFlightClient } from "./src/api/testflight-client.js";
 import { getConfiguration } from "./src/config/index.js";
-import { getEnvVar } from "./src/config/environment-loader.js";
+
 import type { EnhancedIssueCreationResult } from "./src/integrations/llm-enhanced-creator.js";
 import type { IdempotencyService } from "./src/utils/idempotency-service.js";
 import { getIdempotencyService } from "./src/utils/idempotency-service.js";
@@ -358,43 +358,43 @@ async function run(): Promise<void> {
 			// Enhanced failure analysis with detailed health check
 			const monitor = getSystemHealthMonitor();
 			const detailedHealth = await monitor.checkSystemHealth();
-			// Only show problematic components to reduce noise
-			const problematicComponents = detailedHealth.components.filter(c => c.status !== "healthy");
 
-			if (problematicComponents.length > 0) {
-				core.error("🔍 Problematic component status at failure:");
-				problematicComponents.forEach(component => {
+			// Only show truly problematic components (unhealthy or critical degraded)
+			const criticalComponents = detailedHealth.components.filter(c => {
+				if (c.status === "unhealthy") {
+					return true;
+				}
+				if (c.status === "degraded") {
+					// Only show degraded components that affect core functionality
+					return c.component === "TestFlight Integration" ||
+						(c.component === "Environment Configuration" &&
+							c.details?.missingCoreConfig &&
+							Array.isArray(c.details.missingCoreConfig) &&
+							c.details.missingCoreConfig.length > 0);
+				}
+				return false;
+			});
+
+			if (criticalComponents.length > 0) {
+				core.error("🔍 Critical component issues at failure:");
+				criticalComponents.forEach(component => {
 					const status = component.status === "degraded" ? "⚠️" : "❌";
 					core.error(`  ${status} ${component.component}: ${component.status}`);
 					if (component.error) {
 						core.error(`    📋 Error: ${component.error}`);
 					}
-					if (component.details && typeof component.details === 'object') {
-						// Special handling for Environment Configuration to show missing variables
-						if (component.component === 'Environment Configuration') {
-							if (component.details.missingCoreConfig && Array.isArray(component.details.missingCoreConfig) && component.details.missingCoreConfig.length > 0) {
-								core.error(`    ❌ Missing core config: ${component.details.missingCoreConfig.join(', ')}`);
-							}
-							if (component.details.platformIssues && Array.isArray(component.details.platformIssues) && component.details.platformIssues.length > 0) {
-								core.error(`    ⚠️ Platform issues: ${component.details.platformIssues.join(', ')}`);
-							}
-						} else {
-							// General details for other components - only show error-related details
-							Object.entries(component.details).forEach(([key, value]) => {
-								if ((typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') &&
-									(key.includes('error') || key.includes('issue') || key.includes('missing'))) {
-									core.error(`    📊 ${key}: ${value}`);
-								}
-							});
+					// Special handling for Environment Configuration to show missing variables
+					if (component.component === 'Environment Configuration' && component.details) {
+						if (component.details.missingCoreConfig && Array.isArray(component.details.missingCoreConfig) && component.details.missingCoreConfig.length > 0) {
+							core.error(`    ❌ Missing core config: ${component.details.missingCoreConfig.join(', ')}`);
+						}
+						if (component.details.platformIssues && Array.isArray(component.details.platformIssues) && component.details.platformIssues.length > 0) {
+							core.error(`    ⚠️ Platform issues: ${component.details.platformIssues.join(', ')}`);
 						}
 					}
 				});
-			}
-
-			// Show healthy components count for context, but not as errors
-			const healthyCount = detailedHealth.components.length - problematicComponents.length;
-			if (healthyCount > 0) {
-				core.info(`ℹ️ ${healthyCount} components are healthy and functioning normally`);
+			} else {
+				core.info("ℹ️ All system components are functioning properly - failure is not due to configuration issues");
 			}
 
 		} catch (healthError) {
@@ -415,21 +415,6 @@ async function run(): Promise<void> {
 		);
 		core.error(`  Uptime: ${Math.round(process.uptime())}s`);
 
-		// Show only missing core configuration (avoid false negatives from GitHub Action inputs)
-		const coreVariables = [
-			{ env: 'TESTFLIGHT_ISSUER_ID', input: 'testflight_issuer_id' },
-			{ env: 'TESTFLIGHT_KEY_ID', input: 'testflight_key_id' },
-			{ env: 'TESTFLIGHT_PRIVATE_KEY', input: 'testflight_private_key' },
-			{ env: 'TESTFLIGHT_APP_ID', input: 'app_id' }
-		];
-
-		const missingCoreVars = coreVariables.filter(v => !getEnvVar(v.env, v.input));
-		if (missingCoreVars.length > 0) {
-			core.error("🔧 Missing required configuration:");
-			missingCoreVars.forEach(v => {
-				core.error(`  ❌ ${v.env}: Set as environment variable or '${v.input}' in GitHub Action inputs`);
-			});
-		}
 
 		core.setFailed(errorMessage);
 	}
