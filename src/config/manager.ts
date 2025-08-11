@@ -122,26 +122,26 @@ export class ConfigurationManager {
     }
 
     /**
-     * Builds App Store Connect configuration
+     * Builds TestFlight/App Store Connect configuration
      */
     private buildAppStoreConnectConfig(isGitHubAction: boolean): AppStoreConnectConfig {
         const issuerId = getRequiredEnvVar(
-            "APP_STORE_CONNECT_ISSUER_ID",
-            ENV_VARS.APP_STORE_CONNECT_ISSUER_ID
+            "TESTFLIGHT_ISSUER_ID",
+            ENV_VARS.TESTFLIGHT_ISSUER_ID
         );
 
         const keyId = getRequiredEnvVar(
-            "APP_STORE_CONNECT_KEY_ID",
-            ENV_VARS.APP_STORE_CONNECT_KEY_ID
+            "TESTFLIGHT_KEY_ID",
+            ENV_VARS.TESTFLIGHT_KEY_ID
         );
 
         // Handle private key from environment or file
         let privateKey: string;
         const privateKeyEnv = getEnvVar(
-            "APP_STORE_CONNECT_PRIVATE_KEY",
-            ENV_VARS.APP_STORE_CONNECT_PRIVATE_KEY
+            "TESTFLIGHT_PRIVATE_KEY",
+            ENV_VARS.TESTFLIGHT_PRIVATE_KEY
         );
-        const privateKeyPathEnv = getEnvVar("APP_STORE_CONNECT_PRIVATE_KEY_PATH");
+        const privateKeyPathEnv = getEnvVar("TESTFLIGHT_PRIVATE_KEY_PATH");
 
         if (privateKeyEnv) {
             privateKey = validatePrivateKey(privateKeyEnv);
@@ -160,7 +160,7 @@ export class ConfigurationManager {
             }
         } else {
             throw new Error(
-                "APP_STORE_CONNECT_PRIVATE_KEY must be set (file paths not supported in GitHub Actions)"
+                "TESTFLIGHT_PRIVATE_KEY must be set (file paths not supported in GitHub Actions)"
             );
         }
 
