@@ -14,7 +14,6 @@ import type {
 	DetailedTestFlightScreenshotFeedback,
 	EnhancedScreenshotImage,
 	ProcessedFeedbackData,
-	TestFlightApiResponse,
 	TestFlightApp,
 	TestFlightAppsResponse,
 	TestFlightCrashLog,
@@ -133,7 +132,13 @@ export class TestFlightClient {
 	): Promise<string[]> {
 		const logs: string[] = [];
 
-		for (const logInfo of crashReport.attributes.crashLogs) {
+		// Check if crashLogs exists before iterating
+		const { crashLogs } = crashReport.attributes;
+		if (!crashLogs || crashLogs.length === 0) {
+			return logs;
+		}
+
+		for (const logInfo of crashLogs) {
 			try {
 				// Check if URL hasn't expired
 				const expiresAt = new Date(logInfo.expiresAt);
@@ -324,19 +329,64 @@ export class TestFlightClient {
 	}
 
 	/**
-	 * Finds an app by its bundle ID
+	 * Finds an app by its bundle ID using reliable unfiltered search + manual matching
+	 * Note: Bundle ID filtering via API query parameters appears to be unreliable,
+	 * so we fetch all apps and filter manually for better reliability
 	 */
 	public async findAppByBundleId(bundleId: string): Promise<TestFlightApp | null> {
-		const params: TestFlightQueryParams = {
-			filter: {
-				bundleId: bundleId,
-			},
-			limit: 1,
-		};
+		console.log(`🔍 Searching for app with bundle ID: ${bundleId}`);
 
-		const apps = await this.getApps(params);
-		const firstApp = apps[0];
-		return firstApp || null;
+		try {
+			// First try the filtered approach (may fail with some API key configurations)
+			const params: TestFlightQueryParams = {
+				filter: {
+					bundleId: bundleId,
+				},
+				limit: 1,
+			};
+
+			console.log(`🔄 Attempting filtered search first...`);
+			const filteredApps = await this.getApps(params);
+
+			if (filteredApps.length > 0 && filteredApps[0]) {
+				console.log(`✅ Filtered search successful: ${filteredApps[0].attributes.name}`);
+				return filteredApps[0];
+			}
+
+			console.log(`⚠️ Filtered search returned no results, falling back to manual search`);
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			console.log(`⚠️ Filtered search failed (${errorMessage}), falling back to manual search`);
+		}
+
+		// Fallback: Get all apps and search manually (more reliable)
+		console.log(`🔄 Performing manual search across all apps...`);
+		try {
+			const allApps = await this.getApps({ limit: 200 }); // Increase limit to catch more apps
+
+			console.log(`📋 Searching through ${allApps.length} apps for bundle ID: ${bundleId}`);
+
+			const matchingApp = allApps.find(app =>
+				app.attributes.bundleId === bundleId
+			);
+
+			if (matchingApp) {
+				console.log(`✅ Manual search successful: ${matchingApp.attributes.name} (${matchingApp.id})`);
+				return matchingApp;
+			}
+
+			console.log(`❌ No app found with bundle ID: ${bundleId}`);
+			console.log(`📋 Available apps:`);
+			allApps.forEach(app => {
+				console.log(`  - ${app.attributes.name}: ${app.attributes.bundleId} (${app.id})`);
+			});
+
+			return null;
+		} catch (fallbackError) {
+			const fallbackErrorMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+			console.error(`❌ Manual search also failed: ${fallbackErrorMessage}`);
+			throw fallbackError;
+		}
 	}
 
 	/**
@@ -453,6 +503,7 @@ export class TestFlightClient {
 	/**
 	 * Resolves and validates app ID using App Store Connect API as single source of truth
 	 * Ensures consistency between provided app_id and bundle_id when both are available
+	 * Enhanced with better error handling and user guidance
 	 */
 	public async resolveAppId(bundleId?: string): Promise<string> {
 		const providedAppId = this.appId;
@@ -486,8 +537,9 @@ export class TestFlightClient {
 				return providedAppId;
 
 			} catch (error) {
-				// If bundle ID validation fails, try to validate the app_id directly
-				console.warn(`⚠️ Bundle ID validation failed: ${error}`);
+				// Enhanced error handling with specific guidance
+				const errorMessage = error instanceof Error ? error.message : String(error);
+				console.warn(`⚠️ Bundle ID validation failed: ${errorMessage}`);
 				console.log(`🔍 Attempting to validate app_id: ${providedAppId} directly`);
 
 				try {
@@ -504,8 +556,9 @@ export class TestFlightClient {
 					return providedAppId;
 
 				} catch (appIdError) {
+					const appIdErrorMessage = appIdError instanceof Error ? appIdError.message : String(appIdError);
 					throw new Error(
-						`Data validation failed. Neither app_id '${providedAppId}' nor bundle_id '${providedBundleId}' could be validated against App Store Connect API. Please verify your credentials and app information. Details: ${appIdError}`
+						`App validation failed - neither app_id '${providedAppId}' nor bundle_id '${providedBundleId}' could be validated. Bundle ID Error: ${errorMessage}; App ID Error: ${appIdErrorMessage}`
 					);
 				}
 			}
@@ -520,8 +573,9 @@ export class TestFlightClient {
 				console.log(`✅ Validated app_id ${providedAppId} - ${app.attributes.name} (${app.attributes.bundleId})`);
 				return providedAppId;
 			} catch (error) {
+				const errorMessage = error instanceof Error ? error.message : String(error);
 				throw new Error(
-					`App ID '${providedAppId}' not found in App Store Connect. Please verify the app ID is correct and your API key has access to this app. Details: ${error}`
+					`App ID '${providedAppId}' not found in App Store Connect. Error: ${errorMessage}`
 				);
 			}
 		}
@@ -530,15 +584,22 @@ export class TestFlightClient {
 		if (!providedAppId && providedBundleId) {
 			console.log(`🔍 Resolving app_id from bundle_id: ${providedBundleId}`);
 
-			const app = await this.findAppByBundleId(providedBundleId);
-			if (!app) {
+			try {
+				const app = await this.findAppByBundleId(providedBundleId);
+				if (!app) {
+					throw new Error(
+						`No app found with bundle ID '${providedBundleId}' in your App Store Connect account.`
+					);
+				}
+
+				console.log(`✅ Resolved app_id ${app.id} from bundle_id ${providedBundleId} - ${app.attributes.name}`);
+				return app.id;
+			} catch (error) {
+				const errorMessage = error instanceof Error ? error.message : String(error);
 				throw new Error(
-					`No app found with bundle ID '${providedBundleId}'. Please verify the bundle ID is correct and exists in App Store Connect.`
+					`Failed to resolve app_id from bundle_id '${providedBundleId}'. Error: ${errorMessage}`
 				);
 			}
-
-			console.log(`✅ Resolved app_id ${app.id} from bundle_id ${providedBundleId} - ${app.attributes.name}`);
-			return app.id;
 		}
 
 		// Case 4: Neither provided
@@ -599,7 +660,8 @@ export class TestFlightClient {
 	}
 
 	/**
-	 * Makes an authenticated API request with retry logic and rate limiting
+	 * Makes an authenticated API request with enhanced retry logic and rate limiting
+	 * Includes better error categorization and exponential backoff
 	 */
 	private async makeApiRequest<T>(
 		endpoint: string,
@@ -613,6 +675,7 @@ export class TestFlightClient {
 		} = options || {};
 
 		let lastError: Error | null = null;
+		let lastStatusCode: number | null = null;
 
 		for (let attempt = 0; attempt <= retries; attempt++) {
 			try {
@@ -626,6 +689,8 @@ export class TestFlightClient {
 				// Build URL with query parameters
 				const url = this.buildUrl(endpoint, params);
 
+				console.log(`🔗 API Request (attempt ${attempt + 1}/${retries + 1}): ${url.toString()}`);
+
 				// Make the request
 				const response = await fetch(url, {
 					method: "GET",
@@ -636,6 +701,8 @@ export class TestFlightClient {
 					},
 					signal: AbortSignal.timeout(timeout),
 				});
+
+				lastStatusCode = response.status;
 
 				// Update rate limit info
 				this.updateRateLimitInfo(response);
@@ -654,44 +721,130 @@ export class TestFlightClient {
 					const errorMessage = errorData.errors
 						.map((e) => `${e.title}: ${e.detail}`)
 						.join("; ");
-					throw new Error(`API Error: ${errorMessage}`);
+
+					// Enhanced error handling with retry logic
+					const apiError = new Error(`API Error: ${errorMessage}`);
+
+					// Determine if this is a retryable error
+					const isRetryable = this.isRetryableError(response.status, errorMessage);
+
+					if (!isRetryable) {
+						console.log(`❌ Non-retryable error (${response.status}): ${errorMessage}`);
+						throw apiError;
+					}
+
+					console.log(`⚠️ Retryable error (${response.status}): ${errorMessage}`);
+					throw apiError;
 				}
 
 				// Parse and return response
 				const data = await response.json();
+				console.log(`✅ API Request successful (attempt ${attempt + 1})`);
 				return data as T;
 			} catch (error) {
 				lastError = error as Error;
 
-				// Don't retry on authentication errors
+				// Don't retry on authentication errors (401, 403)
 				if (
 					lastError.message.includes("authentication") ||
-					lastError.message.includes("unauthorized")
+					lastError.message.includes("unauthorized") ||
+					lastStatusCode === 401 ||
+					lastStatusCode === 403
 				) {
+					console.log(`❌ Authentication error - not retrying: ${lastError.message}`);
+					throw lastError;
+				}
+
+				// Don't retry on client errors (400, 404) - these are configuration issues
+				if (lastStatusCode && lastStatusCode >= 400 && lastStatusCode < 500 && lastStatusCode !== 429) {
+					console.log(`❌ Client error (${lastStatusCode}) - not retrying: ${lastError.message}`);
 					throw lastError;
 				}
 
 				// Don't retry on the last attempt
 				if (attempt === retries) {
+					console.log(`❌ Final attempt failed: ${lastError.message}`);
 					break;
 				}
 
-				// Wait before retrying (exponential backoff)
-				const delay = retryDelay * 2 ** attempt;
+				// Calculate delay with exponential backoff and jitter
+				const baseDelay = retryDelay * Math.pow(2, attempt);
+				const jitter = Math.random() * 0.1 * baseDelay; // Add up to 10% jitter
+				const delay = Math.floor(baseDelay + jitter);
+
+				console.log(`🔄 Retrying in ${delay}ms (attempt ${attempt + 1}/${retries + 1}): ${lastError.message}`);
 				await this.sleep(delay);
 			}
 		}
 
-		throw new Error(
-			`Request failed after ${retries + 1} attempts: ${lastError?.message}`,
+		// Enhanced final error message
+		const finalError = new Error(
+			`Request failed after ${retries + 1} attempts: ${lastError?.message}${lastStatusCode ? ` (HTTP ${lastStatusCode})` : ''}`
 		);
+
+		// Add additional context for common issues
+		if (lastStatusCode === 404 || lastError?.message.includes("The specified resource does not exist")) {
+			console.error(`🔍 This appears to be a resource not found error. Check your app_id/bundle_id and API key permissions.`);
+		}
+
+		throw finalError;
+	}
+
+	/**
+	 * Determines if an error is retryable based on status code and error message
+	 */
+	private isRetryableError(statusCode: number, errorMessage: string): boolean {
+		// Rate limiting - always retry
+		if (statusCode === 429) {
+			return true;
+		}
+
+		// Server errors - retry
+		if (statusCode >= 500) {
+			return true;
+		}
+
+		// Timeout or network errors - retry
+		if (errorMessage.includes("timeout") || errorMessage.includes("network")) {
+			return true;
+		}
+
+		// Temporary Apple API issues (sometimes happens intermittently)
+		if (errorMessage.includes("temporarily unavailable") ||
+			errorMessage.includes("service unavailable")) {
+			return true;
+		}
+
+		// Don't retry client errors (400-499, except 429)
+		if (statusCode >= 400 && statusCode < 500) {
+			return false;
+		}
+
+		// Default to not retrying unknown errors
+		return false;
 	}
 
 	/**
 	 * Builds a complete URL with query parameters
+	 * Properly handles endpoints that start with "/" to avoid replacing the base path
 	 */
 	private buildUrl(endpoint: string, params?: TestFlightQueryParams): string {
-		const url = new URL(endpoint, this.baseUrl);
+		// Fix: If endpoint starts with "/", we need to properly append it to baseUrl
+		// new URL("/apps", "https://api.appstoreconnect.apple.com/v1") would incorrectly become 
+		// "https://api.appstoreconnect.apple.com/apps" (losing /v1)
+		// Instead, we should get "https://api.appstoreconnect.apple.com/v1/apps"
+		let fullUrl: string;
+		if (endpoint.startsWith('/')) {
+			// Append endpoint to baseUrl, ensuring no double slashes
+			fullUrl = this.baseUrl.endsWith('/')
+				? this.baseUrl + endpoint.slice(1)
+				: this.baseUrl + endpoint;
+		} else {
+			// Use standard URL constructor for relative paths
+			fullUrl = new URL(endpoint, this.baseUrl).toString();
+		}
+
+		const url = new URL(fullUrl);
 
 		if (params) {
 			if (params.limit) {
@@ -876,64 +1029,98 @@ export class TestFlightClient {
 
 	/**
 	 * Processes raw crash report data into standardized format
+	 * Handles both real API fields and legacy field names for backward compatibility
 	 */
 	private processCrashReport(
 		crash: TestFlightCrashReport,
 	): ProcessedFeedbackData {
+		const attrs = crash.attributes;
+
+		// Use real API fields with fallbacks to legacy fields
+		const submittedAt = attrs.createdDate || attrs.submittedAt || new Date().toISOString();
+		const bundleId = attrs.buildBundleId || attrs.bundleId || '';
+		const deviceFamily = attrs.deviceFamily || 'UNKNOWN';
+
+		// Extract app version and build number from other available data if not directly provided
+		// Note: Real API may not always include these fields in crash submissions
+		const appVersion = attrs.appVersion || 'Unknown';
+		const buildNumber = attrs.buildNumber || 'Unknown';
+
 		return {
 			id: crash.id,
 			type: "crash",
-			submittedAt: new Date(crash.attributes.submittedAt),
-			appVersion: crash.attributes.appVersion,
-			buildNumber: crash.attributes.buildNumber,
+			submittedAt: new Date(submittedAt),
+			appVersion,
+			buildNumber,
 			deviceInfo: {
-				family: crash.attributes.deviceFamily,
-				model: crash.attributes.deviceModel,
-				osVersion: crash.attributes.osVersion,
-				locale: crash.attributes.locale,
+				family: deviceFamily,
+				model: attrs.deviceModel,
+				osVersion: attrs.osVersion,
+				locale: attrs.locale,
 			},
-			bundleId: crash.attributes.bundleId,
+			bundleId,
+			testerInfo: attrs.email ? {
+				email: attrs.email,
+			} : undefined,
 			crashData: {
-				trace: crash.attributes.crashTrace,
-				type: crash.attributes.crashType,
-				exceptionType: crash.attributes.exceptionType,
-				exceptionMessage: crash.attributes.exceptionMessage,
-				logs: crash.attributes.crashLogs.map((log) => ({
+				// Real API may not have crash trace/type directly in submission
+				// These might be in the related crashLog resource
+				trace: attrs.crashTrace || '',
+				type: attrs.crashType || 'Unknown',
+				exceptionType: attrs.exceptionType,
+				exceptionMessage: attrs.exceptionMessage,
+				logs: attrs.crashLogs?.map((log) => ({
 					url: log.url,
 					expiresAt: new Date(log.expiresAt),
-				})),
+				})) || [],
 			},
 		};
 	}
 
 	/**
 	 * Processes raw screenshot feedback data into standardized format
+	 * Handles both real API fields and legacy field names for backward compatibility
 	 */
 	private processScreenshotFeedback(
 		screenshot: TestFlightScreenshotFeedback,
 	): ProcessedFeedbackData {
+		const attrs = screenshot.attributes;
+
+		// Use real API fields with fallbacks to legacy fields
+		const submittedAt = attrs.createdDate || attrs.submittedAt || new Date().toISOString();
+		const bundleId = attrs.buildBundleId || attrs.bundleId || '';
+		const deviceFamily = attrs.deviceFamily || 'UNKNOWN';
+		const feedbackText = attrs.comment || attrs.feedbackText || '';
+
+		// Extract app version and build number from other available data if not directly provided
+		const appVersion = attrs.appVersion || 'Unknown';
+		const buildNumber = attrs.buildNumber || 'Unknown';
+
 		return {
 			id: screenshot.id,
 			type: "screenshot",
-			submittedAt: new Date(screenshot.attributes.submittedAt),
-			appVersion: screenshot.attributes.appVersion,
-			buildNumber: screenshot.attributes.buildNumber,
+			submittedAt: new Date(submittedAt),
+			appVersion,
+			buildNumber,
 			deviceInfo: {
-				family: screenshot.attributes.deviceFamily,
-				model: screenshot.attributes.deviceModel,
-				osVersion: screenshot.attributes.osVersion,
-				locale: screenshot.attributes.locale,
+				family: deviceFamily,
+				model: attrs.deviceModel,
+				osVersion: attrs.osVersion,
+				locale: attrs.locale,
 			},
-			bundleId: screenshot.attributes.bundleId,
+			bundleId,
+			testerInfo: attrs.email ? {
+				email: attrs.email,
+			} : undefined,
 			screenshotData: {
-				text: screenshot.attributes.feedbackText,
-				images: screenshot.attributes.screenshots.map((img) => ({
+				text: feedbackText,
+				images: attrs.screenshots.map((img) => ({
 					url: img.url,
 					fileName: img.fileName,
 					fileSize: img.fileSize,
 					expiresAt: new Date(img.expiresAt),
 				})),
-				annotations: screenshot.attributes.annotations,
+				annotations: attrs.annotations || [],
 			},
 		};
 	}

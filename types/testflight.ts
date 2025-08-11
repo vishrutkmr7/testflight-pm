@@ -7,22 +7,39 @@ export interface TestFlightCrashReport {
 	id: string;
 	type: "betaFeedbackCrashSubmissions";
 	attributes: {
-		submittedAt: string;
-		crashLogs: {
+		// Real API fields (based on actual response)
+		createdDate: string;  // Real API uses 'createdDate' not 'submittedAt'
+		comment: string | null;
+		email: string;
+		deviceModel: string;
+		osVersion: string;  // Real API field name
+		locale: string;
+		timeZone: string;
+		architecture: string;
+		connectionType: string;
+		pairedAppleWatch: string | null;
+		appUptimeInMilliseconds: number | null;
+		diskBytesAvailable: number;
+		diskBytesTotal: number;
+		batteryPercentage: number;
+		screenWidthInPoints: number;
+		screenHeightInPoints: number;
+		appPlatform: string;
+		devicePlatform: string;
+		deviceFamily: string;
+		buildBundleId: string;  // Real API uses 'buildBundleId' not 'bundleId'
+
+		// Legacy fields for backward compatibility (may not be in all responses)
+		submittedAt?: string;  // Computed from createdDate
+		crashLogs?: {
 			url: string;
 			expiresAt: string;
 		}[];
-		deviceFamily: string;
-		deviceModel: string;
-		osVersion: string;
-		appVersion: string;
-		buildNumber: string;
-		locale: string;
-		bundleId: string;
-
-		// Crash-specific data
-		crashTrace: string;
-		crashType: string;
+		appVersion?: string;
+		buildNumber?: string;
+		bundleId?: string;  // Computed from buildBundleId
+		crashTrace?: string;
+		crashType?: string;
 		exceptionType?: string;
 		exceptionMessage?: string;
 		threadState?: Record<string, unknown>;
@@ -54,23 +71,40 @@ export interface TestFlightScreenshotFeedback {
 	id: string;
 	type: "betaFeedbackScreenshotSubmissions";
 	attributes: {
-		submittedAt: string;
-		screenshots: {
+		// Real API fields (based on actual response)
+		createdDate: string;  // Real API uses 'createdDate' not 'submittedAt'
+		comment: string | null;  // Real API uses 'comment' not 'feedbackText'
+		email: string;
+		deviceModel: string;
+		osVersion: string;
+		locale: string;
+		timeZone: string;
+		architecture: string;
+		connectionType: string;
+		pairedAppleWatch: string | null;
+		appUptimeInMilliseconds: number | null;
+		diskBytesAvailable: number;
+		diskBytesTotal: number;
+		batteryPercentage: number;
+		screenWidthInPoints: number;
+		screenHeightInPoints: number;
+		appPlatform: string;
+		devicePlatform: string;
+		deviceFamily: string;
+		buildBundleId: string;  // Real API uses 'buildBundleId' not 'bundleId'
+		screenshots: Array<{  // Real API structure
 			url: string;
 			expiresAt: string;
 			fileName: string;
 			fileSize: number;
-		}[];
-		deviceFamily: string;
-		deviceModel: string;
-		osVersion: string;
-		appVersion: string;
-		buildNumber: string;
-		locale: string;
-		bundleId: string;
+		}>;
 
-		// Screenshot-specific data
-		feedbackText?: string;
+		// Legacy fields for backward compatibility (may not be in all responses)
+		submittedAt?: string;  // Computed from createdDate
+		appVersion?: string;
+		buildNumber?: string;
+		bundleId?: string;  // Computed from buildBundleId
+		feedbackText?: string;  // Computed from comment
 		annotations?: ScreenshotAnnotation[];
 		systemInfo?: Record<string, unknown>;
 	};

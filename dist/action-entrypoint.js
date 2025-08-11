@@ -48047,7 +48047,11 @@ class TestFlightClient {
   }
   async downloadCrashLogs(crashReport) {
     const logs = [];
-    for (const logInfo of crashReport.attributes.crashLogs) {
+    const { crashLogs } = crashReport.attributes;
+    if (!crashLogs || crashLogs.length === 0) {
+      return logs;
+    }
+    for (const logInfo of crashLogs) {
       try {
         const expiresAt = new Date(logInfo.expiresAt);
         if (expiresAt <= new Date) {
@@ -48158,15 +48162,45 @@ class TestFlightClient {
     return response.data;
   }
   async findAppByBundleId(bundleId) {
-    const params = {
-      filter: {
-        bundleId
-      },
-      limit: 1
-    };
-    const apps = await this.getApps(params);
-    const firstApp = apps[0];
-    return firstApp || null;
+    console.log(`\uD83D\uDD0D Searching for app with bundle ID: ${bundleId}`);
+    try {
+      const params = {
+        filter: {
+          bundleId
+        },
+        limit: 1
+      };
+      console.log(`\uD83D\uDD04 Attempting filtered search first...`);
+      const filteredApps = await this.getApps(params);
+      if (filteredApps.length > 0 && filteredApps[0]) {
+        console.log(`✅ Filtered search successful: ${filteredApps[0].attributes.name}`);
+        return filteredApps[0];
+      }
+      console.log(`⚠️ Filtered search returned no results, falling back to manual search`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.log(`⚠️ Filtered search failed (${errorMessage}), falling back to manual search`);
+    }
+    console.log(`\uD83D\uDD04 Performing manual search across all apps...`);
+    try {
+      const allApps = await this.getApps({ limit: 200 });
+      console.log(`\uD83D\uDCCB Searching through ${allApps.length} apps for bundle ID: ${bundleId}`);
+      const matchingApp = allApps.find((app) => app.attributes.bundleId === bundleId);
+      if (matchingApp) {
+        console.log(`✅ Manual search successful: ${matchingApp.attributes.name} (${matchingApp.id})`);
+        return matchingApp;
+      }
+      console.log(`❌ No app found with bundle ID: ${bundleId}`);
+      console.log(`\uD83D\uDCCB Available apps:`);
+      allApps.forEach((app) => {
+        console.log(`  - ${app.attributes.name}: ${app.attributes.bundleId} (${app.id})`);
+      });
+      return null;
+    } catch (fallbackError) {
+      const fallbackErrorMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+      console.error(`❌ Manual search also failed: ${fallbackErrorMessage}`);
+      throw fallbackError;
+    }
   }
   async getAppById(appId) {
     const response = await this.makeApiRequest(`/apps/${appId}`, {
@@ -48238,7 +48272,8 @@ class TestFlightClient {
         console.log(`✅ Validated consistency: app_id ${providedAppId} matches bundle_id ${providedBundleId}`);
         return providedAppId;
       } catch (error) {
-        console.warn(`⚠️ Bundle ID validation failed: ${error}`);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.warn(`⚠️ Bundle ID validation failed: ${errorMessage}`);
         console.log(`\uD83D\uDD0D Attempting to validate app_id: ${providedAppId} directly`);
         try {
           const appFromAppId = await this.getAppById(providedAppId);
@@ -48248,7 +48283,8 @@ class TestFlightClient {
           console.log(`✅ Validated app_id ${providedAppId} exists and matches expected bundle_id`);
           return providedAppId;
         } catch (appIdError) {
-          throw new Error(`Data validation failed. Neither app_id '${providedAppId}' nor bundle_id '${providedBundleId}' could be validated against App Store Connect API. Please verify your credentials and app information. Details: ${appIdError}`);
+          const appIdErrorMessage = appIdError instanceof Error ? appIdError.message : String(appIdError);
+          throw new Error(`App validation failed - neither app_id '${providedAppId}' nor bundle_id '${providedBundleId}' could be validated. Bundle ID Error: ${errorMessage}; App ID Error: ${appIdErrorMessage}`);
         }
       }
     }
@@ -48259,17 +48295,23 @@ class TestFlightClient {
         console.log(`✅ Validated app_id ${providedAppId} - ${app.attributes.name} (${app.attributes.bundleId})`);
         return providedAppId;
       } catch (error) {
-        throw new Error(`App ID '${providedAppId}' not found in App Store Connect. Please verify the app ID is correct and your API key has access to this app. Details: ${error}`);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        throw new Error(`App ID '${providedAppId}' not found in App Store Connect. Error: ${errorMessage}`);
       }
     }
     if (!providedAppId && providedBundleId) {
       console.log(`\uD83D\uDD0D Resolving app_id from bundle_id: ${providedBundleId}`);
-      const app = await this.findAppByBundleId(providedBundleId);
-      if (!app) {
-        throw new Error(`No app found with bundle ID '${providedBundleId}'. Please verify the bundle ID is correct and exists in App Store Connect.`);
+      try {
+        const app = await this.findAppByBundleId(providedBundleId);
+        if (!app) {
+          throw new Error(`No app found with bundle ID '${providedBundleId}' in your App Store Connect account.`);
+        }
+        console.log(`✅ Resolved app_id ${app.id} from bundle_id ${providedBundleId} - ${app.attributes.name}`);
+        return app.id;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        throw new Error(`Failed to resolve app_id from bundle_id '${providedBundleId}'. Error: ${errorMessage}`);
       }
-      console.log(`✅ Resolved app_id ${app.id} from bundle_id ${providedBundleId} - ${app.attributes.name}`);
-      return app.id;
     }
     throw new Error("Either app_id or testflight_bundle_id must be provided. Please set TESTFLIGHT_APP_ID or TESTFLIGHT_BUNDLE_ID environment variables, or provide app_id or testflight_bundle_id inputs.");
   }
@@ -48306,12 +48348,14 @@ class TestFlightClient {
       timeout = this.defaultTimeout
     } = options || {};
     let lastError = null;
+    let lastStatusCode = null;
     for (let attempt = 0;attempt <= retries; attempt++) {
       try {
         await this.waitForRateLimit();
         const authInstance = getAuthInstance();
         const token = await authInstance.getValidToken();
         const url = this.buildUrl(endpoint, params);
+        console.log(`\uD83D\uDD17 API Request (attempt ${attempt + 1}/${retries + 1}): ${url.toString()}`);
         const response = await fetch(url, {
           method: "GET",
           headers: {
@@ -48321,6 +48365,7 @@ class TestFlightClient {
           },
           signal: AbortSignal.timeout(timeout)
         });
+        lastStatusCode = response.status;
         this.updateRateLimitInfo(response);
         if (!response.ok) {
           const errorText = await response.text();
@@ -48331,26 +48376,71 @@ class TestFlightClient {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
           }
           const errorMessage = errorData.errors.map((e) => `${e.title}: ${e.detail}`).join("; ");
-          throw new Error(`API Error: ${errorMessage}`);
+          const apiError = new Error(`API Error: ${errorMessage}`);
+          const isRetryable = this.isRetryableError(response.status, errorMessage);
+          if (!isRetryable) {
+            console.log(`❌ Non-retryable error (${response.status}): ${errorMessage}`);
+            throw apiError;
+          }
+          console.log(`⚠️ Retryable error (${response.status}): ${errorMessage}`);
+          throw apiError;
         }
         const data = await response.json();
+        console.log(`✅ API Request successful (attempt ${attempt + 1})`);
         return data;
       } catch (error) {
         lastError = error;
-        if (lastError.message.includes("authentication") || lastError.message.includes("unauthorized")) {
+        if (lastError.message.includes("authentication") || lastError.message.includes("unauthorized") || lastStatusCode === 401 || lastStatusCode === 403) {
+          console.log(`❌ Authentication error - not retrying: ${lastError.message}`);
+          throw lastError;
+        }
+        if (lastStatusCode && lastStatusCode >= 400 && lastStatusCode < 500 && lastStatusCode !== 429) {
+          console.log(`❌ Client error (${lastStatusCode}) - not retrying: ${lastError.message}`);
           throw lastError;
         }
         if (attempt === retries) {
+          console.log(`❌ Final attempt failed: ${lastError.message}`);
           break;
         }
-        const delay = retryDelay * 2 ** attempt;
+        const baseDelay = retryDelay * Math.pow(2, attempt);
+        const jitter = Math.random() * 0.1 * baseDelay;
+        const delay = Math.floor(baseDelay + jitter);
+        console.log(`\uD83D\uDD04 Retrying in ${delay}ms (attempt ${attempt + 1}/${retries + 1}): ${lastError.message}`);
         await this.sleep(delay);
       }
     }
-    throw new Error(`Request failed after ${retries + 1} attempts: ${lastError?.message}`);
+    const finalError = new Error(`Request failed after ${retries + 1} attempts: ${lastError?.message}${lastStatusCode ? ` (HTTP ${lastStatusCode})` : ""}`);
+    if (lastStatusCode === 404 || lastError?.message.includes("The specified resource does not exist")) {
+      console.error(`\uD83D\uDD0D This appears to be a resource not found error. Check your app_id/bundle_id and API key permissions.`);
+    }
+    throw finalError;
+  }
+  isRetryableError(statusCode, errorMessage) {
+    if (statusCode === 429) {
+      return true;
+    }
+    if (statusCode >= 500) {
+      return true;
+    }
+    if (errorMessage.includes("timeout") || errorMessage.includes("network")) {
+      return true;
+    }
+    if (errorMessage.includes("temporarily unavailable") || errorMessage.includes("service unavailable")) {
+      return true;
+    }
+    if (statusCode >= 400 && statusCode < 500) {
+      return false;
+    }
+    return false;
   }
   buildUrl(endpoint, params) {
-    const url = new URL(endpoint, this.baseUrl);
+    let fullUrl;
+    if (endpoint.startsWith("/")) {
+      fullUrl = this.baseUrl.endsWith("/") ? this.baseUrl + endpoint.slice(1) : this.baseUrl + endpoint;
+    } else {
+      fullUrl = new URL(endpoint, this.baseUrl).toString();
+    }
+    const url = new URL(fullUrl);
     if (params) {
       if (params.limit) {
         url.searchParams.set("limit", params.limit.toString());
@@ -48474,54 +48564,73 @@ class TestFlightClient {
     }
   }
   processCrashReport(crash) {
+    const attrs = crash.attributes;
+    const submittedAt = attrs.createdDate || attrs.submittedAt || new Date().toISOString();
+    const bundleId = attrs.buildBundleId || attrs.bundleId || "";
+    const deviceFamily = attrs.deviceFamily || "UNKNOWN";
+    const appVersion = attrs.appVersion || "Unknown";
+    const buildNumber = attrs.buildNumber || "Unknown";
     return {
       id: crash.id,
       type: "crash",
-      submittedAt: new Date(crash.attributes.submittedAt),
-      appVersion: crash.attributes.appVersion,
-      buildNumber: crash.attributes.buildNumber,
+      submittedAt: new Date(submittedAt),
+      appVersion,
+      buildNumber,
       deviceInfo: {
-        family: crash.attributes.deviceFamily,
-        model: crash.attributes.deviceModel,
-        osVersion: crash.attributes.osVersion,
-        locale: crash.attributes.locale
+        family: deviceFamily,
+        model: attrs.deviceModel,
+        osVersion: attrs.osVersion,
+        locale: attrs.locale
       },
-      bundleId: crash.attributes.bundleId,
+      bundleId,
+      testerInfo: attrs.email ? {
+        email: attrs.email
+      } : undefined,
       crashData: {
-        trace: crash.attributes.crashTrace,
-        type: crash.attributes.crashType,
-        exceptionType: crash.attributes.exceptionType,
-        exceptionMessage: crash.attributes.exceptionMessage,
-        logs: crash.attributes.crashLogs.map((log) => ({
+        trace: attrs.crashTrace || "",
+        type: attrs.crashType || "Unknown",
+        exceptionType: attrs.exceptionType,
+        exceptionMessage: attrs.exceptionMessage,
+        logs: attrs.crashLogs?.map((log) => ({
           url: log.url,
           expiresAt: new Date(log.expiresAt)
-        }))
+        })) || []
       }
     };
   }
   processScreenshotFeedback(screenshot) {
+    const attrs = screenshot.attributes;
+    const submittedAt = attrs.createdDate || attrs.submittedAt || new Date().toISOString();
+    const bundleId = attrs.buildBundleId || attrs.bundleId || "";
+    const deviceFamily = attrs.deviceFamily || "UNKNOWN";
+    const feedbackText = attrs.comment || attrs.feedbackText || "";
+    const appVersion = attrs.appVersion || "Unknown";
+    const buildNumber = attrs.buildNumber || "Unknown";
     return {
       id: screenshot.id,
       type: "screenshot",
-      submittedAt: new Date(screenshot.attributes.submittedAt),
-      appVersion: screenshot.attributes.appVersion,
-      buildNumber: screenshot.attributes.buildNumber,
+      submittedAt: new Date(submittedAt),
+      appVersion,
+      buildNumber,
       deviceInfo: {
-        family: screenshot.attributes.deviceFamily,
-        model: screenshot.attributes.deviceModel,
-        osVersion: screenshot.attributes.osVersion,
-        locale: screenshot.attributes.locale
+        family: deviceFamily,
+        model: attrs.deviceModel,
+        osVersion: attrs.osVersion,
+        locale: attrs.locale
       },
-      bundleId: screenshot.attributes.bundleId,
+      bundleId,
+      testerInfo: attrs.email ? {
+        email: attrs.email
+      } : undefined,
       screenshotData: {
-        text: screenshot.attributes.feedbackText,
-        images: screenshot.attributes.screenshots.map((img) => ({
+        text: feedbackText,
+        images: attrs.screenshots.map((img) => ({
           url: img.url,
           fileName: img.fileName,
           fileSize: img.fileSize,
           expiresAt: new Date(img.expiresAt)
         })),
-        annotations: screenshot.attributes.annotations
+        annotations: attrs.annotations || []
       }
     };
   }
