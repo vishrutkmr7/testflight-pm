@@ -734,8 +734,21 @@ export class LinearClient {
 				description += `**Feedback Text:**\n> ${feedback.screenshotData.text.replace(/\n/g, "\n> ")}\n\n`;
 			}
 
+			// Show enhanced tester notes if available
+			if (feedback.screenshotData.testerNotes) {
+				description += `**Tester Notes:**\n> ${feedback.screenshotData.testerNotes.replace(/\n/g, "\n> ")}\n\n`;
+			}
+
 			if (feedback.screenshotData.images.length > 0) {
-				description += `**Screenshots:** ${feedback.screenshotData.images.length} attached\n\n`;
+				description += `**Screenshots:** ${feedback.screenshotData.images.length} attached`;
+
+				// Add enhanced screenshot info if available
+				if (feedback.screenshotData.enhancedImages && feedback.screenshotData.enhancedImages.length > 0) {
+					const enhancedCount = feedback.screenshotData.enhancedImages.length;
+					description += ` (${enhancedCount} with enhanced metadata)`;
+				}
+
+				description += "\n\n";
 			}
 
 			if (
@@ -743,6 +756,15 @@ export class LinearClient {
 				feedback.screenshotData.annotations.length > 0
 			) {
 				description += `**Annotations:** ${feedback.screenshotData.annotations.length} user annotation(s)\n\n`;
+			}
+
+			// Add submission method and system info if available
+			if (feedback.screenshotData.submissionMethod) {
+				description += `**Submission Method:** ${feedback.screenshotData.submissionMethod}\n\n`;
+			}
+
+			if (feedback.screenshotData.systemInfo) {
+				description += this.formatSystemInfo(feedback.screenshotData.systemInfo);
 			}
 		}
 
@@ -870,6 +892,44 @@ export class LinearClient {
 			default:
 				return "backlog";
 		}
+	}
+
+	/**
+	 * Formats enhanced system information for display (DRY helper)
+	 */
+	private formatSystemInfo(systemInfo: ProcessedFeedbackData['screenshotData']['systemInfo']): string {
+		if (!systemInfo) {
+			return "";
+		}
+
+		let info = "**System Information:**\n";
+
+		if (systemInfo.applicationState) {
+			info += `- Application State: ${systemInfo.applicationState}\n`;
+		}
+
+		if (systemInfo.memoryPressure) {
+			info += `- Memory Pressure: ${systemInfo.memoryPressure}\n`;
+		}
+
+		if (systemInfo.batteryLevel !== undefined) {
+			info += `- Battery Level: ${(systemInfo.batteryLevel * 100).toFixed(0)}%\n`;
+		}
+
+		if (systemInfo.batteryState) {
+			info += `- Battery State: ${systemInfo.batteryState}\n`;
+		}
+
+		if (systemInfo.thermalState) {
+			info += `- Thermal State: ${systemInfo.thermalState}\n`;
+		}
+
+		if (systemInfo.diskSpaceRemaining !== undefined) {
+			const diskSpaceGB = (systemInfo.diskSpaceRemaining / (1024 * 1024 * 1024)).toFixed(1);
+			info += `- Available Storage: ${diskSpaceGB} GB\n`;
+		}
+
+		return info + "\n";
 	}
 }
 

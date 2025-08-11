@@ -231,10 +231,16 @@ async function run(): Promise<void> {
 			core.debug(`  Processing window: ${workflowState.processingWindow.startTime.toISOString()} to ${workflowState.processingWindow.endTime.toISOString()}`);
 		}
 
-		// Get TestFlight feedback
+		// Get TestFlight feedback with enhanced crash logs
 		core.info("📱 Fetching TestFlight feedback...");
-		const feedbackData = await testFlightClient.getRecentFeedback(
+
+		// Get bundle ID from configuration for app resolution
+		const config = getConfiguration();
+		const { bundleId } = config.appStoreConnect;
+
+		const feedbackData = await testFlightClient.getEnhancedRecentFeedback(
 			processingWindow.startTime,
+			bundleId,
 		);
 
 		if (feedbackData.length === 0) {

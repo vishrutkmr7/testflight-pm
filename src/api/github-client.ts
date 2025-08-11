@@ -917,50 +917,12 @@ export class GitHubClient {
 			this.config.enableScreenshotUpload &&
 			feedback.screenshotData.images.length > 0
 		) {
-			const testFlightClient = getTestFlightClient();
-
 			try {
-				const screenshots = await testFlightClient.downloadScreenshots({
-					id: feedback.id,
-					type: "betaFeedbackScreenshotSubmissions",
-					attributes: {
-						submittedAt: feedback.submittedAt.toISOString(),
-						appVersion: feedback.appVersion,
-						buildNumber: feedback.buildNumber,
-						deviceFamily: feedback.deviceInfo.family,
-						deviceModel: feedback.deviceInfo.model,
-						osVersion: feedback.deviceInfo.osVersion,
-						locale: feedback.deviceInfo.locale,
-						bundleId: feedback.bundleId,
-						feedbackText: feedback.screenshotData.text || "",
-						screenshots: feedback.screenshotData.images.map((img, _index) => ({
-							url: img.url,
-							fileName: img.fileName,
-							fileSize: img.fileSize,
-							expiresAt: img.expiresAt.toISOString(),
-						})),
-						annotations: feedback.screenshotData.annotations || [],
-					},
-					relationships: {},
-				});
-
-				screenshots.forEach((screenshot, index) => {
-					const imageInfo = feedback.screenshotData?.images?.[index];
-					if (imageInfo) {
-						attachments.push({
-							filename: imageInfo.fileName,
-							content: screenshot,
-							contentType: "image/png",
-							size: screenshot.length,
-						});
-					}
-				});
+				const screenshots = await this.downloadScreenshotsForFeedback(feedback);
+				attachments.push(...screenshots);
 			} catch (error) {
-				const errorMessage =
-					error instanceof Error ? error.message : String(error);
-				console.warn(
-					`Failed to download screenshots for issue: ${errorMessage}`,
-				);
+				const errorMessage = error instanceof Error ? error.message : String(error);
+				console.warn(`Failed to download screenshots for issue: ${errorMessage}`);
 			}
 		}
 
@@ -1143,6 +1105,127 @@ export class GitHubClient {
 		}
 
 		return Math.abs(hash).toString(36);
+	}
+
+	/**
+	 * Downloads screenshots for TestFlight feedback using enhanced methods (DRY)
+	 */
+	private async downloadScreenshotsForFeedback(
+		feedback: ProcessedFeedbackData,
+	): Promise<GitHubScreenshotUpload[]> {
+		if (!feedback.screenshotData?.images) {
+			return [];
+		}
+
+		const attachments: GitHubScreenshotUpload[] = [];
+
+		// Use enhanced screenshots if available, fallback to regular images
+		if (feedback.screenshotData.enhancedImages) {
+			// Process enhanced screenshots with metadata
+			for (const enhancedImage of feedback.screenshotData.enhancedImages) {
+				try {
+					const imageData = await this.downloadSingleScreenshotImageData(enhancedImage);
+					if (imageData) {
+						attachments.push({
+							filename: enhancedImage.fileName,
+							content: imageData,
+							contentType: this.getContentTypeFromFormat(enhancedImage.imageFormat || 'png'),
+							size: imageData.length,
+						});
+					}
+				} catch (error) {
+					console.warn(`Failed to download enhanced screenshot ${enhancedImage.fileName}:`, error);
+				}
+			}
+		} else {
+			// Fallback to regular screenshot processing
+			for (const imageInfo of feedback.screenshotData.images) {
+				try {
+					const imageData = await this.downloadSingleScreenshotImageData({
+						url: imageInfo.url,
+						fileName: imageInfo.fileName,
+						fileSize: imageInfo.fileSize,
+						expiresAt: imageInfo.expiresAt,
+					});
+
+					if (imageData) {
+						attachments.push({
+							filename: imageInfo.fileName,
+							content: imageData,
+							contentType: this.getContentTypeFromFileName(imageInfo.fileName),
+							size: imageData.length,
+						});
+					}
+				} catch (error) {
+					console.warn(`Failed to download screenshot ${imageInfo.fileName}:`, error);
+				}
+			}
+		}
+
+		return attachments;
+	}
+
+	/**
+	 * Downloads a single screenshot image data (helper for DRY code)
+	 */
+	private async downloadSingleScreenshotImageData(
+		imageInfo: { url: string; fileName: string; fileSize: number; expiresAt: Date },
+	): Promise<Uint8Array | null> {
+		// Check if URL hasn't expired
+		if (imageInfo.expiresAt <= new Date()) {
+			console.warn(`Screenshot URL expired: ${imageInfo.url}`);
+			return null;
+		}
+
+		const response = await fetch(imageInfo.url, {
+			headers: {
+				"User-Agent": "TestFlight-PM/1.0",
+			},
+			signal: AbortSignal.timeout(DEFAULT_HTTP_CONFIG.timeout),
+		});
+
+		if (!response.ok) {
+			console.warn(
+				`Failed to download screenshot: ${response.status} ${response.statusText}`,
+			);
+			return null;
+		}
+
+		return new Uint8Array(await response.arrayBuffer());
+	}
+
+	/**
+	 * Gets MIME content type from image format
+	 */
+	private getContentTypeFromFormat(format: "png" | "jpeg" | "heic"): string {
+		switch (format) {
+			case 'png':
+				return 'image/png';
+			case 'jpeg':
+				return 'image/jpeg';
+			case 'heic':
+				return 'image/heic';
+			default:
+				return 'image/png';
+		}
+	}
+
+	/**
+	 * Gets MIME content type from filename
+	 */
+	private getContentTypeFromFileName(fileName: string): string {
+		const extension = fileName.toLowerCase().split('.').pop();
+		switch (extension) {
+			case 'png':
+				return 'image/png';
+			case 'jpg':
+			case 'jpeg':
+				return 'image/jpeg';
+			case 'heic':
+				return 'image/heic';
+			default:
+				return 'image/png';
+		}
 	}
 
 	/**

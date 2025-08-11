@@ -78,9 +78,14 @@ export function validateAppStoreConnectConfig(config: AppStoreConnectConfig): st
         errors.push(`Private key validation failed: ${error instanceof Error ? error.message : String(error)}`);
     }
 
-    // Validate bundle ID if provided
+    // Validate that either app ID or bundle ID is provided
+    if (!config.appId && !config.bundleId) {
+        errors.push("Either app_id or testflight_bundle_id must be provided");
+    }
+
+    // Validate bundle ID format if provided
     if (config.bundleId && !VALIDATION_PATTERNS.BUNDLE_ID.test(config.bundleId)) {
-        errors.push("Invalid bundle ID format");
+        errors.push("Invalid bundle ID format (should be in format: com.company.app)");
     }
 
     return errors;
@@ -212,7 +217,7 @@ export function validateLLMConfig(config: LLMConfig): string[] {
         const fallbackConfig = config.providers[fallbackProvider];
         if (fallbackConfig) {
             // Skip API key validation for fallback providers - they're optional
-            
+
             if (!fallbackConfig.model || fallbackConfig.model.trim().length === 0) {
                 errors.push(`${fallbackProvider} model is required`);
             }

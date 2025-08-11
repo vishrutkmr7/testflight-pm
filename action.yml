@@ -14,10 +14,10 @@ inputs:
     description: "App Store Connect API Private Key (base64 encoded)"
     required: true
   app_id:
-    description: "TestFlight App ID"
-    required: true
+    description: "TestFlight App ID (required if bundle_id not provided)"
+    required: false
   testflight_bundle_id:
-    description: "TestFlight Bundle ID (optional)"
+    description: "TestFlight Bundle ID (required if app_id not provided)"
     required: false
 
   # Issue Management Platform Configuration

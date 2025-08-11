@@ -25929,7 +25929,7 @@ var init_environment_loader = __esm(() => {
 });
 
 // src/config/defaults.ts
-var API_ENDPOINTS, DEFAULT_HTTP_CONFIG, DEFAULT_LABEL_CONFIG, PRIORITY_LEVELS, DEFAULT_TESTFLIGHT_CONFIG, VALIDATION_PATTERNS, DEFAULT_LLM_MODELS, DEFAULT_LLM_PROVIDERS, DEFAULT_LLM_COST_CONTROLS, DEFAULT_PROCESSING_CONFIG, ERROR_MESSAGES, PLATFORM_DEFAULTS;
+var API_ENDPOINTS, DEFAULT_HTTP_CONFIG, DEFAULT_LABEL_CONFIG, PRIORITY_LEVELS, DEFAULT_TESTFLIGHT_CONFIG, TESTFLIGHT_CONFIG, VALIDATION_PATTERNS, DEFAULT_LLM_MODELS, DEFAULT_LLM_PROVIDERS, DEFAULT_LLM_COST_CONTROLS, DEFAULT_PROCESSING_CONFIG, ERROR_MESSAGES, SUCCESS_MESSAGES, UI_ELEMENTS, PLATFORM_DEFAULTS;
 var init_defaults = __esm(() => {
   API_ENDPOINTS = {
     GITHUB: "https://api.github.com",
@@ -25960,6 +25960,7 @@ var init_defaults = __esm(() => {
     DEFAULT_SORT: "-submittedAt",
     FETCH_LOOKBACK_HOURS: 24
   };
+  TESTFLIGHT_CONFIG = DEFAULT_TESTFLIGHT_CONFIG;
   VALIDATION_PATTERNS = {
     BUNDLE_ID: /^[a-zA-Z0-9.-]+\.[a-zA-Z0-9.-]+$/,
     API_KEY_ID: /^[A-Z0-9]{10}$/,
@@ -26020,6 +26021,31 @@ var init_defaults = __esm(() => {
     AUTHENTICATION_FAILED: "Authentication failed. Please check your credentials.",
     INVALID_CONFIGURATION: "Configuration validation failed"
   };
+  SUCCESS_MESSAGES = {
+    AUTHENTICATION_SUCCESS: "Authentication successful",
+    ISSUE_CREATED: "Issue created successfully",
+    WEBHOOK_STARTED: "Webhook server started successfully",
+    CONFIG_LOADED: "Configuration loaded successfully"
+  };
+  UI_ELEMENTS = {
+    EMOJIS: {
+      SUCCESS: "✅",
+      WARNING: "⚠️",
+      ERROR: "❌",
+      INFO: "ℹ️",
+      ROCKET: "\uD83D\uDE80",
+      BUG: "\uD83D\uDC1B",
+      CRASH: "\uD83D\uDCA5",
+      FEEDBACK: "\uD83D\uDCF1",
+      GITHUB: "\uD83D\uDC19",
+      LINEAR: "\uD83D\uDD17",
+      TESTFLIGHT: "✈️",
+      SECURITY: "\uD83D\uDD10",
+      HEALTH: "\uD83D\uDD0D",
+      CONFIG: "⚙️",
+      WEBHOOK: "\uD83D\uDCE1"
+    }
+  };
   PLATFORM_DEFAULTS = {
     github: {
       enableScreenshotUpload: true,
@@ -26066,8 +26092,11 @@ function validateAppStoreConnectConfig(config) {
   } catch (error) {
     errors.push(`Private key validation failed: ${error instanceof Error ? error.message : String(error)}`);
   }
+  if (!config.appId && !config.bundleId) {
+    errors.push("Either app_id or testflight_bundle_id must be provided");
+  }
   if (config.bundleId && !VALIDATION_PATTERNS.BUNDLE_ID.test(config.bundleId)) {
-    errors.push("Invalid bundle ID format");
+    errors.push("Invalid bundle ID format (should be in format: com.company.app)");
   }
   return errors;
 }
@@ -26171,6 +26200,21 @@ function validateLLMConfig(config) {
     errors.push("LLM max tokens per issue must be positive");
   }
   return errors;
+}
+function validateLLMConfigDetailed(config) {
+  const errors = validateLLMConfig(config);
+  const warnings = [];
+  if (config.enabled && !config.primaryProvider) {
+    warnings.push("LLM enhancement is enabled but no primary provider is configured");
+  }
+  if (config.enabled && config.fallbackProviders.length === 0) {
+    warnings.push("No fallback providers configured - may reduce reliability");
+  }
+  return {
+    isValid: errors.length === 0,
+    errors,
+    warnings
+  };
 }
 function validateApplicationConfig(config) {
   const errors = [];
@@ -26457,8 +26501,14 @@ function getConfigManager() {
   }
   return configManager;
 }
+function clearConfigManager() {
+  configManager = null;
+}
 function getConfiguration() {
   return getConfigManager().loadConfiguration();
+}
+function validateConfiguration() {
+  return getConfigManager().validateConfiguration();
 }
 var configManager = null;
 var init_manager = __esm(() => {
@@ -26468,7 +26518,50 @@ var init_manager = __esm(() => {
 });
 
 // src/config/index.ts
-var PATHS;
+var exports_config = {};
+__export(exports_config, {
+  validatePrivateKey: () => validatePrivateKey,
+  validateLinearConfig: () => validateLinearConfig,
+  validateLLMConfigDetailed: () => validateLLMConfigDetailed,
+  validateLLMConfig: () => validateLLMConfig,
+  validateGitHubConfig: () => validateGitHubConfig,
+  validateConfiguration: () => validateConfiguration,
+  validateApplicationConfig: () => validateApplicationConfig,
+  validateAppStoreConnectConfig: () => validateAppStoreConnectConfig,
+  sanitizeDataForLLM: () => sanitizeDataForLLM,
+  isGitHubActionEnvironment: () => isGitHubActionEnvironment,
+  getRequiredEnvVar: () => getRequiredEnvVar,
+  getNumericEnvVar: () => getNumericEnvVar,
+  getLLMConfig: () => getLLMConfig,
+  getGitHubContext: () => getGitHubContext,
+  getEnvVar: () => getEnvVar,
+  getConfiguration: () => getConfiguration,
+  getConfigManager: () => getConfigManager,
+  getConfig: () => getConfig,
+  getBooleanEnvVar: () => getBooleanEnvVar,
+  clearLLMConfigCache: () => clearLLMConfigCache,
+  clearConfigManager: () => clearConfigManager,
+  clearConfigCache: () => clearConfigCache,
+  checkCostLimits: () => checkCostLimits,
+  calculateEstimatedCost: () => calculateEstimatedCost,
+  VALIDATION_PATTERNS: () => VALIDATION_PATTERNS,
+  UI_ELEMENTS: () => UI_ELEMENTS,
+  TESTFLIGHT_CONFIG: () => TESTFLIGHT_CONFIG,
+  SUCCESS_MESSAGES: () => SUCCESS_MESSAGES,
+  PRIORITY_LEVELS: () => PRIORITY_LEVELS,
+  PATHS: () => PATHS,
+  HTTP_CONFIG: () => HTTP_CONFIG,
+  ERROR_MESSAGES: () => ERROR_MESSAGES,
+  EMOJIS: () => EMOJIS,
+  DEFAULT_TESTFLIGHT_CONFIG: () => DEFAULT_TESTFLIGHT_CONFIG,
+  DEFAULT_LABEL_CONFIG: () => DEFAULT_LABEL_CONFIG,
+  DEFAULT_LABELS: () => DEFAULT_LABELS,
+  DEFAULT_HTTP_CONFIG: () => DEFAULT_HTTP_CONFIG,
+  CONFIG_PRESETS: () => CONFIG_PRESETS,
+  CONFIG_HELPERS: () => CONFIG_HELPERS,
+  API_ENDPOINTS: () => API_ENDPOINTS
+});
+var getConfig, clearConfigCache, HTTP_CONFIG, DEFAULT_LABELS, PATHS, EMOJIS, CONFIG_PRESETS, CONFIG_HELPERS;
 var init_config = __esm(() => {
   init_manager();
   init_manager();
@@ -26477,10 +26570,92 @@ var init_config = __esm(() => {
   init_validation();
   init_environment_loader();
   init_llm_config();
+  getConfig = getConfiguration;
+  clearConfigCache = clearConfigManager;
+  HTTP_CONFIG = DEFAULT_HTTP_CONFIG;
+  DEFAULT_LABELS = DEFAULT_LABEL_CONFIG;
   PATHS = {
     TEMP_DIR: "/tmp/testflight-pm",
     SCREENSHOTS_DIR: "/tmp/testflight-pm/screenshots",
     LOGS_DIR: "/tmp/testflight-pm/logs"
+  };
+  ({ EMOJIS } = UI_ELEMENTS);
+  CONFIG_PRESETS = {
+    GITHUB_ONLY: {
+      requiredEnvVars: [
+        "TESTFLIGHT_ISSUER_ID",
+        "TESTFLIGHT_KEY_ID",
+        "TESTFLIGHT_PRIVATE_KEY",
+        "GTHB_TOKEN"
+      ],
+      optionalEnvVars: [
+        "GITHUB_OWNER",
+        "GITHUB_REPO",
+        "CRASH_LABELS",
+        "FEEDBACK_LABELS"
+      ]
+    },
+    LINEAR_ONLY: {
+      requiredEnvVars: [
+        "TESTFLIGHT_ISSUER_ID",
+        "TESTFLIGHT_KEY_ID",
+        "TESTFLIGHT_PRIVATE_KEY",
+        "LINEAR_API_TOKEN",
+        "LINEAR_TEAM_ID"
+      ],
+      optionalEnvVars: [
+        "CRASH_LABELS",
+        "FEEDBACK_LABELS"
+      ]
+    },
+    FULL_FEATURED: {
+      requiredEnvVars: [
+        "TESTFLIGHT_ISSUER_ID",
+        "TESTFLIGHT_KEY_ID",
+        "TESTFLIGHT_PRIVATE_KEY",
+        "GTHB_TOKEN",
+        "LINEAR_API_TOKEN",
+        "LINEAR_TEAM_ID"
+      ],
+      optionalEnvVars: [
+        "ENABLE_LLM_ENHANCEMENT",
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "GOOGLE_API_KEY",
+        "ENABLE_CODEBASE_ANALYSIS"
+      ]
+    }
+  };
+  CONFIG_HELPERS = {
+    hasGitHubIntegration: (config) => {
+      const currentConfig = config || getConfiguration();
+      return !!currentConfig.github;
+    },
+    hasLinearIntegration: (config) => {
+      const currentConfig = config || getConfiguration();
+      return !!currentConfig.linear;
+    },
+    hasLLMIntegration: (config) => {
+      const currentConfig = config || getConfiguration();
+      return !!currentConfig.llm?.enabled;
+    },
+    getActiveIntegrations: (config) => {
+      const currentConfig = config || getConfiguration();
+      const integrations = [];
+      if (currentConfig.github) {
+        integrations.push("github");
+      }
+      if (currentConfig.linear) {
+        integrations.push("linear");
+      }
+      if (currentConfig.llm?.enabled) {
+        integrations.push("llm");
+      }
+      if (currentConfig.webhook) {
+        integrations.push("webhook");
+      }
+      return integrations;
+    }
   };
 });
 
@@ -26599,11 +26774,60 @@ function validateLLMConfig2(config) {
     warnings
   };
 }
+function calculateEstimatedCost(_provider, model, inputTokens, outputTokens = 0) {
+  const pricing = LLM_MODEL_PRICING[model];
+  if (!pricing) {
+    console.warn(`Pricing information not available for model: ${model}`);
+    return 0;
+  }
+  const inputCost = inputTokens / 1000 * pricing.input;
+  const outputCost = outputTokens / 1000 * pricing.output;
+  return inputCost + outputCost;
+}
+function checkCostLimits(config, currentUsage, estimatedAdditionalCost) {
+  const exceededLimits = [];
+  const remainingRunBudget = config.costControls.maxCostPerRun - estimatedAdditionalCost;
+  if (remainingRunBudget < 0) {
+    exceededLimits.push(`Per-run cost limit: $${config.costControls.maxCostPerRun}`);
+  }
+  const remainingMonthlyBudget = config.costControls.maxCostPerMonth - currentUsage.monthlyUsage.cost - estimatedAdditionalCost;
+  if (remainingMonthlyBudget < 0) {
+    exceededLimits.push(`Monthly cost limit: $${config.costControls.maxCostPerMonth}`);
+  }
+  return {
+    withinLimits: exceededLimits.length === 0,
+    exceededLimits,
+    remainingBudget: {
+      run: Math.max(0, remainingRunBudget),
+      month: Math.max(0, remainingMonthlyBudget)
+    }
+  };
+}
+function sanitizeDataForLLM(data, config) {
+  if (!config.security.excludeSensitiveInfo) {
+    return data;
+  }
+  let sanitized = data;
+  const sensitivePatterns = [
+    /(?:api[_-]?key|token|secret)["\s]*[:=]["\s]*[a-zA-Z0-9_\-.]{10,}/gi,
+    ...config.security.anonymizeData ? [/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g] : [],
+    /\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b/g,
+    /\b\d{3}-\d{2}-\d{4}\b/g,
+    ...config.security.anonymizeData ? [/\b\d{3}[-.]?\d{3}[-.]?\d{4}\b/g] : []
+  ];
+  for (const pattern of sensitivePatterns) {
+    sanitized = sanitized.replace(pattern, "[REDACTED]");
+  }
+  return sanitized;
+}
 function getLLMConfig() {
   if (!_llmConfig) {
     _llmConfig = loadLLMConfig();
   }
   return _llmConfig;
+}
+function clearLLMConfigCache() {
+  _llmConfig = null;
 }
 var LLM_MODEL_PRICING, DEFAULT_LLM_CONFIG, LLM_ENV_VARS, LLM_ACTION_INPUTS, _llmConfig = null;
 var init_llm_config = __esm(() => {
@@ -26987,19 +27211,15 @@ Context:
 - You have access to codebase context and recent changes
 - Provide actionable insights and technical recommendations
 
-Response Format (JSON):
-{
-  "enhancedTitle": "Clear, technical title",
-  "enhancedDescription": "Detailed technical description with context",
-  "priority": "urgent|high|medium|low",
-  "labels": ["bug", "crash", "ios", ...],
-  "analysis": {
-    "rootCause": "Technical analysis of the cause",
-    "affectedComponents": ["component1", "component2"],
-    "suggestedFix": "Specific technical recommendations",
-    "confidence": 0.95
-  }
-}`;
+You must use the enhance_issue function to provide a structured response with your analysis. 
+
+Guidelines:
+- Create clear, descriptive titles that summarize the technical issue
+- Write detailed descriptions with technical context and analysis
+- Set appropriate priority based on severity and impact (urgent: system crashes/data loss, high: major features broken, medium: noticeable issues, low: minor improvements)
+- Add relevant labels for categorization (e.g., bug, crash, ios, ui, performance, memory, networking)
+- Provide thorough analysis with root cause investigation, affected components, and specific actionable recommendations
+- Set confidence level based on available evidence and codebase context`;
     const userContent = [
       {
         type: "text",
@@ -27062,10 +27282,100 @@ ${changesText}`
         }
       ],
       temperature: 0.3,
-      max_tokens: 2000
+      max_tokens: 2000,
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "enhance_issue",
+            description: "Enhance a TestFlight issue with detailed technical analysis and structured metadata",
+            parameters: {
+              type: "object",
+              properties: {
+                enhancedTitle: {
+                  type: "string",
+                  description: "Clear, concise technical title that accurately describes the issue"
+                },
+                enhancedDescription: {
+                  type: "string",
+                  description: "Detailed technical description with context, analysis, and actionable insights"
+                },
+                priority: {
+                  type: "string",
+                  enum: ["urgent", "high", "medium", "low"],
+                  description: "Issue priority based on severity and impact analysis"
+                },
+                labels: {
+                  type: "array",
+                  items: {
+                    type: "string"
+                  },
+                  description: "Relevant labels for categorization (e.g., bug, crash, ios, ui, performance)"
+                },
+                analysis: {
+                  type: "object",
+                  properties: {
+                    rootCause: {
+                      type: "string",
+                      description: "Technical analysis of the likely root cause"
+                    },
+                    affectedComponents: {
+                      type: "array",
+                      items: {
+                        type: "string"
+                      },
+                      description: "List of code components, files, or modules likely affected"
+                    },
+                    suggestedFix: {
+                      type: "string",
+                      description: "Specific, actionable technical recommendations for resolution"
+                    },
+                    confidence: {
+                      type: "number",
+                      minimum: 0,
+                      maximum: 1,
+                      description: "Confidence level in the analysis (0.0 to 1.0)"
+                    }
+                  },
+                  required: ["rootCause", "affectedComponents", "suggestedFix", "confidence"]
+                }
+              },
+              required: ["enhancedTitle", "enhancedDescription", "priority", "labels", "analysis"]
+            }
+          }
+        }
+      ]
     };
   }
   parseEnhancementResponse(response, startTime) {
+    if (response.metadata?.tool_calls?.length) {
+      const toolCall = response.metadata.tool_calls.find((call) => call.function.name === "enhance_issue");
+      if (toolCall) {
+        try {
+          const enhancementData = JSON.parse(toolCall.function.arguments);
+          return {
+            enhancedTitle: enhancementData.enhancedTitle || "Enhanced Issue",
+            enhancedDescription: enhancementData.enhancedDescription || response.content,
+            priority: enhancementData.priority || "medium",
+            labels: Array.isArray(enhancementData.labels) ? enhancementData.labels : ["testflight"],
+            analysis: {
+              rootCause: enhancementData.analysis?.rootCause || "Unknown",
+              affectedComponents: Array.isArray(enhancementData.analysis?.affectedComponents) ? enhancementData.analysis.affectedComponents : [],
+              suggestedFix: enhancementData.analysis?.suggestedFix || "Review required",
+              confidence: typeof enhancementData.analysis?.confidence === "number" ? enhancementData.analysis.confidence : 0.7
+            },
+            metadata: {
+              provider: response.provider,
+              model: response.model,
+              processingTime: Date.now() - startTime,
+              cost: response.cost
+            }
+          };
+        } catch (error) {
+          console.warn(`Failed to parse structured function call response: ${error}`);
+        }
+      }
+    }
     try {
       const content = response.content.trim();
       const jsonMatch = content.match(/\{[\s\S]*\}/);
@@ -27077,10 +27387,10 @@ ${changesText}`
           priority: parsed.priority || "medium",
           labels: Array.isArray(parsed.labels) ? parsed.labels : ["testflight"],
           analysis: {
-            rootCause: parsed.analysis?.rootCause,
+            rootCause: parsed.analysis?.rootCause || "Unknown",
             affectedComponents: Array.isArray(parsed.analysis?.affectedComponents) ? parsed.analysis.affectedComponents : [],
-            suggestedFix: parsed.analysis?.suggestedFix,
-            confidence: parsed.analysis?.confidence || 0.6
+            suggestedFix: parsed.analysis?.suggestedFix || "Review required",
+            confidence: typeof parsed.analysis?.confidence === "number" ? parsed.analysis.confidence : 0.7
           },
           metadata: {
             provider: response.provider,
@@ -27361,408 +27671,6 @@ var init_llm_client = __esm(() => {
   init_dist();
   init_llm_config();
   init_defaults();
-});
-
-// src/api/app-store-connect-auth.ts
-class AppStoreConnectAuth {
-  currentToken = null;
-  tokenLifetimeMinutes = 20;
-  refreshThresholdMinutes = 2;
-  async getValidToken() {
-    try {
-      if (this.isTokenValid() && this.currentToken) {
-        return this.currentToken.token;
-      }
-      return await this.generateNewToken();
-    } catch (error) {
-      throw new Error(`Failed to get valid authentication token: ${error}`);
-    }
-  }
-  async refreshToken() {
-    this.currentToken = null;
-    return await this.generateNewToken();
-  }
-  isTokenValid() {
-    if (!this.currentToken) {
-      return false;
-    }
-    const now = new Date;
-    const refreshThreshold = new Date(this.currentToken.expiresAt.getTime() - this.refreshThresholdMinutes * 60 * 1000);
-    return now < refreshThreshold;
-  }
-  async generateNewToken() {
-    try {
-      const config = getConfiguration();
-      const { issuerId, keyId, privateKey } = config.appStoreConnect;
-      const now = Math.floor(Date.now() / 1000);
-      const exp = now + this.tokenLifetimeMinutes * 60;
-      const payload = {
-        iss: issuerId,
-        iat: now,
-        exp,
-        aud: "appstoreconnect-v1"
-      };
-      const token = await this.signJwt(payload, privateKey, keyId);
-      this.currentToken = {
-        token,
-        issuedAt: new Date(now * 1000),
-        expiresAt: new Date(exp * 1000)
-      };
-      return token;
-    } catch (error) {
-      throw new Error(`Failed to generate JWT token: ${error}`);
-    }
-  }
-  async signJwt(payload, privateKey, keyId) {
-    try {
-      const header = {
-        alg: "ES256",
-        kid: keyId,
-        typ: "JWT"
-      };
-      const encodedHeader = this.base64UrlEncode(JSON.stringify(header));
-      const encodedPayload = this.base64UrlEncode(JSON.stringify(payload));
-      const message = `${encodedHeader}.${encodedPayload}`;
-      const key = await crypto.subtle.importKey("pkcs8", this.pemToArrayBuffer(privateKey), {
-        name: "ECDSA",
-        namedCurve: "P-256"
-      }, false, ["sign"]);
-      const signature = await crypto.subtle.sign({
-        name: "ECDSA",
-        hash: "SHA-256"
-      }, key, new TextEncoder().encode(message));
-      const encodedSignature = this.base64UrlEncode(new Uint8Array(signature));
-      return `${message}.${encodedSignature}`;
-    } catch (error) {
-      throw new Error(`Failed to sign JWT: ${error}`);
-    }
-  }
-  pemToArrayBuffer(pem) {
-    try {
-      const pemHeader = "-----BEGIN PRIVATE KEY-----";
-      const pemFooter = "-----END PRIVATE KEY-----";
-      const pemContents = pem.replace(pemHeader, "").replace(pemFooter, "").replace(/\s+/g, "");
-      const binaryString = atob(pemContents);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0;i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-      return bytes.buffer;
-    } catch (error) {
-      throw new Error(`Failed to parse private key: ${error}`);
-    }
-  }
-  base64UrlEncode(data) {
-    let base64;
-    if (typeof data === "string") {
-      base64 = btoa(unescape(encodeURIComponent(data)));
-    } else {
-      base64 = btoa(String.fromCharCode.apply(null, Array.from(data)));
-    }
-    return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
-  }
-  clearToken() {
-    this.currentToken = null;
-  }
-  getTokenInfo() {
-    if (!this.currentToken) {
-      return { isValid: false };
-    }
-    return {
-      isValid: this.isTokenValid(),
-      expiresAt: this.currentToken.expiresAt,
-      issuedAt: this.currentToken.issuedAt
-    };
-  }
-}
-function getAuthInstance() {
-  if (!_authInstance) {
-    _authInstance = new AppStoreConnectAuth;
-  }
-  return _authInstance;
-}
-var _authInstance = null;
-var init_app_store_connect_auth = __esm(() => {
-  init_config();
-});
-
-// src/api/testflight-client.ts
-class TestFlightClient {
-  baseUrl = API_ENDPOINTS.APP_STORE_CONNECT;
-  defaultTimeout = DEFAULT_HTTP_CONFIG.timeout;
-  defaultRetries = DEFAULT_HTTP_CONFIG.retries;
-  defaultRetryDelay = DEFAULT_HTTP_CONFIG.retryDelay;
-  rateLimitInfo = null;
-  async getCrashReports(params) {
-    const queryParams = {
-      limit: DEFAULT_TESTFLIGHT_CONFIG.DEFAULT_LIMIT,
-      sort: DEFAULT_TESTFLIGHT_CONFIG.DEFAULT_SORT,
-      ...params
-    };
-    const response = await this.makeApiRequest("/betaFeedbackCrashSubmissions", queryParams);
-    return response.data;
-  }
-  async getScreenshotFeedback(params) {
-    const queryParams = {
-      limit: DEFAULT_TESTFLIGHT_CONFIG.DEFAULT_LIMIT,
-      sort: DEFAULT_TESTFLIGHT_CONFIG.DEFAULT_SORT,
-      ...params
-    };
-    const response = await this.makeApiRequest("/betaFeedbackScreenshotSubmissions", queryParams);
-    return response.data;
-  }
-  async getAllFeedback(params) {
-    try {
-      const [crashes, screenshots] = await Promise.all([
-        this.getCrashReports(params),
-        this.getScreenshotFeedback(params)
-      ]);
-      const processedData = [];
-      for (const crash of crashes) {
-        processedData.push(this.processCrashReport(crash));
-      }
-      for (const screenshot of screenshots) {
-        processedData.push(this.processScreenshotFeedback(screenshot));
-      }
-      processedData.sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime());
-      return processedData;
-    } catch (error) {
-      throw new Error(`Failed to fetch all feedback: ${error}`);
-    }
-  }
-  async getRecentFeedback(since) {
-    const isoDate = since.toISOString();
-    const params = {
-      filter: {
-        submittedAt: `>${isoDate}`
-      },
-      limit: 100
-    };
-    return await this.getAllFeedback(params);
-  }
-  async downloadCrashLogs(crashReport) {
-    const logs = [];
-    for (const logInfo of crashReport.attributes.crashLogs) {
-      try {
-        const expiresAt = new Date(logInfo.expiresAt);
-        if (expiresAt <= new Date) {
-          console.warn(`Crash log URL expired: ${logInfo.url}`);
-          continue;
-        }
-        const response = await fetch(logInfo.url, {
-          headers: {
-            "User-Agent": "TestFlight-PM/1.0"
-          },
-          signal: AbortSignal.timeout(this.defaultTimeout)
-        });
-        if (!response.ok) {
-          console.warn(`Failed to download crash log: ${response.status} ${response.statusText}`);
-          continue;
-        }
-        const logContent = await response.text();
-        logs.push(logContent);
-      } catch (error) {
-        console.warn(`Error downloading crash log from ${logInfo.url}:`, error);
-      }
-    }
-    return logs;
-  }
-  async downloadScreenshots(screenshotFeedback) {
-    const images = [];
-    for (const imageInfo of screenshotFeedback.attributes.screenshots) {
-      try {
-        const expiresAt = new Date(imageInfo.expiresAt);
-        if (expiresAt <= new Date) {
-          console.warn(`Screenshot URL expired: ${imageInfo.url}`);
-          continue;
-        }
-        const response = await fetch(imageInfo.url, {
-          headers: {
-            "User-Agent": "TestFlight-PM/1.0"
-          },
-          signal: AbortSignal.timeout(this.defaultTimeout)
-        });
-        if (!response.ok) {
-          console.warn(`Failed to download screenshot: ${response.status} ${response.statusText}`);
-          continue;
-        }
-        const imageData = new Uint8Array(await response.arrayBuffer());
-        images.push(imageData);
-      } catch (error) {
-        console.warn(`Error downloading screenshot from ${imageInfo.url}:`, error);
-      }
-    }
-    return images;
-  }
-  getRateLimitInfo() {
-    return this.rateLimitInfo;
-  }
-  async makeApiRequest(endpoint, params, options) {
-    const {
-      retries = this.defaultRetries,
-      retryDelay = this.defaultRetryDelay,
-      timeout = this.defaultTimeout
-    } = options || {};
-    let lastError = null;
-    for (let attempt = 0;attempt <= retries; attempt++) {
-      try {
-        await this.waitForRateLimit();
-        const authInstance = getAuthInstance();
-        const token = await authInstance.getValidToken();
-        const url = this.buildUrl(endpoint, params);
-        const response = await fetch(url, {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-            "User-Agent": "TestFlight-PM/1.0"
-          },
-          signal: AbortSignal.timeout(timeout)
-        });
-        this.updateRateLimitInfo(response);
-        if (!response.ok) {
-          const errorText = await response.text();
-          let errorData;
-          try {
-            errorData = JSON.parse(errorText);
-          } catch {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-          }
-          const errorMessage = errorData.errors.map((e) => `${e.title}: ${e.detail}`).join("; ");
-          throw new Error(`API Error: ${errorMessage}`);
-        }
-        const data = await response.json();
-        return data;
-      } catch (error) {
-        lastError = error;
-        if (lastError.message.includes("authentication") || lastError.message.includes("unauthorized")) {
-          throw lastError;
-        }
-        if (attempt === retries) {
-          break;
-        }
-        const delay = retryDelay * 2 ** attempt;
-        await this.sleep(delay);
-      }
-    }
-    throw new Error(`Request failed after ${retries + 1} attempts: ${lastError?.message}`);
-  }
-  buildUrl(endpoint, params) {
-    const url = new URL(endpoint, this.baseUrl);
-    if (params) {
-      if (params.limit) {
-        url.searchParams.set("limit", params.limit.toString());
-      }
-      if (params.sort) {
-        url.searchParams.set("sort", params.sort);
-      }
-      if (params.include) {
-        url.searchParams.set("include", params.include);
-      }
-      if (params.filter) {
-        for (const [key, value] of Object.entries(params.filter)) {
-          url.searchParams.set(`filter[${key}]`, value);
-        }
-      }
-      if (params.fields) {
-        for (const [key, value] of Object.entries(params.fields)) {
-          url.searchParams.set(`fields[${key}]`, value);
-        }
-      }
-    }
-    return url.toString();
-  }
-  updateRateLimitInfo(response) {
-    const remaining = response.headers.get("X-RateLimit-Remaining");
-    const reset = response.headers.get("X-RateLimit-Reset");
-    const limit = response.headers.get("X-RateLimit-Limit");
-    if (remaining && reset && limit) {
-      this.rateLimitInfo = {
-        remaining: Number.parseInt(remaining, 10),
-        reset: new Date(Number.parseInt(reset, 10) * 1000),
-        limit: Number.parseInt(limit, 10)
-      };
-    }
-  }
-  async waitForRateLimit() {
-    if (!this.rateLimitInfo) {
-      return;
-    }
-    if (this.rateLimitInfo.remaining <= 5) {
-      const now = new Date;
-      const waitTime = this.rateLimitInfo.reset.getTime() - now.getTime();
-      if (waitTime > 0) {
-        console.log(`Rate limit approaching. Waiting ${Math.ceil(waitTime / 1000)} seconds...`);
-        await this.sleep(waitTime);
-      }
-    }
-  }
-  processCrashReport(crash) {
-    return {
-      id: crash.id,
-      type: "crash",
-      submittedAt: new Date(crash.attributes.submittedAt),
-      appVersion: crash.attributes.appVersion,
-      buildNumber: crash.attributes.buildNumber,
-      deviceInfo: {
-        family: crash.attributes.deviceFamily,
-        model: crash.attributes.deviceModel,
-        osVersion: crash.attributes.osVersion,
-        locale: crash.attributes.locale
-      },
-      bundleId: crash.attributes.bundleId,
-      crashData: {
-        trace: crash.attributes.crashTrace,
-        type: crash.attributes.crashType,
-        exceptionType: crash.attributes.exceptionType,
-        exceptionMessage: crash.attributes.exceptionMessage,
-        logs: crash.attributes.crashLogs.map((log) => ({
-          url: log.url,
-          expiresAt: new Date(log.expiresAt)
-        }))
-      }
-    };
-  }
-  processScreenshotFeedback(screenshot) {
-    return {
-      id: screenshot.id,
-      type: "screenshot",
-      submittedAt: new Date(screenshot.attributes.submittedAt),
-      appVersion: screenshot.attributes.appVersion,
-      buildNumber: screenshot.attributes.buildNumber,
-      deviceInfo: {
-        family: screenshot.attributes.deviceFamily,
-        model: screenshot.attributes.deviceModel,
-        osVersion: screenshot.attributes.osVersion,
-        locale: screenshot.attributes.locale
-      },
-      bundleId: screenshot.attributes.bundleId,
-      screenshotData: {
-        text: screenshot.attributes.feedbackText,
-        images: screenshot.attributes.screenshots.map((img) => ({
-          url: img.url,
-          fileName: img.fileName,
-          fileSize: img.fileSize,
-          expiresAt: new Date(img.expiresAt)
-        })),
-        annotations: screenshot.attributes.annotations
-      }
-    };
-  }
-  sleep(ms) {
-    return new Promise((resolve2) => setTimeout(resolve2, ms));
-  }
-}
-function getTestFlightClient() {
-  if (!_clientInstance) {
-    _clientInstance = new TestFlightClient;
-  }
-  return _clientInstance;
-}
-var _clientInstance = null;
-var init_testflight_client = __esm(() => {
-  init_config();
-  init_app_store_connect_auth();
 });
 
 // src/api/github-client.ts
@@ -28272,42 +28180,9 @@ class GitHubClient {
     ];
     const attachments = [];
     if (feedback.screenshotData?.images && this.config.enableScreenshotUpload && feedback.screenshotData.images.length > 0) {
-      const testFlightClient = getTestFlightClient();
       try {
-        const screenshots = await testFlightClient.downloadScreenshots({
-          id: feedback.id,
-          type: "betaFeedbackScreenshotSubmissions",
-          attributes: {
-            submittedAt: feedback.submittedAt.toISOString(),
-            appVersion: feedback.appVersion,
-            buildNumber: feedback.buildNumber,
-            deviceFamily: feedback.deviceInfo.family,
-            deviceModel: feedback.deviceInfo.model,
-            osVersion: feedback.deviceInfo.osVersion,
-            locale: feedback.deviceInfo.locale,
-            bundleId: feedback.bundleId,
-            feedbackText: feedback.screenshotData.text || "",
-            screenshots: feedback.screenshotData.images.map((img, _index) => ({
-              url: img.url,
-              fileName: img.fileName,
-              fileSize: img.fileSize,
-              expiresAt: img.expiresAt.toISOString()
-            })),
-            annotations: feedback.screenshotData.annotations || []
-          },
-          relationships: {}
-        });
-        screenshots.forEach((screenshot, index) => {
-          const imageInfo = feedback.screenshotData?.images?.[index];
-          if (imageInfo) {
-            attachments.push({
-              filename: imageInfo.fileName,
-              content: screenshot,
-              contentType: "image/png",
-              size: screenshot.length
-            });
-          }
-        });
+        const screenshots = await this.downloadScreenshotsForFeedback(feedback);
+        attachments.push(...screenshots);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         console.warn(`Failed to download screenshots for issue: ${errorMessage}`);
@@ -28510,6 +28385,94 @@ ${feedback.crashData.trace}
     }
     return Math.abs(hash).toString(36);
   }
+  async downloadScreenshotsForFeedback(feedback) {
+    if (!feedback.screenshotData?.images) {
+      return [];
+    }
+    const attachments = [];
+    if (feedback.screenshotData.enhancedImages) {
+      for (const enhancedImage of feedback.screenshotData.enhancedImages) {
+        try {
+          const imageData = await this.downloadSingleScreenshotImageData(enhancedImage);
+          if (imageData) {
+            attachments.push({
+              filename: enhancedImage.fileName,
+              content: imageData,
+              contentType: this.getContentTypeFromFormat(enhancedImage.imageFormat || "png"),
+              size: imageData.length
+            });
+          }
+        } catch (error) {
+          console.warn(`Failed to download enhanced screenshot ${enhancedImage.fileName}:`, error);
+        }
+      }
+    } else {
+      for (const imageInfo of feedback.screenshotData.images) {
+        try {
+          const imageData = await this.downloadSingleScreenshotImageData({
+            url: imageInfo.url,
+            fileName: imageInfo.fileName,
+            fileSize: imageInfo.fileSize,
+            expiresAt: imageInfo.expiresAt
+          });
+          if (imageData) {
+            attachments.push({
+              filename: imageInfo.fileName,
+              content: imageData,
+              contentType: this.getContentTypeFromFileName(imageInfo.fileName),
+              size: imageData.length
+            });
+          }
+        } catch (error) {
+          console.warn(`Failed to download screenshot ${imageInfo.fileName}:`, error);
+        }
+      }
+    }
+    return attachments;
+  }
+  async downloadSingleScreenshotImageData(imageInfo) {
+    if (imageInfo.expiresAt <= new Date) {
+      console.warn(`Screenshot URL expired: ${imageInfo.url}`);
+      return null;
+    }
+    const response = await fetch(imageInfo.url, {
+      headers: {
+        "User-Agent": "TestFlight-PM/1.0"
+      },
+      signal: AbortSignal.timeout(DEFAULT_HTTP_CONFIG.timeout)
+    });
+    if (!response.ok) {
+      console.warn(`Failed to download screenshot: ${response.status} ${response.statusText}`);
+      return null;
+    }
+    return new Uint8Array(await response.arrayBuffer());
+  }
+  getContentTypeFromFormat(format) {
+    switch (format) {
+      case "png":
+        return "image/png";
+      case "jpeg":
+        return "image/jpeg";
+      case "heic":
+        return "image/heic";
+      default:
+        return "image/png";
+    }
+  }
+  getContentTypeFromFileName(fileName) {
+    const extension = fileName.toLowerCase().split(".").pop();
+    switch (extension) {
+      case "png":
+        return "image/png";
+      case "jpg":
+      case "jpeg":
+        return "image/jpeg";
+      case "heic":
+        return "image/heic";
+      default:
+        return "image/png";
+    }
+  }
   sleep(ms) {
     return new Promise((resolve2) => setTimeout(resolve2, ms));
   }
@@ -28534,7 +28497,6 @@ function validateGitHubConfig2() {
 var _githubClientInstance = null;
 var init_github_client = __esm(() => {
   init_config();
-  init_testflight_client();
 });
 
 // node_modules/@linear/sdk/dist/index-cjs.min.js
@@ -45929,6 +45891,17 @@ class LinearClient {
       throw new Error(`Failed to get Linear team: ${error}`);
     }
   }
+  getConfiguredTeamId() {
+    return this.config.teamId;
+  }
+  async testConnectivity() {
+    try {
+      await this.getCurrentUser();
+      return true;
+    } catch {
+      return false;
+    }
+  }
   async getIssueStatuses() {
     try {
       const states = await this.sdk.workflowStates({
@@ -46285,8 +46258,20 @@ ${feedback.crashData.trace}
 
 `;
       }
+      if (feedback.screenshotData.testerNotes) {
+        description += `**Tester Notes:**
+> ${feedback.screenshotData.testerNotes.replace(/\n/g, `
+> `)}
+
+`;
+      }
       if (feedback.screenshotData.images.length > 0) {
-        description += `**Screenshots:** ${feedback.screenshotData.images.length} attached
+        description += `**Screenshots:** ${feedback.screenshotData.images.length} attached`;
+        if (feedback.screenshotData.enhancedImages && feedback.screenshotData.enhancedImages.length > 0) {
+          const enhancedCount = feedback.screenshotData.enhancedImages.length;
+          description += ` (${enhancedCount} with enhanced metadata)`;
+        }
+        description += `
 
 `;
       }
@@ -46294,6 +46279,14 @@ ${feedback.crashData.trace}
         description += `**Annotations:** ${feedback.screenshotData.annotations.length} user annotation(s)
 
 `;
+      }
+      if (feedback.screenshotData.submissionMethod) {
+        description += `**Submission Method:** ${feedback.screenshotData.submissionMethod}
+
+`;
+      }
+      if (feedback.screenshotData.systemInfo) {
+        description += this.formatSystemInfo(feedback.screenshotData.systemInfo);
       }
     }
     description += `### \uD83D\uDEE0️ Technical Information
@@ -46405,6 +46398,40 @@ ${feedback.crashData.trace}
       default:
         return "backlog";
     }
+  }
+  formatSystemInfo(systemInfo) {
+    if (!systemInfo) {
+      return "";
+    }
+    let info = `**System Information:**
+`;
+    if (systemInfo.applicationState) {
+      info += `- Application State: ${systemInfo.applicationState}
+`;
+    }
+    if (systemInfo.memoryPressure) {
+      info += `- Memory Pressure: ${systemInfo.memoryPressure}
+`;
+    }
+    if (systemInfo.batteryLevel !== undefined) {
+      info += `- Battery Level: ${(systemInfo.batteryLevel * 100).toFixed(0)}%
+`;
+    }
+    if (systemInfo.batteryState) {
+      info += `- Battery State: ${systemInfo.batteryState}
+`;
+    }
+    if (systemInfo.thermalState) {
+      info += `- Thermal State: ${systemInfo.thermalState}
+`;
+    }
+    if (systemInfo.diskSpaceRemaining !== undefined) {
+      const diskSpaceGB = (systemInfo.diskSpaceRemaining / (1024 * 1024 * 1024)).toFixed(1);
+      info += `- Available Storage: ${diskSpaceGB} GB
+`;
+    }
+    return info + `
+`;
   }
 }
 function getLinearClient() {
@@ -47857,7 +47884,611 @@ var init_llm_enhanced_creator = __esm(() => {
 var core2 = __toESM(require_core(), 1);
 init_codebase_analyzer();
 init_llm_client();
-init_testflight_client();
+
+// src/api/testflight-client.ts
+init_config();
+
+// src/api/app-store-connect-auth.ts
+init_config();
+
+class AppStoreConnectAuth {
+  currentToken = null;
+  tokenLifetimeMinutes = 20;
+  refreshThresholdMinutes = 2;
+  async getValidToken() {
+    try {
+      if (this.isTokenValid() && this.currentToken) {
+        return this.currentToken.token;
+      }
+      return await this.generateNewToken();
+    } catch (error) {
+      throw new Error(`Failed to get valid authentication token: ${error}`);
+    }
+  }
+  async refreshToken() {
+    this.currentToken = null;
+    return await this.generateNewToken();
+  }
+  isTokenValid() {
+    if (!this.currentToken) {
+      return false;
+    }
+    const now = new Date;
+    const refreshThreshold = new Date(this.currentToken.expiresAt.getTime() - this.refreshThresholdMinutes * 60 * 1000);
+    return now < refreshThreshold;
+  }
+  async generateNewToken() {
+    try {
+      const config = getConfiguration();
+      const { issuerId, keyId, privateKey } = config.appStoreConnect;
+      const now = Math.floor(Date.now() / 1000);
+      const exp = now + this.tokenLifetimeMinutes * 60;
+      const payload = {
+        iss: issuerId,
+        iat: now,
+        exp,
+        aud: "appstoreconnect-v1"
+      };
+      const token = await this.signJwt(payload, privateKey, keyId);
+      this.currentToken = {
+        token,
+        issuedAt: new Date(now * 1000),
+        expiresAt: new Date(exp * 1000)
+      };
+      return token;
+    } catch (error) {
+      throw new Error(`Failed to generate JWT token: ${error}`);
+    }
+  }
+  async signJwt(payload, privateKey, keyId) {
+    try {
+      const header = {
+        alg: "ES256",
+        kid: keyId,
+        typ: "JWT"
+      };
+      const encodedHeader = this.base64UrlEncode(JSON.stringify(header));
+      const encodedPayload = this.base64UrlEncode(JSON.stringify(payload));
+      const message = `${encodedHeader}.${encodedPayload}`;
+      const key = await crypto.subtle.importKey("pkcs8", this.pemToArrayBuffer(privateKey), {
+        name: "ECDSA",
+        namedCurve: "P-256"
+      }, false, ["sign"]);
+      const signature = await crypto.subtle.sign({
+        name: "ECDSA",
+        hash: "SHA-256"
+      }, key, new TextEncoder().encode(message));
+      const encodedSignature = this.base64UrlEncode(new Uint8Array(signature));
+      return `${message}.${encodedSignature}`;
+    } catch (error) {
+      throw new Error(`Failed to sign JWT: ${error}`);
+    }
+  }
+  pemToArrayBuffer(pem) {
+    try {
+      const pemHeader = "-----BEGIN PRIVATE KEY-----";
+      const pemFooter = "-----END PRIVATE KEY-----";
+      const pemContents = pem.replace(pemHeader, "").replace(pemFooter, "").replace(/\s+/g, "");
+      const binaryString = atob(pemContents);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0;i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      return bytes.buffer;
+    } catch (error) {
+      throw new Error(`Failed to parse private key: ${error}`);
+    }
+  }
+  base64UrlEncode(data) {
+    let base64;
+    if (typeof data === "string") {
+      base64 = btoa(unescape(encodeURIComponent(data)));
+    } else {
+      base64 = btoa(String.fromCharCode.apply(null, Array.from(data)));
+    }
+    return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+  }
+  clearToken() {
+    this.currentToken = null;
+  }
+  getTokenInfo() {
+    if (!this.currentToken) {
+      return { isValid: false };
+    }
+    return {
+      isValid: this.isTokenValid(),
+      expiresAt: this.currentToken.expiresAt,
+      issuedAt: this.currentToken.issuedAt
+    };
+  }
+}
+var _authInstance = null;
+function getAuthInstance() {
+  if (!_authInstance) {
+    _authInstance = new AppStoreConnectAuth;
+  }
+  return _authInstance;
+}
+
+// src/api/testflight-client.ts
+class TestFlightClient {
+  baseUrl = API_ENDPOINTS.APP_STORE_CONNECT;
+  defaultTimeout = DEFAULT_HTTP_CONFIG.timeout;
+  defaultRetries = DEFAULT_HTTP_CONFIG.retries;
+  defaultRetryDelay = DEFAULT_HTTP_CONFIG.retryDelay;
+  appId;
+  rateLimitInfo = null;
+  constructor() {
+    const { getConfiguration: getConfiguration2 } = (init_config(), __toCommonJS(exports_config));
+    const config = getConfiguration2();
+    this.appId = config.appStoreConnect.appId || null;
+  }
+  async getScreenshotFeedback(params) {
+    if (!this.appId) {
+      throw new Error("App ID is required. Use getAppScreenshotFeedback with explicit app ID instead.");
+    }
+    return this.getAppScreenshotFeedback(this.appId, params);
+  }
+  async getAppScreenshotSubmissions(appId, params) {
+    const queryParams = {
+      limit: DEFAULT_TESTFLIGHT_CONFIG.DEFAULT_LIMIT,
+      sort: DEFAULT_TESTFLIGHT_CONFIG.DEFAULT_SORT,
+      ...params
+    };
+    const response = await this.makeApiRequest(`/apps/${appId}/betaFeedbackScreenshotSubmissions`, queryParams);
+    return response.data;
+  }
+  async getDetailedScreenshotSubmission(screenshotId, params) {
+    const response = await this.makeApiRequest(`/betaFeedbackScreenshotSubmissions/${screenshotId}`, params);
+    return response.data;
+  }
+  async getAppScreenshotFeedback(appId, params) {
+    return this.getAppScreenshotSubmissions(appId, params);
+  }
+  async downloadCrashLogs(crashReport) {
+    const logs = [];
+    for (const logInfo of crashReport.attributes.crashLogs) {
+      try {
+        const expiresAt = new Date(logInfo.expiresAt);
+        if (expiresAt <= new Date) {
+          console.warn(`Crash log URL expired: ${logInfo.url}`);
+          continue;
+        }
+        const response = await fetch(logInfo.url, {
+          headers: {
+            "User-Agent": "TestFlight-PM/1.0"
+          },
+          signal: AbortSignal.timeout(this.defaultTimeout)
+        });
+        if (!response.ok) {
+          console.warn(`Failed to download crash log: ${response.status} ${response.statusText}`);
+          continue;
+        }
+        const logContent = await response.text();
+        logs.push(logContent);
+      } catch (error) {
+        console.warn(`Error downloading crash log from ${logInfo.url}:`, error);
+      }
+    }
+    return logs;
+  }
+  async downloadScreenshots(screenshotFeedback) {
+    const { screenshots } = screenshotFeedback.attributes;
+    return await this.downloadScreenshotImages(screenshots);
+  }
+  async downloadEnhancedScreenshots(screenshotFeedback) {
+    const results = [];
+    const enhancedImages = await this.processEnhancedScreenshotImages(screenshotFeedback.attributes.screenshots);
+    for (const imageMetadata of enhancedImages) {
+      try {
+        const imageData = await this.downloadSingleScreenshotImage(imageMetadata);
+        if (imageData) {
+          results.push({
+            data: imageData,
+            metadata: imageMetadata
+          });
+        }
+      } catch (error) {
+        console.warn(`Error downloading enhanced screenshot ${imageMetadata.fileName}:`, error);
+      }
+    }
+    return results;
+  }
+  async downloadScreenshotImages(screenshots) {
+    const images = [];
+    for (const imageInfo of screenshots) {
+      try {
+        const imageData = await this.downloadSingleScreenshotImage({
+          url: imageInfo.url,
+          fileName: imageInfo.fileName,
+          fileSize: imageInfo.fileSize,
+          expiresAt: new Date(imageInfo.expiresAt)
+        });
+        if (imageData) {
+          images.push(imageData);
+        }
+      } catch (error) {
+        console.warn(`Error downloading screenshot from ${imageInfo.url}:`, error);
+      }
+    }
+    return images;
+  }
+  async downloadSingleScreenshotImage(imageInfo) {
+    if (imageInfo.expiresAt <= new Date) {
+      console.warn(`Screenshot URL expired: ${imageInfo.url}`);
+      return null;
+    }
+    const response = await fetch(imageInfo.url, {
+      headers: {
+        "User-Agent": "TestFlight-PM/1.0"
+      },
+      signal: AbortSignal.timeout(this.defaultTimeout)
+    });
+    if (!response.ok) {
+      console.warn(`Failed to download screenshot: ${response.status} ${response.statusText}`);
+      return null;
+    }
+    const imageData = new Uint8Array(await response.arrayBuffer());
+    if (imageInfo.fileSize > 0 && imageData.length !== imageInfo.fileSize) {
+      console.warn(`Screenshot size mismatch for ${imageInfo.fileName}: expected ${imageInfo.fileSize}, got ${imageData.length}`);
+    }
+    return imageData;
+  }
+  getRateLimitInfo() {
+    return this.rateLimitInfo;
+  }
+  getConfiguredAppId() {
+    return this.appId || null;
+  }
+  async testAuthentication() {
+    try {
+      const authInstance = getAuthInstance();
+      await authInstance.getValidToken();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  async getApps(params) {
+    const queryParams = {
+      limit: DEFAULT_TESTFLIGHT_CONFIG.DEFAULT_LIMIT,
+      ...params
+    };
+    const response = await this.makeApiRequest("/apps", queryParams);
+    return response.data;
+  }
+  async findAppByBundleId(bundleId) {
+    const params = {
+      filter: {
+        bundleId
+      },
+      limit: 1
+    };
+    const apps = await this.getApps(params);
+    const firstApp = apps[0];
+    return firstApp || null;
+  }
+  async getAppCrashSubmissions(appId, params) {
+    const queryParams = {
+      limit: DEFAULT_TESTFLIGHT_CONFIG.DEFAULT_LIMIT,
+      sort: DEFAULT_TESTFLIGHT_CONFIG.DEFAULT_SORT,
+      ...params
+    };
+    const response = await this.makeApiRequest(`/apps/${appId}/betaFeedbackCrashSubmissions`, queryParams);
+    return response.data;
+  }
+  async getDetailedCrashSubmission(crashId, params) {
+    const response = await this.makeApiRequest(`/betaFeedbackCrashSubmissions/${crashId}`, params);
+    return response.data;
+  }
+  async getCrashLog(crashId, params) {
+    const response = await this.makeApiRequest(`/betaFeedbackCrashSubmissions/${crashId}/crashLog`, params);
+    return response.data;
+  }
+  async getCrashLogRelationships(crashId) {
+    return await this.makeApiRequest(`/betaFeedbackCrashSubmissions/${crashId}/relationships/crashLog`);
+  }
+  async downloadDetailedCrashLog(crashLog) {
+    try {
+      const expiresAt = new Date(crashLog.attributes.expiresAt);
+      if (expiresAt <= new Date) {
+        console.warn(`Crash log download URL expired: ${crashLog.attributes.downloadUrl}`);
+        return null;
+      }
+      const response = await fetch(crashLog.attributes.downloadUrl, {
+        headers: {
+          "User-Agent": "TestFlight-PM/1.0"
+        },
+        signal: AbortSignal.timeout(this.defaultTimeout)
+      });
+      if (!response.ok) {
+        console.warn(`Failed to download detailed crash log: ${response.status} ${response.statusText}`);
+        return null;
+      }
+      return await response.text();
+    } catch (error) {
+      console.warn(`Error downloading detailed crash log:`, error);
+      return null;
+    }
+  }
+  async resolveAppId(bundleId) {
+    if (this.appId) {
+      return this.appId;
+    }
+    if (!bundleId) {
+      throw new Error("Either app_id or testflight_bundle_id must be provided. Please set TESTFLIGHT_APP_ID or TESTFLIGHT_BUNDLE_ID environment variables, or provide app_id or testflight_bundle_id inputs.");
+    }
+    const app = await this.findAppByBundleId(bundleId);
+    if (!app) {
+      throw new Error(`No app found with bundle ID '${bundleId}'. Please verify the bundle ID is correct and the app exists in App Store Connect.`);
+    }
+    return app.id;
+  }
+  async getEnhancedRecentFeedback(since, bundleId) {
+    const resolvedAppId = await this.resolveAppId(bundleId);
+    const isoDate = since.toISOString();
+    const [crashes, screenshots] = await Promise.all([
+      this.getAppCrashSubmissions(resolvedAppId, {
+        filter: {
+          submittedAt: `>${isoDate}`
+        },
+        limit: 100
+      }),
+      this.getAppScreenshotSubmissions(resolvedAppId, {
+        filter: {
+          submittedAt: `>${isoDate}`
+        },
+        limit: 100
+      })
+    ]);
+    const processedData = [];
+    await this.processCrashReportsWithDetails(crashes, processedData);
+    await this.processScreenshotFeedbackData(screenshots, processedData);
+    processedData.sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime());
+    return processedData;
+  }
+  async getRecentFeedback(since) {
+    return this.getEnhancedRecentFeedback(since);
+  }
+  async makeApiRequest(endpoint, params, options) {
+    const {
+      retries = this.defaultRetries,
+      retryDelay = this.defaultRetryDelay,
+      timeout = this.defaultTimeout
+    } = options || {};
+    let lastError = null;
+    for (let attempt = 0;attempt <= retries; attempt++) {
+      try {
+        await this.waitForRateLimit();
+        const authInstance = getAuthInstance();
+        const token = await authInstance.getValidToken();
+        const url = this.buildUrl(endpoint, params);
+        const response = await fetch(url, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+            "User-Agent": "TestFlight-PM/1.0"
+          },
+          signal: AbortSignal.timeout(timeout)
+        });
+        this.updateRateLimitInfo(response);
+        if (!response.ok) {
+          const errorText = await response.text();
+          let errorData;
+          try {
+            errorData = JSON.parse(errorText);
+          } catch {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+          const errorMessage = errorData.errors.map((e) => `${e.title}: ${e.detail}`).join("; ");
+          throw new Error(`API Error: ${errorMessage}`);
+        }
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        lastError = error;
+        if (lastError.message.includes("authentication") || lastError.message.includes("unauthorized")) {
+          throw lastError;
+        }
+        if (attempt === retries) {
+          break;
+        }
+        const delay = retryDelay * 2 ** attempt;
+        await this.sleep(delay);
+      }
+    }
+    throw new Error(`Request failed after ${retries + 1} attempts: ${lastError?.message}`);
+  }
+  buildUrl(endpoint, params) {
+    const url = new URL(endpoint, this.baseUrl);
+    if (params) {
+      if (params.limit) {
+        url.searchParams.set("limit", params.limit.toString());
+      }
+      if (params.sort) {
+        url.searchParams.set("sort", params.sort);
+      }
+      if (params.include) {
+        url.searchParams.set("include", params.include);
+      }
+      if (params.filter) {
+        for (const [key, value] of Object.entries(params.filter)) {
+          url.searchParams.set(`filter[${key}]`, value);
+        }
+      }
+      if (params.fields) {
+        for (const [key, value] of Object.entries(params.fields)) {
+          url.searchParams.set(`fields[${key}]`, value);
+        }
+      }
+    }
+    return url.toString();
+  }
+  updateRateLimitInfo(response) {
+    const remaining = response.headers.get("X-RateLimit-Remaining");
+    const reset = response.headers.get("X-RateLimit-Reset");
+    const limit = response.headers.get("X-RateLimit-Limit");
+    if (remaining && reset && limit) {
+      this.rateLimitInfo = {
+        remaining: Number.parseInt(remaining, 10),
+        reset: new Date(Number.parseInt(reset, 10) * 1000),
+        limit: Number.parseInt(limit, 10)
+      };
+    }
+  }
+  async waitForRateLimit() {
+    if (!this.rateLimitInfo) {
+      return;
+    }
+    if (this.rateLimitInfo.remaining <= 5) {
+      const now = new Date;
+      const waitTime = this.rateLimitInfo.reset.getTime() - now.getTime();
+      if (waitTime > 0) {
+        console.log(`Rate limit approaching. Waiting ${Math.ceil(waitTime / 1000)} seconds...`);
+        await this.sleep(waitTime);
+      }
+    }
+  }
+  async processCrashReportsWithDetails(crashes, processedData) {
+    for (const crash of crashes) {
+      const processedCrash = this.processCrashReport(crash);
+      try {
+        const crashLog = await this.getCrashLog(crash.id);
+        const detailedLogContent = await this.downloadDetailedCrashLog(crashLog);
+        if (detailedLogContent && processedCrash.crashData) {
+          processedCrash.crashData.detailedLogs = [detailedLogContent];
+        }
+      } catch (error) {
+        console.warn(`Failed to get detailed crash log for ${crash.id}:`, error);
+      }
+      processedData.push(processedCrash);
+    }
+  }
+  async processScreenshotFeedbackData(screenshots, processedData) {
+    for (const screenshot of screenshots) {
+      const processedScreenshot = this.processScreenshotFeedback(screenshot);
+      try {
+        const detailedScreenshot = await this.getDetailedScreenshotSubmission(screenshot.id);
+        if (processedScreenshot.screenshotData) {
+          processedScreenshot.screenshotData.testerNotes = detailedScreenshot.attributes.testerNotes;
+          processedScreenshot.screenshotData.submissionMethod = detailedScreenshot.attributes.submissionMethod;
+          processedScreenshot.screenshotData.systemInfo = {
+            applicationState: detailedScreenshot.attributes.applicationState,
+            memoryPressure: detailedScreenshot.attributes.memoryPressure,
+            batteryLevel: detailedScreenshot.attributes.batteryLevel,
+            batteryState: detailedScreenshot.attributes.batteryState,
+            thermalState: detailedScreenshot.attributes.thermalState,
+            diskSpaceRemaining: detailedScreenshot.attributes.diskSpaceRemaining
+          };
+          if (detailedScreenshot.attributes.screenshots) {
+            processedScreenshot.screenshotData.enhancedImages = await this.processEnhancedScreenshotImages(detailedScreenshot.attributes.screenshots);
+          }
+        }
+      } catch (error) {
+        console.warn(`Failed to get detailed screenshot submission for ${screenshot.id}:`, error);
+      }
+      processedData.push(processedScreenshot);
+    }
+  }
+  async processEnhancedScreenshotImages(screenshots) {
+    return screenshots.map((screenshot, index) => ({
+      url: screenshot.url,
+      fileName: screenshot.fileName,
+      fileSize: screenshot.fileSize,
+      expiresAt: new Date(screenshot.expiresAt),
+      imageFormat: this.extractImageFormat(screenshot.fileName),
+      imageScale: 1,
+      imageDimensions: {
+        width: 0,
+        height: 0
+      },
+      compressionQuality: 0.8,
+      metadata: {
+        index,
+        processingTime: new Date().toISOString()
+      }
+    }));
+  }
+  extractImageFormat(fileName) {
+    const extension = fileName.toLowerCase().split(".").pop();
+    switch (extension) {
+      case "png":
+        return "png";
+      case "jpg":
+      case "jpeg":
+        return "jpeg";
+      case "heic":
+        return "heic";
+      default:
+        return "png";
+    }
+  }
+  processCrashReport(crash) {
+    return {
+      id: crash.id,
+      type: "crash",
+      submittedAt: new Date(crash.attributes.submittedAt),
+      appVersion: crash.attributes.appVersion,
+      buildNumber: crash.attributes.buildNumber,
+      deviceInfo: {
+        family: crash.attributes.deviceFamily,
+        model: crash.attributes.deviceModel,
+        osVersion: crash.attributes.osVersion,
+        locale: crash.attributes.locale
+      },
+      bundleId: crash.attributes.bundleId,
+      crashData: {
+        trace: crash.attributes.crashTrace,
+        type: crash.attributes.crashType,
+        exceptionType: crash.attributes.exceptionType,
+        exceptionMessage: crash.attributes.exceptionMessage,
+        logs: crash.attributes.crashLogs.map((log) => ({
+          url: log.url,
+          expiresAt: new Date(log.expiresAt)
+        }))
+      }
+    };
+  }
+  processScreenshotFeedback(screenshot) {
+    return {
+      id: screenshot.id,
+      type: "screenshot",
+      submittedAt: new Date(screenshot.attributes.submittedAt),
+      appVersion: screenshot.attributes.appVersion,
+      buildNumber: screenshot.attributes.buildNumber,
+      deviceInfo: {
+        family: screenshot.attributes.deviceFamily,
+        model: screenshot.attributes.deviceModel,
+        osVersion: screenshot.attributes.osVersion,
+        locale: screenshot.attributes.locale
+      },
+      bundleId: screenshot.attributes.bundleId,
+      screenshotData: {
+        text: screenshot.attributes.feedbackText,
+        images: screenshot.attributes.screenshots.map((img) => ({
+          url: img.url,
+          fileName: img.fileName,
+          fileSize: img.fileSize,
+          expiresAt: new Date(img.expiresAt)
+        })),
+        annotations: screenshot.attributes.annotations
+      }
+    };
+  }
+  sleep(ms) {
+    return new Promise((resolve2) => setTimeout(resolve2, ms));
+  }
+}
+var _clientInstance = null;
+function getTestFlightClient() {
+  if (!_clientInstance) {
+    _clientInstance = new TestFlightClient;
+  }
+  return _clientInstance;
+}
+
+// action-entrypoint.ts
 init_config();
 init_idempotency_service();
 
@@ -47866,7 +48497,6 @@ init_codebase_analyzer();
 init_github_client();
 init_linear_client();
 init_llm_client();
-init_testflight_client();
 init_state_manager();
 
 // src/utils/monitoring/health-check-base.ts
@@ -48201,19 +48831,55 @@ class LinearHealthChecker extends BasePlatformAwareHealthChecker {
         error: "Linear API token provided but team ID missing"
       }, ["Set LINEAR_TEAM_ID environment variable or linear_team_id in GitHub Action inputs"]);
     }
-    const client = getLinearClient();
-    const health = await client.healthCheck();
-    const adjustedStatus = this.adjustStatusForPlatform(health.status, platformConfig.platform);
-    return this.createSuccessResult(adjustedStatus, {
-      ...health.details,
-      platform: platformConfig.platform,
-      configured: true,
-      originalStatus: health.status
-    }, health.status === "unhealthy" ? [
-      "Check Linear API token configuration",
-      "Verify Linear team ID",
-      "Linear issues won't prevent GitHub integration from working"
-    ] : []);
+    try {
+      const client = getLinearClient();
+      const health = await client.healthCheck();
+      const adjustedStatus = this.adjustStatusForPlatform(health.status, platformConfig.platform);
+      return this.createSuccessResult(adjustedStatus, {
+        ...health.details,
+        platform: platformConfig.platform,
+        configured: true,
+        originalStatus: health.status
+      }, health.status === "unhealthy" ? [
+        "Check Linear API token configuration",
+        "Verify Linear team ID exists and you have access to it",
+        "Linear issues won't prevent GitHub integration from working"
+      ] : []);
+    } catch (error) {
+      const errorMessage = error.message;
+      let specificRecommendations = [];
+      let status = "degraded";
+      if (errorMessage.includes("Entity not found: Team")) {
+        specificRecommendations = [
+          "The configured Linear team ID does not exist or you don't have access to it",
+          "Check your Linear team ID in your workspace settings",
+          "Ensure your Linear API token has access to the specified team",
+          "You can find your team ID in Linear > Settings > API"
+        ];
+        status = platformConfig.isMultiPlatform ? "degraded" : "unhealthy";
+      } else if (errorMessage.includes("Authentication") || errorMessage.includes("authorization")) {
+        specificRecommendations = [
+          "Linear API token is invalid or expired",
+          "Generate a new API token in Linear > Settings > API",
+          "Ensure the token has the required permissions"
+        ];
+        status = platformConfig.isMultiPlatform ? "degraded" : "unhealthy";
+      } else {
+        specificRecommendations = [
+          "Check Linear API connectivity",
+          "Verify Linear configuration",
+          "Check network access to Linear's API"
+        ];
+      }
+      const adjustedStatus = this.adjustStatusForPlatform(status, platformConfig.platform);
+      return this.createSuccessResult(adjustedStatus, {
+        error: errorMessage,
+        configuredTeamId: linearTeamId,
+        platform: platformConfig.platform,
+        configured: true,
+        timestamp: new Date().toISOString()
+      }, specificRecommendations);
+    }
   }
   createErrorResult(error) {
     const platformConfig = getPlatformDetector().getPlatformConfig();
@@ -48250,12 +48916,52 @@ class TestFlightHealthChecker extends BaseHealthChecker {
   }
   async performCheck() {
     const client = getTestFlightClient();
-    const rateLimitInfo = client.getRateLimitInfo();
-    const recommendations = rateLimitInfo?.remaining && rateLimitInfo.remaining < 10 ? ["TestFlight rate limit running low"] : [];
-    return this.createSuccessResult("healthy", {
-      rateLimitInfo: rateLimitInfo || "No rate limit data available",
-      configured: true
-    }, recommendations);
+    try {
+      const appId = client.getConfiguredAppId();
+      if (!appId) {
+        return this.createSuccessResult("unhealthy", {
+          configured: false,
+          error: "TestFlight App ID not configured",
+          timestamp: new Date().toISOString()
+        }, [
+          "Set TESTFLIGHT_APP_ID environment variable or app_id in GitHub Action inputs",
+          "Verify TestFlight configuration is complete"
+        ]);
+      }
+      const isAuthenticated = await client.testAuthentication();
+      if (!isAuthenticated) {
+        return this.createSuccessResult("unhealthy", {
+          appId,
+          configured: true,
+          authenticated: false,
+          error: "TestFlight authentication failed",
+          timestamp: new Date().toISOString()
+        }, [
+          "Check App Store Connect credentials",
+          "Verify TESTFLIGHT_ISSUER_ID, TESTFLIGHT_KEY_ID, and TESTFLIGHT_PRIVATE_KEY",
+          "Ensure credentials have TestFlight access permissions"
+        ]);
+      }
+      const rateLimitInfo = client.getRateLimitInfo();
+      const recommendations = rateLimitInfo?.remaining && rateLimitInfo.remaining < 10 ? ["TestFlight rate limit running low"] : [];
+      return this.createSuccessResult("healthy", {
+        appId,
+        configured: true,
+        authenticated: true,
+        rateLimitInfo: rateLimitInfo || "No rate limit data available",
+        timestamp: new Date().toISOString()
+      }, recommendations);
+    } catch (error) {
+      return this.createSuccessResult("unhealthy", {
+        configured: false,
+        error: error.message,
+        timestamp: new Date().toISOString()
+      }, [
+        "Check TestFlight configuration",
+        "Verify App Store Connect credentials",
+        "Check network connectivity to Apple's APIs"
+      ]);
+    }
   }
   createErrorResult(error) {
     return {
@@ -48268,7 +48974,8 @@ class TestFlightHealthChecker extends BaseHealthChecker {
       },
       recommendations: [
         "Check App Store Connect credentials",
-        "Verify TestFlight API connectivity"
+        "Verify TestFlight API connectivity",
+        "Ensure TestFlight configuration is complete"
       ],
       lastChecked: new Date().toISOString()
     };
@@ -48494,15 +49201,15 @@ class EnvironmentConfigurationHealthChecker extends BaseHealthChecker {
       const value = getEnvVar2(config.name, config.inputName);
       const directEnv = process.env[config.name];
       const inputEnv = process.env[`INPUT_${config.inputName.toUpperCase().replace(/-/g, "_")}`];
-      const actualValue = value ? value.trim() || "EMPTY_STRING" : "UNDEFINED";
       const isValid = value && value.trim() !== "";
       if (isValid) {
-        status[`✅ ${config.name}`] = directEnv ? "present (direct)" : "present (from input)";
+        const source = directEnv ? "direct env" : "GitHub Action input";
+        status[`✅ ${config.name}`] = `present (${source})`;
       } else {
-        status[`❌ ${config.name}`] = `missing (actual value: "${actualValue}")`;
-        status[`    env ${config.name}`] = directEnv ? `"${directEnv.substring(0, 10)}..."` : "missing";
-        status[`    input INPUT_${config.inputName.toUpperCase().replace(/-/g, "_")}`] = inputEnv ? `"${inputEnv.substring(0, 10)}..."` : "missing";
-        status[`    getEnvVar result`] = `"${actualValue}"`;
+        status[`❌ ${config.name}`] = "missing from both direct env and GitHub inputs";
+        status[`    Direct env ${config.name}`] = directEnv ? "present" : "missing";
+        status[`    GitHub input INPUT_${config.inputName.toUpperCase().replace(/-/g, "_")}`] = inputEnv ? "present" : "missing";
+        status[`    getEnvVar result`] = value ? `"${value.substring(0, 10)}..."` : "undefined";
       }
     }
     return status;
@@ -48556,7 +49263,10 @@ class SystemHealthMonitor {
       if (result.status === "fulfilled") {
         checks.push(result.value);
       } else {
-        checks.push(this.createTimeoutResult(this.healthCheckers[index], result.reason));
+        const checker = this.healthCheckers[index];
+        if (checker) {
+          checks.push(this.createTimeoutResult(checker, result.reason));
+        }
       }
     });
     const metrics = this.calculateMetrics(checks, startTime);
@@ -48584,11 +49294,48 @@ class SystemHealthMonitor {
     };
   }
   calculateOverallStatus(checks) {
-    const unhealthyCount = checks.filter((c) => c.status === "unhealthy").length;
-    const degradedCount = checks.filter((c) => c.status === "degraded").length;
-    if (unhealthyCount > 0) {
+    const platformConfig = getPlatformDetector().getPlatformConfig();
+    const criticalUnhealthy = checks.filter((c) => {
+      if (c.status !== "unhealthy") {
+        return false;
+      }
+      if (c.component === "TestFlight Integration") {
+        return true;
+      }
+      if (c.component === "GitHub Integration" && platformConfig.requiresGitHub) {
+        return true;
+      }
+      if (c.component === "Linear Integration" && platformConfig.requiresLinear) {
+        return true;
+      }
+      if (c.component === "Environment Configuration") {
+        return true;
+      }
+      return false;
+    });
+    const criticalDegraded = checks.filter((c) => {
+      if (c.status !== "degraded") {
+        return false;
+      }
+      if (c.component === "TestFlight Integration") {
+        return true;
+      }
+      if (c.component === "Environment Configuration") {
+        return c.details?.missingCoreConfig && Array.isArray(c.details.missingCoreConfig) && c.details.missingCoreConfig.length > 0;
+      }
+      if (!platformConfig.isMultiPlatform) {
+        if (c.component === "GitHub Integration" && platformConfig.requiresGitHub) {
+          return true;
+        }
+        if (c.component === "Linear Integration" && platformConfig.requiresLinear) {
+          return true;
+        }
+      }
+      return false;
+    });
+    if (criticalUnhealthy.length > 0) {
       return "unhealthy";
-    } else if (degradedCount > 0) {
+    } else if (criticalDegraded.length > 0) {
       return "degraded";
     } else {
       return "healthy";
@@ -48687,8 +49434,27 @@ async function quickHealthCheck() {
     }).map((c) => `${c.component}: ${c.error || "unhealthy"}`);
     let adjustedStatus;
     if (criticalIssues.length === 0) {
-      const hasDegraded = health.components.some((c) => c.status === "degraded");
-      adjustedStatus = hasDegraded ? "degraded" : "healthy";
+      const criticalDegraded = health.components.filter((c) => {
+        if (c.status !== "degraded") {
+          return false;
+        }
+        if (c.component === "TestFlight Integration") {
+          return true;
+        }
+        if (c.component === "Environment Configuration") {
+          return c.details?.missingCoreConfig && Array.isArray(c.details.missingCoreConfig) && c.details.missingCoreConfig.length > 0;
+        }
+        if (!platformConfig.isMultiPlatform) {
+          if (c.component === "GitHub Integration" && platformConfig.requiresGitHub) {
+            return true;
+          }
+          if (c.component === "Linear Integration" && platformConfig.requiresLinear) {
+            return true;
+          }
+        }
+        return false;
+      });
+      adjustedStatus = criticalDegraded.length > 0 ? "degraded" : "healthy";
     } else {
       adjustedStatus = "unhealthy";
     }
@@ -48696,8 +49462,27 @@ async function quickHealthCheck() {
     if (adjustedStatus === "unhealthy") {
       message = `System has ${criticalIssues.length} critical issue${criticalIssues.length === 1 ? "" : "s"}`;
     } else if (adjustedStatus === "degraded") {
-      const degradedCount = health.components.filter((c) => c.status === "degraded").length;
-      message = `System functional with ${degradedCount} non-critical warning${degradedCount === 1 ? "" : "s"}`;
+      const criticalDegradedCount = health.components.filter((c) => {
+        if (c.status !== "degraded") {
+          return false;
+        }
+        if (c.component === "TestFlight Integration") {
+          return true;
+        }
+        if (c.component === "Environment Configuration") {
+          return c.details?.missingCoreConfig && Array.isArray(c.details.missingCoreConfig) && c.details.missingCoreConfig.length > 0;
+        }
+        if (!platformConfig.isMultiPlatform) {
+          if (c.component === "GitHub Integration" && platformConfig.requiresGitHub) {
+            return true;
+          }
+          if (c.component === "Linear Integration" && platformConfig.requiresLinear) {
+            return true;
+          }
+        }
+        return false;
+      }).length;
+      message = `System functional with ${criticalDegradedCount} warning${criticalDegradedCount === 1 ? "" : "s"} requiring attention`;
     }
     return {
       status: adjustedStatus,
@@ -49318,9 +50103,13 @@ async function run() {
       return;
     }
     if (healthCheck.status === "degraded") {
-      core2.warning(`System health degraded: ${healthCheck.message}`);
-      if (isDebugMode) {
-        core2.warning("\uD83D\uDC1B Debug info - Non-critical issues identified");
+      if (healthCheck.criticalIssues.length > 0 || isDebugMode) {
+        core2.warning(`System health degraded: ${healthCheck.message}`);
+        if (isDebugMode) {
+          core2.warning("\uD83D\uDC1B Debug info - Non-critical issues identified");
+        }
+      } else {
+        core2.info(`ℹ️ ${healthCheck.message}`);
       }
     } else {
       core2.info(`✅ System health check passed: ${healthCheck.message}`);
@@ -49381,7 +50170,9 @@ async function run() {
       core2.debug(`  Processing window: ${workflowState.processingWindow.startTime.toISOString()} to ${workflowState.processingWindow.endTime.toISOString()}`);
     }
     core2.info("\uD83D\uDCF1 Fetching TestFlight feedback...");
-    const feedbackData = await testFlightClient.getRecentFeedback(processingWindow.startTime);
+    const config = getConfiguration();
+    const { bundleId } = config.appStoreConnect;
+    const feedbackData = await testFlightClient.getEnhancedRecentFeedback(processingWindow.startTime, bundleId);
     if (feedbackData.length === 0) {
       core2.info("✅ No new TestFlight feedback found");
       return;
@@ -49462,40 +50253,35 @@ async function run() {
       }
       const monitor = getSystemHealthMonitor();
       const detailedHealth = await monitor.checkSystemHealth();
-      core2.error("\uD83D\uDD0D Detailed component status at failure:");
-      detailedHealth.components.forEach((component) => {
-        const status = component.status === "healthy" ? "✅" : component.status === "degraded" ? "⚠️" : "❌";
-        core2.error(`  ${status} ${component.component}: ${component.status}`);
-        if (component.error) {
-          core2.error(`    \uD83D\uDCCB Error: ${component.error}`);
+      const criticalComponents = detailedHealth.components.filter((c) => {
+        if (c.status === "unhealthy") {
+          return true;
         }
-        if (component.details && typeof component.details === "object") {
-          if (component.component === "Environment Configuration") {
-            if (component.details.missingCoreConfig && Array.isArray(component.details.missingCoreConfig)) {
+        if (c.status === "degraded") {
+          return c.component === "TestFlight Integration" || c.component === "Environment Configuration" && c.details?.missingCoreConfig && Array.isArray(c.details.missingCoreConfig) && c.details.missingCoreConfig.length > 0;
+        }
+        return false;
+      });
+      if (criticalComponents.length > 0) {
+        core2.error("\uD83D\uDD0D Critical component issues at failure:");
+        criticalComponents.forEach((component) => {
+          const status = component.status === "degraded" ? "⚠️" : "❌";
+          core2.error(`  ${status} ${component.component}: ${component.status}`);
+          if (component.error) {
+            core2.error(`    \uD83D\uDCCB Error: ${component.error}`);
+          }
+          if (component.component === "Environment Configuration" && component.details) {
+            if (component.details.missingCoreConfig && Array.isArray(component.details.missingCoreConfig) && component.details.missingCoreConfig.length > 0) {
               core2.error(`    ❌ Missing core config: ${component.details.missingCoreConfig.join(", ")}`);
             }
-            if (component.details.platformIssues && Array.isArray(component.details.platformIssues)) {
+            if (component.details.platformIssues && Array.isArray(component.details.platformIssues) && component.details.platformIssues.length > 0) {
               core2.error(`    ⚠️ Platform issues: ${component.details.platformIssues.join(", ")}`);
             }
-            if (component.details.environmentVariables && typeof component.details.environmentVariables === "object") {
-              core2.error(`    \uD83D\uDD27 Environment variables status:`);
-              const envVars = component.details.environmentVariables;
-              if (envVars.core) {
-                Object.entries(envVars.core).forEach(([key, value]) => {
-                  const icon = value ? "✅" : "❌";
-                  core2.error(`      ${icon} ${key}: ${value ? "present" : "missing"}`);
-                });
-              }
-            }
-          } else {
-            Object.entries(component.details).forEach(([key, value]) => {
-              if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-                core2.error(`    \uD83D\uDCCA ${key}: ${value}`);
-              }
-            });
           }
-        }
-      });
+        });
+      } else {
+        core2.info("ℹ️ All system components are functioning properly - failure is not due to configuration issues");
+      }
     } catch (healthError) {
       core2.error(`Could not perform health check after failure: ${healthError}`);
     }
@@ -49507,26 +50293,6 @@ async function run() {
     core2.error(`  Runner OS: ${process.env.RUNNER_OS || "unknown"}`);
     core2.error(`  Memory usage: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`);
     core2.error(`  Uptime: ${Math.round(process.uptime())}s`);
-    const relevantEnvVars = [
-      "TESTFLIGHT_ISSUER_ID",
-      "TESTFLIGHT_KEY_ID",
-      "TESTFLIGHT_PRIVATE_KEY",
-      "TESTFLIGHT_APP_ID",
-      "GTHB_TOKEN",
-      "GITHUB_OWNER",
-      "GITHUB_REPO",
-      "LINEAR_API_TOKEN",
-      "LINEAR_TEAM_ID",
-      "ENABLE_LLM_ENHANCEMENT",
-      "ANTHROPIC_API_KEY",
-      "OPENAI_API_KEY"
-    ];
-    core2.error("\uD83D\uDD27 Environment variable status:");
-    relevantEnvVars.forEach((envVar) => {
-      const value = process.env[envVar];
-      const status = value ? value.length > 10 ? "✅ Set (hidden)" : "✅ Set" : "❌ Missing";
-      core2.error(`  ${envVar}: ${status}`);
-    });
     core2.setFailed(errorMessage);
   }
 }

@@ -697,19 +697,15 @@ Context:
 - You have access to codebase context and recent changes
 - Provide actionable insights and technical recommendations
 
-Response Format (JSON):
-{
-  "enhancedTitle": "Clear, technical title",
-  "enhancedDescription": "Detailed technical description with context",
-  "priority": "urgent|high|medium|low",
-  "labels": ["bug", "crash", "ios", ...],
-  "analysis": {
-    "rootCause": "Technical analysis of the cause",
-    "affectedComponents": ["component1", "component2"],
-    "suggestedFix": "Specific technical recommendations",
-    "confidence": 0.95
-  }
-}`;
+You must use the enhance_issue function to provide a structured response with your analysis. 
+
+Guidelines:
+- Create clear, descriptive titles that summarize the technical issue
+- Write detailed descriptions with technical context and analysis
+- Set appropriate priority based on severity and impact (urgent: system crashes/data loss, high: major features broken, medium: noticeable issues, low: minor improvements)
+- Add relevant labels for categorization (e.g., bug, crash, ios, ui, performance, memory, networking)
+- Provide thorough analysis with root cause investigation, affected components, and specific actionable recommendations
+- Set confidence level based on available evidence and codebase context`;
 
 		const userContent: Array<{ type: "text"; text: string }> = [
 			{
@@ -780,6 +776,68 @@ ${request.crashData.trace.join("\n")}
 			],
 			temperature: 0.3,
 			max_tokens: 2000,
+			tools: [
+				{
+					type: "function",
+					function: {
+						name: "enhance_issue",
+						description: "Enhance a TestFlight issue with detailed technical analysis and structured metadata",
+						parameters: {
+							type: "object",
+							properties: {
+								enhancedTitle: {
+									type: "string",
+									description: "Clear, concise technical title that accurately describes the issue"
+								},
+								enhancedDescription: {
+									type: "string",
+									description: "Detailed technical description with context, analysis, and actionable insights"
+								},
+								priority: {
+									type: "string",
+									enum: ["urgent", "high", "medium", "low"],
+									description: "Issue priority based on severity and impact analysis"
+								},
+								labels: {
+									type: "array",
+									items: {
+										type: "string"
+									},
+									description: "Relevant labels for categorization (e.g., bug, crash, ios, ui, performance)"
+								},
+								analysis: {
+									type: "object",
+									properties: {
+										rootCause: {
+											type: "string",
+											description: "Technical analysis of the likely root cause"
+										},
+										affectedComponents: {
+											type: "array",
+											items: {
+												type: "string"
+											},
+											description: "List of code components, files, or modules likely affected"
+										},
+										suggestedFix: {
+											type: "string",
+											description: "Specific, actionable technical recommendations for resolution"
+										},
+										confidence: {
+											type: "number",
+											minimum: 0,
+											maximum: 1,
+											description: "Confidence level in the analysis (0.0 to 1.0)"
+										}
+									},
+									required: ["rootCause", "affectedComponents", "suggestedFix", "confidence"]
+								}
+							},
+							required: ["enhancedTitle", "enhancedDescription", "priority", "labels", "analysis"]
+						}
+					}
+				}
+			]
 		};
 	}
 
@@ -790,8 +848,45 @@ ${request.crashData.trace.join("\n")}
 		response: LLMResponse,
 		startTime: number,
 	): LLMEnhancementResponse {
+		// First, check if we have structured function calling response
+		if (response.metadata?.tool_calls?.length) {
+			const toolCall = response.metadata.tool_calls.find(
+				(call) => call.function.name === "enhance_issue"
+			);
+
+			if (toolCall) {
+				try {
+					const enhancementData = JSON.parse(toolCall.function.arguments);
+					return {
+						enhancedTitle: enhancementData.enhancedTitle || "Enhanced Issue",
+						enhancedDescription: enhancementData.enhancedDescription || response.content,
+						priority: enhancementData.priority || "medium",
+						labels: Array.isArray(enhancementData.labels) ? enhancementData.labels : ["testflight"],
+						analysis: {
+							rootCause: enhancementData.analysis?.rootCause || "Unknown",
+							affectedComponents: Array.isArray(enhancementData.analysis?.affectedComponents)
+								? enhancementData.analysis.affectedComponents
+								: [],
+							suggestedFix: enhancementData.analysis?.suggestedFix || "Review required",
+							confidence: typeof enhancementData.analysis?.confidence === "number"
+								? enhancementData.analysis.confidence
+								: 0.7,
+						},
+						metadata: {
+							provider: response.provider,
+							model: response.model,
+							processingTime: Date.now() - startTime,
+							cost: response.cost,
+						},
+					};
+				} catch (error) {
+					console.warn(`Failed to parse structured function call response: ${error}`);
+				}
+			}
+		}
+
+		// Fallback: Try to parse JSON from content (backward compatibility)
 		try {
-			// Try to parse JSON response
 			const content = response.content.trim();
 			const jsonMatch = content.match(/\{[\s\S]*\}/);
 			if (jsonMatch) {
@@ -802,14 +897,14 @@ ${request.crashData.trace.join("\n")}
 					priority: parsed.priority || "medium",
 					labels: Array.isArray(parsed.labels) ? parsed.labels : ["testflight"],
 					analysis: {
-						rootCause: parsed.analysis?.rootCause,
-						affectedComponents: Array.isArray(
-							parsed.analysis?.affectedComponents,
-						)
+						rootCause: parsed.analysis?.rootCause || "Unknown",
+						affectedComponents: Array.isArray(parsed.analysis?.affectedComponents)
 							? parsed.analysis.affectedComponents
 							: [],
-						suggestedFix: parsed.analysis?.suggestedFix,
-						confidence: parsed.analysis?.confidence || 0.6,
+						suggestedFix: parsed.analysis?.suggestedFix || "Review required",
+						confidence: typeof parsed.analysis?.confidence === "number"
+							? parsed.analysis.confidence
+							: 0.7,
 					},
 					metadata: {
 						provider: response.provider,
@@ -823,7 +918,7 @@ ${request.crashData.trace.join("\n")}
 			console.warn(`Failed to parse LLM response as JSON: ${error}`);
 		}
 
-		// Fallback to unstructured parsing
+		// Final fallback to unstructured parsing
 		return this.parseUnstructuredResponse(response, startTime);
 	}
 

@@ -133,6 +133,88 @@ export interface TestFlightApp {
 		subscriptionStatusUrlVersion?: string;
 		subscriptionStatusUrlForSandbox?: string;
 		subscriptionStatusUrlVersionForSandbox?: string;
+		availableInNewTerritories?: boolean;
+		contentRightsDeclaration?: string;
+	};
+	relationships?: {
+		ciProduct?: {
+			data?: {
+				type: "ciProducts";
+				id: string;
+			};
+		};
+		betaGroups?: {
+			data: Array<{
+				type: "betaGroups";
+				id: string;
+			}>;
+		};
+		preReleaseVersions?: {
+			data: Array<{
+				type: "preReleaseVersions";
+				id: string;
+			}>;
+		};
+		betaAppLocalizations?: {
+			data: Array<{
+				type: "betaAppLocalizations";
+				id: string;
+			}>;
+		};
+		builds?: {
+			data: Array<{
+				type: "builds";
+				id: string;
+			}>;
+		};
+		betaLicenseAgreement?: {
+			data?: {
+				type: "betaLicenseAgreements";
+				id: string;
+			};
+		};
+		betaAppReviewDetail?: {
+			data?: {
+				type: "betaAppReviewDetails";
+				id: string;
+			};
+		};
+		appInfos?: {
+			data: Array<{
+				type: "appInfos";
+				id: string;
+			}>;
+		};
+		appClips?: {
+			data: Array<{
+				type: "appClips";
+				id: string;
+			}>;
+		};
+		endUserLicenseAgreement?: {
+			data?: {
+				type: "endUserLicenseAgreements";
+				id: string;
+			};
+		};
+		appStoreVersions?: {
+			data: Array<{
+				type: "appStoreVersions";
+				id: string;
+			}>;
+		};
+		subscriptionGroups?: {
+			data: Array<{
+				type: "subscriptionGroups";
+				id: string;
+			}>;
+		};
+		gameCenterEnabledVersions?: {
+			data: Array<{
+				type: "gameCenterEnabledVersions";
+				id: string;
+			}>;
+		};
 	};
 }
 
@@ -154,9 +236,9 @@ export interface TestFlightBuild {
 		};
 		processingState: "PROCESSING" | "FAILED" | "INVALID" | "VALID";
 		buildAudienceType:
-			| "INTERNAL_ONLY"
-			| "APP_STORE_ELIGIBLE"
-			| "NOT_APPLICABLE";
+		| "INTERNAL_ONLY"
+		| "APP_STORE_ELIGIBLE"
+		| "NOT_APPLICABLE";
 		usesNonExemptEncryption?: boolean;
 	};
 	relationships: {
@@ -216,8 +298,8 @@ export interface TestFlightQueryParams {
 // Webhook Event Types
 export interface TestFlightWebhookEvent {
 	eventType:
-		| "BETA_FEEDBACK_CRASH_SUBMISSION"
-		| "BETA_FEEDBACK_SCREENSHOT_SUBMISSION";
+	| "BETA_FEEDBACK_CRASH_SUBMISSION"
+	| "BETA_FEEDBACK_SCREENSHOT_SUBMISSION";
 	eventTime: string;
 	version: string;
 	data: {
@@ -270,6 +352,7 @@ export interface ProcessedFeedbackData {
 			url: string;
 			expiresAt: Date;
 		}>;
+		detailedLogs?: string[]; // Actual crash log content
 	};
 
 	screenshotData?: {
@@ -281,6 +364,17 @@ export interface ProcessedFeedbackData {
 			expiresAt: Date;
 		}>;
 		annotations?: ScreenshotAnnotation[];
+		enhancedImages?: EnhancedScreenshotImage[]; // Enhanced screenshot data from detailed API
+		testerNotes?: string; // Additional notes from detailed view
+		submissionMethod?: "manual" | "automatic";
+		systemInfo?: {
+			applicationState?: "foreground" | "background" | "suspended";
+			memoryPressure?: "normal" | "warning" | "critical";
+			batteryLevel?: number;
+			batteryState?: "unknown" | "unplugged" | "charging" | "full";
+			thermalState?: "nominal" | "fair" | "serious" | "critical";
+			diskSpaceRemaining?: number;
+		};
 	};
 
 	testerInfo?: {
@@ -288,4 +382,130 @@ export interface ProcessedFeedbackData {
 		firstName?: string;
 		lastName?: string;
 	};
+}
+
+// Detailed crash log content from /betaFeedbackCrashSubmissions/{id}/crashLog
+export interface TestFlightCrashLog {
+	id: string;
+	type: "betaFeedbackCrashLogs";
+	attributes: {
+		downloadUrl: string;
+		fileName: string;
+		fileSize: number;
+		expiresAt: string;
+		crashLogFormatVersion: string;
+	};
+	relationships?: {
+		betaFeedbackCrashSubmission?: {
+			data: {
+				type: "betaFeedbackCrashSubmissions";
+				id: string;
+			};
+		};
+	};
+}
+
+// Enhanced crash submission with full details
+export interface DetailedTestFlightCrashReport extends TestFlightCrashReport {
+	attributes: TestFlightCrashReport["attributes"] & {
+		// Additional fields available in detailed view
+		incidentIdentifier?: string;
+		bundleShortVersionString?: string;
+		bundleVersion?: string;
+		codeCrashInfo?: string;
+		exceptionCodes?: string;
+		exceptionNote?: string;
+		faultingThread?: number;
+		lastExceptionBacktrace?: string;
+		legacyInfo?: string;
+		logCounter?: number;
+		processUuid?: string;
+		responsibleProcess?: string;
+		storageInfo?: string;
+		storeInfo?: string;
+		systemInfo?: Record<string, unknown>;
+		terminationReason?: string;
+		vmInfo?: string;
+		reportVersion?: number;
+		timestamp?: string;
+	};
+}
+
+// Enhanced screenshot submission with full details from /betaFeedbackScreenshotSubmissions/{id}
+export interface DetailedTestFlightScreenshotFeedback extends TestFlightScreenshotFeedback {
+	attributes: TestFlightScreenshotFeedback["attributes"] & {
+		// Additional fields available in detailed view
+		incidentIdentifier?: string;
+		bundleShortVersionString?: string;
+		bundleVersion?: string;
+		screenshotFormatVersion?: string;
+		screenshotCount?: number;
+		submissionMethod?: "manual" | "automatic";
+		testerNotes?: string;
+		systemConfiguration?: Record<string, unknown>;
+		networkConfiguration?: Record<string, unknown>;
+		accessibilitySettings?: Record<string, unknown>;
+		applicationState?: "foreground" | "background" | "suspended";
+		memoryPressure?: "normal" | "warning" | "critical";
+		batteryLevel?: number;
+		batteryState?: "unknown" | "unplugged" | "charging" | "full";
+		thermalState?: "nominal" | "fair" | "serious" | "critical";
+		diskSpaceRemaining?: number;
+		timestamp?: string;
+		reportVersion?: number;
+	};
+}
+
+// Apps listing response
+export interface TestFlightAppsResponse extends TestFlightApiResponse<TestFlightApp> {
+	// Inherits from TestFlightApiResponse
+}
+
+// App-specific crash submissions response  
+export interface AppBetaFeedbackCrashSubmissionsResponse extends TestFlightApiResponse<TestFlightCrashReport> {
+	// Inherits from TestFlightApiResponse
+}
+
+// App-specific screenshot submissions response
+export interface AppBetaFeedbackScreenshotSubmissionsResponse extends TestFlightApiResponse<TestFlightScreenshotFeedback> {
+	// Inherits from TestFlightApiResponse
+}
+
+// Single crash submission response
+export interface DetailedCrashSubmissionResponse extends TestFlightSingleResponse<DetailedTestFlightCrashReport> {
+	// Inherits from TestFlightSingleResponse
+}
+
+// Single screenshot submission response
+export interface DetailedScreenshotSubmissionResponse extends TestFlightSingleResponse<DetailedTestFlightScreenshotFeedback> {
+	// Inherits from TestFlightSingleResponse
+}
+
+// Crash log response
+export interface CrashLogResponse extends TestFlightSingleResponse<TestFlightCrashLog> {
+	// Inherits from TestFlightSingleResponse
+}
+
+// Crash log relationships response
+export interface CrashLogRelationshipsResponse {
+	data: {
+		type: "betaFeedbackCrashLogs";
+		id: string;
+	};
+	links?: {
+		self?: string;
+		related?: string;
+	};
+}
+
+// Screenshot image metadata with enhanced properties
+export interface EnhancedScreenshotImage extends ScreenshotImage {
+	imageFormat?: "png" | "jpeg" | "heic";
+	imageScale?: number;
+	imageDimensions?: {
+		width: number;
+		height: number;
+	};
+	compressionQuality?: number;
+	metadata?: Record<string, unknown>;
 }
