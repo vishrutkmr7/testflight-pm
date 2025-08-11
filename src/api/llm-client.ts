@@ -1044,8 +1044,8 @@ ${request.codebaseContext.length} relevant file(s) identified for analysis.`
 			...this.config.fallbackProviders
 		].filter((provider, index, array) => {
 			// Remove duplicates and only include providers with API keys
-			return array.indexOf(provider) === index && 
-				   this.config.providers[provider]?.apiKey?.trim();
+			return array.indexOf(provider) === index &&
+				this.config.providers[provider]?.apiKey?.trim();
 		});
 
 		const providerChecks = await Promise.allSettled(
