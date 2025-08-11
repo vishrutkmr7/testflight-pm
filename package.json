@@ -5,7 +5,7 @@
 	"main": "action-entrypoint.ts",
 	"type": "module",
 	"scripts": {
-		"build": "bun build action-entrypoint.ts --outdir dist --target node --format esm --external @actions/core --external @actions/github --external @actions/exec --external @actions/io",
+		"build": "bun build action-entrypoint.ts --outdir dist --target node --format esm",
 		"test": "bun test",
 		"action:test": "bun run action-entrypoint.ts",
 		"action:dry-run": "INPUT_DRY_RUN=true INPUT_FEEDBACK_TYPES=all INPUT_MAX_ISSUES_PER_RUN=5 bun run action-entrypoint.ts",
