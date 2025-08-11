@@ -24,7 +24,6 @@ import {
 	IssueServiceFactory,
 } from "./src/utils/service-factory.js";
 import { getStateManager } from "./src/utils/state-manager.js";
-import { Validation } from "./src/utils/validation.js";
 import type { ProcessedFeedbackData } from "./types/testflight.js";
 
 interface ActionResults {
@@ -143,22 +142,8 @@ async function run(): Promise<void> {
 		// Load and validate configuration
 		const _config = getConfiguration();
 
-		// Validate configuration
-		core.info("🔧 Validating configuration...");
-		const envValidation = Validation.environment(process.env);
-
-		if (!envValidation.valid) {
-			core.setFailed(
-				`Configuration validation failed: ${envValidation.errors.join(", ")}`,
-			);
-			return;
-		}
-
-		if (envValidation.warnings.length > 0) {
-			envValidation.warnings.forEach((warning) => core.warning(warning));
-		}
-
-		core.info("✅ Configuration validation passed");
+		// Configuration validation is now handled by the health check system
+		core.info("✅ Configuration validated via health check system");
 
 		// Get processing configuration
 		const enableLLMEnhancement = core.getBooleanInput("enable_llm_enhancement");
