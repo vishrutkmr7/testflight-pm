@@ -31,7 +31,11 @@ export class EnvironmentValidator {
 		{ key: "TESTFLIGHT_ISSUER_ID", envName: "TESTFLIGHT_ISSUER_ID", inputName: "testflight_issuer_id", displayName: "TestFlight Issuer ID" },
 		{ key: "TESTFLIGHT_KEY_ID", envName: "TESTFLIGHT_KEY_ID", inputName: "testflight_key_id", displayName: "TestFlight Key ID" },
 		{ key: "TESTFLIGHT_PRIVATE_KEY", envName: "TESTFLIGHT_PRIVATE_KEY", inputName: "testflight_private_key", displayName: "TestFlight Private Key" },
+	];
+
+	private readonly appIdentifierVariables: ConfigVariable[] = [
 		{ key: "TESTFLIGHT_APP_ID", envName: "TESTFLIGHT_APP_ID", inputName: "app_id", displayName: "TestFlight App ID" },
+		{ key: "TESTFLIGHT_BUNDLE_ID", envName: "TESTFLIGHT_BUNDLE_ID", inputName: "testflight_bundle_id", displayName: "TestFlight Bundle ID" },
 	];
 
 	private readonly githubVariables: ConfigVariable[] = [
@@ -50,10 +54,19 @@ export class EnvironmentValidator {
 	 */
 	public validateEnvironment(platformConfig: PlatformConfig): EnvironmentValidationResult {
 		const coreConfig = this.validateConfigVariables(this.coreVariables);
+		const appIdentifierConfig = this.validateConfigVariables(this.appIdentifierVariables);
 		const githubConfig = this.validateConfigVariables(this.githubVariables);
 		const linearConfig = this.validateConfigVariables(this.linearVariables);
 
 		const missingCoreConfig = this.getMissingVariables(coreConfig);
+		const missingAppIdentifiers = this.getMissingVariables(appIdentifierConfig);
+		
+		// Check if at least one app identifier is present (app_id OR bundle_id)
+		const hasAppIdentifier = missingAppIdentifiers.length < this.appIdentifierVariables.length;
+		if (!hasAppIdentifier) {
+			missingCoreConfig.push("TESTFLIGHT_APP_ID_OR_BUNDLE_ID");
+		}
+
 		const platformIssues: string[] = [];
 		const platformWarnings: string[] = [];
 
@@ -99,11 +112,12 @@ export class EnvironmentValidator {
 	 */
 	public getConfigurationValues(): Record<string, unknown> {
 		const coreConfig = this.validateConfigVariables(this.coreVariables);
+		const appIdentifierConfig = this.validateConfigVariables(this.appIdentifierVariables);
 		const githubConfig = this.validateConfigVariables(this.githubVariables, true);
 		const linearConfig = this.validateConfigVariables(this.linearVariables);
 
 		return {
-			core: coreConfig,
+			core: { ...coreConfig, ...appIdentifierConfig },
 			github: githubConfig,
 			linear: linearConfig,
 		};
@@ -162,9 +176,15 @@ export class EnvironmentValidator {
 		if (missingCoreConfig.length > 0) {
 			recommendations.push("Configure required TestFlight credentials:");
 			for (const key of missingCoreConfig) {
-				const variable = this.coreVariables.find(v => v.key === key);
-				if (variable) {
-					recommendations.push(`  - Set ${variable.envName} environment variable or ${variable.inputName} in GitHub Action inputs`);
+				if (key === "TESTFLIGHT_APP_ID_OR_BUNDLE_ID") {
+					recommendations.push("  - Set either TESTFLIGHT_APP_ID (app_id input) OR TESTFLIGHT_BUNDLE_ID (testflight_bundle_id input)");
+					recommendations.push("    • App ID: Set TESTFLIGHT_APP_ID environment variable or app_id in GitHub Action inputs");
+					recommendations.push("    • Bundle ID: Set TESTFLIGHT_BUNDLE_ID environment variable or testflight_bundle_id in GitHub Action inputs");
+				} else {
+					const variable = this.coreVariables.find(v => v.key === key);
+					if (variable) {
+						recommendations.push(`  - Set ${variable.envName} environment variable or ${variable.inputName} in GitHub Action inputs`);
+					}
 				}
 			}
 		}

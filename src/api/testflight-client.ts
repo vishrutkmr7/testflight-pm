@@ -461,11 +461,11 @@ export class TestFlightClient {
 		// Case 1: Both app_id and bundle_id provided - validate consistency
 		if (providedAppId && providedBundleId) {
 			console.log(`🔍 Validating consistency between app_id: ${providedAppId} and bundle_id: ${providedBundleId}`);
-			
+
 			try {
 				// Use API as single source of truth - fetch app by bundle ID
 				const appFromBundleId = await this.findAppByBundleId(providedBundleId);
-				
+
 				if (!appFromBundleId) {
 					throw new Error(
 						`Bundle ID '${providedBundleId}' not found in App Store Connect. Please verify the bundle ID is correct and exists.`
@@ -477,7 +477,7 @@ export class TestFlightClient {
 					console.warn(`⚠️ Inconsistency detected! Provided app_id: ${providedAppId} does not match API app_id: ${appFromBundleId.id} for bundle_id: ${providedBundleId}`);
 					console.warn(`📋 App Store Connect API shows: ${appFromBundleId.attributes.name} (${appFromBundleId.attributes.bundleId})`);
 					console.warn(`🔧 Using App Store Connect API as authoritative source: ${appFromBundleId.id}`);
-					
+
 					// Use API response as authoritative (single source of truth)
 					return appFromBundleId.id;
 				}
@@ -489,11 +489,11 @@ export class TestFlightClient {
 				// If bundle ID validation fails, try to validate the app_id directly
 				console.warn(`⚠️ Bundle ID validation failed: ${error}`);
 				console.log(`🔍 Attempting to validate app_id: ${providedAppId} directly`);
-				
+
 				try {
 					// Fetch app by app_id to validate it exists and get its bundle_id
 					const appFromAppId = await this.getAppById(providedAppId);
-					
+
 					if (appFromAppId.attributes.bundleId !== providedBundleId) {
 						throw new Error(
 							`Inconsistent data: app_id '${providedAppId}' has bundle_id '${appFromAppId.attributes.bundleId}' but you provided bundle_id '${providedBundleId}'. Please check your configuration.`
@@ -514,7 +514,7 @@ export class TestFlightClient {
 		// Case 2: Only app_id provided - validate it exists
 		if (providedAppId && !providedBundleId) {
 			console.log(`🔍 Validating app_id: ${providedAppId}`);
-			
+
 			try {
 				const app = await this.getAppById(providedAppId);
 				console.log(`✅ Validated app_id ${providedAppId} - ${app.attributes.name} (${app.attributes.bundleId})`);
@@ -529,7 +529,7 @@ export class TestFlightClient {
 		// Case 3: Only bundle_id provided - resolve app_id
 		if (!providedAppId && providedBundleId) {
 			console.log(`🔍 Resolving app_id from bundle_id: ${providedBundleId}`);
-			
+
 			const app = await this.findAppByBundleId(providedBundleId);
 			if (!app) {
 				throw new Error(

@@ -279,19 +279,23 @@ export class TestFlightHealthChecker extends BaseHealthChecker {
         const client = getTestFlightClient();
 
         try {
-            // Check if app ID is configured
+            // Check if either app ID or bundle ID is configured
+            const { getEnvVar } = require("../../config/environment-loader.js");
             const appId = client.getConfiguredAppId();
-            if (!appId) {
+            const bundleId = getEnvVar("TESTFLIGHT_BUNDLE_ID", "testflight_bundle_id");
+            
+            if (!appId && !bundleId) {
                 return this.createSuccessResult(
                     "unhealthy",
                     {
                         configured: false,
-                        error: "TestFlight App ID not configured",
+                        error: "Neither TestFlight App ID nor Bundle ID configured",
                         timestamp: new Date().toISOString(),
                     },
                     [
-                        "Set TESTFLIGHT_APP_ID environment variable or app_id in GitHub Action inputs",
-                        "Verify TestFlight configuration is complete"
+                        "Set either TESTFLIGHT_APP_ID (app_id input) OR TESTFLIGHT_BUNDLE_ID (testflight_bundle_id input)",
+                        "App ID: Set TESTFLIGHT_APP_ID environment variable or app_id in GitHub Action inputs",
+                        "Bundle ID: Set TESTFLIGHT_BUNDLE_ID environment variable or testflight_bundle_id in GitHub Action inputs"
                     ]
                 );
             }
@@ -302,7 +306,9 @@ export class TestFlightHealthChecker extends BaseHealthChecker {
                 return this.createSuccessResult(
                     "unhealthy",
                     {
-                        appId,
+                        appId: appId || "not configured",
+                        bundleId: bundleId || "not configured",
+                        appIdentifierUsed: appId ? "app_id" : "bundle_id",
                         configured: true,
                         authenticated: false,
                         error: "TestFlight authentication failed",
@@ -325,7 +331,9 @@ export class TestFlightHealthChecker extends BaseHealthChecker {
             return this.createSuccessResult(
                 "healthy",
                 {
-                    appId,
+                    appId: appId || "not configured",
+                    bundleId: bundleId || "not configured",
+                    appIdentifierUsed: appId ? "app_id" : "bundle_id",
                     configured: true,
                     authenticated: true,
                     rateLimitInfo: rateLimitInfo || "No rate limit data available",
@@ -630,6 +638,7 @@ export class EnvironmentConfigurationHealthChecker extends BaseHealthChecker {
                 TESTFLIGHT_KEY_ID: !!getEnvVar("TESTFLIGHT_KEY_ID", "testflight_key_id"),
                 TESTFLIGHT_PRIVATE_KEY: !!getEnvVar("TESTFLIGHT_PRIVATE_KEY", "testflight_private_key"),
                 TESTFLIGHT_APP_ID: !!getEnvVar("TESTFLIGHT_APP_ID", "app_id"),
+                TESTFLIGHT_BUNDLE_ID: !!getEnvVar("TESTFLIGHT_BUNDLE_ID", "testflight_bundle_id"),
 
                 // Show detailed status for debugging - but only for troubleshooting, not for determining final status
                 "TESTFLIGHT_ISSUER_ID (env)": process.env.TESTFLIGHT_ISSUER_ID ? "present" : "missing",
@@ -640,6 +649,8 @@ export class EnvironmentConfigurationHealthChecker extends BaseHealthChecker {
                 "INPUT_TESTFLIGHT_PRIVATE_KEY": process.env.INPUT_TESTFLIGHT_PRIVATE_KEY ? "present" : "missing",
                 "TESTFLIGHT_APP_ID (env)": process.env.TESTFLIGHT_APP_ID ? "present" : "missing",
                 "INPUT_APP_ID": process.env.INPUT_APP_ID ? "present" : "missing",
+                "TESTFLIGHT_BUNDLE_ID (env)": process.env.TESTFLIGHT_BUNDLE_ID ? "present" : "missing",
+                "INPUT_TESTFLIGHT_BUNDLE_ID": process.env.INPUT_TESTFLIGHT_BUNDLE_ID ? "present" : "missing",
             },
             github: {
                 GTHB_TOKEN: !!getEnvVar("GTHB_TOKEN", "gthb_token"),
@@ -662,12 +673,17 @@ export class EnvironmentConfigurationHealthChecker extends BaseHealthChecker {
         const coreConfigs = [
             { name: "TESTFLIGHT_ISSUER_ID", inputName: "testflight_issuer_id" },
             { name: "TESTFLIGHT_KEY_ID", inputName: "testflight_key_id" },
-            { name: "TESTFLIGHT_PRIVATE_KEY", inputName: "testflight_private_key" },
-            { name: "TESTFLIGHT_APP_ID", inputName: "app_id" }
+            { name: "TESTFLIGHT_PRIVATE_KEY", inputName: "testflight_private_key" }
+        ];
+
+        const appIdentifierConfigs = [
+            { name: "TESTFLIGHT_APP_ID", inputName: "app_id" },
+            { name: "TESTFLIGHT_BUNDLE_ID", inputName: "testflight_bundle_id" }
         ];
 
         const status: Record<string, string> = {};
 
+        // Process core configs (required)
         for (const config of coreConfigs) {
             const value = getEnvVar(config.name, config.inputName);
             const directEnv = process.env[config.name];
@@ -686,6 +702,29 @@ export class EnvironmentConfigurationHealthChecker extends BaseHealthChecker {
                 status[`    GitHub input INPUT_${config.inputName.toUpperCase().replace(/-/g, "_")}`] = inputEnv ? "present" : "missing";
                 status[`    getEnvVar result`] = value ? `"${value.substring(0, 10)}..."` : "undefined";
             }
+        }
+
+        // Process app identifier configs (at least one required)
+        const availableAppIds = [];
+        for (const config of appIdentifierConfigs) {
+            const value = getEnvVar(config.name, config.inputName);
+            const directEnv = process.env[config.name];
+
+            const isValid = value && value.trim() !== "";
+            if (isValid) {
+                availableAppIds.push(config.name);
+                const source = directEnv ? "direct env" : "GitHub Action input";
+                status[`✅ ${config.name}`] = `present (${source})`;
+            } else {
+                status[`⚪ ${config.name}`] = "not configured (optional if other app identifier present)";
+            }
+        }
+
+        // Check if at least one app identifier is present
+        if (availableAppIds.length === 0) {
+            status["❌ APP_IDENTIFIER_REQUIRED"] = "Either TESTFLIGHT_APP_ID or TESTFLIGHT_BUNDLE_ID must be provided";
+        } else {
+            status["✅ APP_IDENTIFIER_PRESENT"] = `Using: ${availableAppIds.join(", ")}`;
         }
 
         return status;

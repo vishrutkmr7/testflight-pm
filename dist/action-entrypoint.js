@@ -48613,8 +48613,11 @@ class EnvironmentValidator {
   coreVariables = [
     { key: "TESTFLIGHT_ISSUER_ID", envName: "TESTFLIGHT_ISSUER_ID", inputName: "testflight_issuer_id", displayName: "TestFlight Issuer ID" },
     { key: "TESTFLIGHT_KEY_ID", envName: "TESTFLIGHT_KEY_ID", inputName: "testflight_key_id", displayName: "TestFlight Key ID" },
-    { key: "TESTFLIGHT_PRIVATE_KEY", envName: "TESTFLIGHT_PRIVATE_KEY", inputName: "testflight_private_key", displayName: "TestFlight Private Key" },
-    { key: "TESTFLIGHT_APP_ID", envName: "TESTFLIGHT_APP_ID", inputName: "app_id", displayName: "TestFlight App ID" }
+    { key: "TESTFLIGHT_PRIVATE_KEY", envName: "TESTFLIGHT_PRIVATE_KEY", inputName: "testflight_private_key", displayName: "TestFlight Private Key" }
+  ];
+  appIdentifierVariables = [
+    { key: "TESTFLIGHT_APP_ID", envName: "TESTFLIGHT_APP_ID", inputName: "app_id", displayName: "TestFlight App ID" },
+    { key: "TESTFLIGHT_BUNDLE_ID", envName: "TESTFLIGHT_BUNDLE_ID", inputName: "testflight_bundle_id", displayName: "TestFlight Bundle ID" }
   ];
   githubVariables = [
     { key: "GTHB_TOKEN", envName: "GTHB_TOKEN", inputName: "gthb_token", displayName: "GitHub Token" },
@@ -48627,9 +48630,15 @@ class EnvironmentValidator {
   ];
   validateEnvironment(platformConfig) {
     const coreConfig = this.validateConfigVariables(this.coreVariables);
+    const appIdentifierConfig = this.validateConfigVariables(this.appIdentifierVariables);
     const githubConfig = this.validateConfigVariables(this.githubVariables);
     const linearConfig = this.validateConfigVariables(this.linearVariables);
     const missingCoreConfig = this.getMissingVariables(coreConfig);
+    const missingAppIdentifiers = this.getMissingVariables(appIdentifierConfig);
+    const hasAppIdentifier = missingAppIdentifiers.length < this.appIdentifierVariables.length;
+    if (!hasAppIdentifier) {
+      missingCoreConfig.push("TESTFLIGHT_APP_ID_OR_BUNDLE_ID");
+    }
     const platformIssues = [];
     const platformWarnings = [];
     if (platformConfig.requiresGitHub) {
@@ -48666,10 +48675,11 @@ class EnvironmentValidator {
   }
   getConfigurationValues() {
     const coreConfig = this.validateConfigVariables(this.coreVariables);
+    const appIdentifierConfig = this.validateConfigVariables(this.appIdentifierVariables);
     const githubConfig = this.validateConfigVariables(this.githubVariables, true);
     const linearConfig = this.validateConfigVariables(this.linearVariables);
     return {
-      core: coreConfig,
+      core: { ...coreConfig, ...appIdentifierConfig },
       github: githubConfig,
       linear: linearConfig
     };
@@ -48701,9 +48711,15 @@ class EnvironmentValidator {
     if (missingCoreConfig.length > 0) {
       recommendations.push("Configure required TestFlight credentials:");
       for (const key of missingCoreConfig) {
-        const variable = this.coreVariables.find((v) => v.key === key);
-        if (variable) {
-          recommendations.push(`  - Set ${variable.envName} environment variable or ${variable.inputName} in GitHub Action inputs`);
+        if (key === "TESTFLIGHT_APP_ID_OR_BUNDLE_ID") {
+          recommendations.push("  - Set either TESTFLIGHT_APP_ID (app_id input) OR TESTFLIGHT_BUNDLE_ID (testflight_bundle_id input)");
+          recommendations.push("    • App ID: Set TESTFLIGHT_APP_ID environment variable or app_id in GitHub Action inputs");
+          recommendations.push("    • Bundle ID: Set TESTFLIGHT_BUNDLE_ID environment variable or testflight_bundle_id in GitHub Action inputs");
+        } else {
+          const variable = this.coreVariables.find((v) => v.key === key);
+          if (variable) {
+            recommendations.push(`  - Set ${variable.envName} environment variable or ${variable.inputName} in GitHub Action inputs`);
+          }
         }
       }
     }
@@ -48966,21 +48982,26 @@ class TestFlightHealthChecker extends BaseHealthChecker {
   async performCheck() {
     const client = getTestFlightClient();
     try {
+      const { getEnvVar: getEnvVar2 } = (init_environment_loader(), __toCommonJS(exports_environment_loader));
       const appId = client.getConfiguredAppId();
-      if (!appId) {
+      const bundleId = getEnvVar2("TESTFLIGHT_BUNDLE_ID", "testflight_bundle_id");
+      if (!appId && !bundleId) {
         return this.createSuccessResult("unhealthy", {
           configured: false,
-          error: "TestFlight App ID not configured",
+          error: "Neither TestFlight App ID nor Bundle ID configured",
           timestamp: new Date().toISOString()
         }, [
-          "Set TESTFLIGHT_APP_ID environment variable or app_id in GitHub Action inputs",
-          "Verify TestFlight configuration is complete"
+          "Set either TESTFLIGHT_APP_ID (app_id input) OR TESTFLIGHT_BUNDLE_ID (testflight_bundle_id input)",
+          "App ID: Set TESTFLIGHT_APP_ID environment variable or app_id in GitHub Action inputs",
+          "Bundle ID: Set TESTFLIGHT_BUNDLE_ID environment variable or testflight_bundle_id in GitHub Action inputs"
         ]);
       }
       const isAuthenticated = await client.testAuthentication();
       if (!isAuthenticated) {
         return this.createSuccessResult("unhealthy", {
-          appId,
+          appId: appId || "not configured",
+          bundleId: bundleId || "not configured",
+          appIdentifierUsed: appId ? "app_id" : "bundle_id",
           configured: true,
           authenticated: false,
           error: "TestFlight authentication failed",
@@ -48994,7 +49015,9 @@ class TestFlightHealthChecker extends BaseHealthChecker {
       const rateLimitInfo = client.getRateLimitInfo();
       const recommendations = rateLimitInfo?.remaining && rateLimitInfo.remaining < 10 ? ["TestFlight rate limit running low"] : [];
       return this.createSuccessResult("healthy", {
-        appId,
+        appId: appId || "not configured",
+        bundleId: bundleId || "not configured",
+        appIdentifierUsed: appId ? "app_id" : "bundle_id",
         configured: true,
         authenticated: true,
         rateLimitInfo: rateLimitInfo || "No rate limit data available",
@@ -49215,6 +49238,7 @@ class EnvironmentConfigurationHealthChecker extends BaseHealthChecker {
         TESTFLIGHT_KEY_ID: !!getEnvVar2("TESTFLIGHT_KEY_ID", "testflight_key_id"),
         TESTFLIGHT_PRIVATE_KEY: !!getEnvVar2("TESTFLIGHT_PRIVATE_KEY", "testflight_private_key"),
         TESTFLIGHT_APP_ID: !!getEnvVar2("TESTFLIGHT_APP_ID", "app_id"),
+        TESTFLIGHT_BUNDLE_ID: !!getEnvVar2("TESTFLIGHT_BUNDLE_ID", "testflight_bundle_id"),
         "TESTFLIGHT_ISSUER_ID (env)": process.env.TESTFLIGHT_ISSUER_ID ? "present" : "missing",
         INPUT_TESTFLIGHT_ISSUER_ID: process.env.INPUT_TESTFLIGHT_ISSUER_ID ? "present" : "missing",
         "TESTFLIGHT_KEY_ID (env)": process.env.TESTFLIGHT_KEY_ID ? "present" : "missing",
@@ -49222,7 +49246,9 @@ class EnvironmentConfigurationHealthChecker extends BaseHealthChecker {
         "TESTFLIGHT_PRIVATE_KEY (env)": process.env.TESTFLIGHT_PRIVATE_KEY ? "present" : "missing",
         INPUT_TESTFLIGHT_PRIVATE_KEY: process.env.INPUT_TESTFLIGHT_PRIVATE_KEY ? "present" : "missing",
         "TESTFLIGHT_APP_ID (env)": process.env.TESTFLIGHT_APP_ID ? "present" : "missing",
-        INPUT_APP_ID: process.env.INPUT_APP_ID ? "present" : "missing"
+        INPUT_APP_ID: process.env.INPUT_APP_ID ? "present" : "missing",
+        "TESTFLIGHT_BUNDLE_ID (env)": process.env.TESTFLIGHT_BUNDLE_ID ? "present" : "missing",
+        INPUT_TESTFLIGHT_BUNDLE_ID: process.env.INPUT_TESTFLIGHT_BUNDLE_ID ? "present" : "missing"
       },
       github: {
         GTHB_TOKEN: !!getEnvVar2("GTHB_TOKEN", "gthb_token"),
@@ -49242,8 +49268,11 @@ class EnvironmentConfigurationHealthChecker extends BaseHealthChecker {
     const coreConfigs = [
       { name: "TESTFLIGHT_ISSUER_ID", inputName: "testflight_issuer_id" },
       { name: "TESTFLIGHT_KEY_ID", inputName: "testflight_key_id" },
-      { name: "TESTFLIGHT_PRIVATE_KEY", inputName: "testflight_private_key" },
-      { name: "TESTFLIGHT_APP_ID", inputName: "app_id" }
+      { name: "TESTFLIGHT_PRIVATE_KEY", inputName: "testflight_private_key" }
+    ];
+    const appIdentifierConfigs = [
+      { name: "TESTFLIGHT_APP_ID", inputName: "app_id" },
+      { name: "TESTFLIGHT_BUNDLE_ID", inputName: "testflight_bundle_id" }
     ];
     const status = {};
     for (const config of coreConfigs) {
@@ -49260,6 +49289,24 @@ class EnvironmentConfigurationHealthChecker extends BaseHealthChecker {
         status[`    GitHub input INPUT_${config.inputName.toUpperCase().replace(/-/g, "_")}`] = inputEnv ? "present" : "missing";
         status[`    getEnvVar result`] = value ? `"${value.substring(0, 10)}..."` : "undefined";
       }
+    }
+    const availableAppIds = [];
+    for (const config of appIdentifierConfigs) {
+      const value = getEnvVar2(config.name, config.inputName);
+      const directEnv = process.env[config.name];
+      const isValid = value && value.trim() !== "";
+      if (isValid) {
+        availableAppIds.push(config.name);
+        const source = directEnv ? "direct env" : "GitHub Action input";
+        status[`✅ ${config.name}`] = `present (${source})`;
+      } else {
+        status[`⚪ ${config.name}`] = "not configured (optional if other app identifier present)";
+      }
+    }
+    if (availableAppIds.length === 0) {
+      status["❌ APP_IDENTIFIER_REQUIRED"] = "Either TESTFLIGHT_APP_ID or TESTFLIGHT_BUNDLE_ID must be provided";
+    } else {
+      status["✅ APP_IDENTIFIER_PRESENT"] = `Using: ${availableAppIds.join(", ")}`;
     }
     return status;
   }
