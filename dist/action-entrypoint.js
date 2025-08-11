@@ -48960,15 +48960,42 @@ var Validation = {
 async function run() {
   try {
     core2.info("\uD83D\uDE80 Starting TestFlight PM Enhanced Processing");
+    const isDebugMode = core2.getBooleanInput("debug");
     core2.info("\uD83D\uDD0D Performing system health check...");
     const healthCheck = await quickHealthCheck();
+    if (isDebugMode) {
+      const monitor = getSystemHealthMonitor();
+      const detailedHealth = await monitor.checkSystemHealth();
+      core2.debug("\uD83D\uDD0D Detailed health check results:");
+      detailedHealth.components.forEach((component) => {
+        core2.debug(`  ${component.component}: ${component.status} (${component.responseTime}ms)`);
+        if (component.error) {
+          core2.debug(`    Error: ${component.error}`);
+        }
+        if (component.recommendations && component.recommendations.length > 0) {
+          core2.debug(`    Recommendations: ${component.recommendations.join(", ")}`);
+        }
+      });
+    }
     if (healthCheck.status === "unhealthy") {
+      core2.error("❌ System health check failed - detailed analysis:");
+      healthCheck.criticalIssues.forEach((issue) => core2.error(`  • ${issue}`));
+      if (isDebugMode) {
+        core2.error("\uD83D\uDC1B Debug info - All health check components:");
+        const monitor = getSystemHealthMonitor();
+        const detailedHealth = await monitor.checkSystemHealth();
+        detailedHealth.components.forEach((c) => {
+          core2.error(`  ${c.component}: ${c.status} - ${c.error || "No error"}`);
+        });
+      }
       core2.setFailed(`System health check failed: ${healthCheck.message}`);
-      core2.error(`Critical issues: ${healthCheck.criticalIssues.join(", ")}`);
       return;
     }
     if (healthCheck.status === "degraded") {
       core2.warning(`System health degraded: ${healthCheck.message}`);
+      if (isDebugMode) {
+        core2.warning("\uD83D\uDC1B Debug info - Non-critical issues identified");
+      }
     } else {
       core2.info(`✅ System health check passed: ${healthCheck.message}`);
     }
@@ -48987,7 +49014,15 @@ async function run() {
     const enableCodebaseAnalysis = core2.getBooleanInput("enable_codebase_analysis");
     const enableDuplicateDetection = core2.getBooleanInput("enable_duplicate_detection");
     const isDryRun = core2.getBooleanInput("dry_run");
-    core2.info(`\uD83D\uDD27 Configuration: LLM=${enableLLMEnhancement}, Analysis=${enableCodebaseAnalysis}, Duplicates=${enableDuplicateDetection}, DryRun=${isDryRun}`);
+    if (isDebugMode) {
+      core2.info("\uD83D\uDC1B Debug mode enabled - verbose logging active");
+      core2.debug("Environment variables check:");
+      core2.debug(`  NODE_ENV: ${"development"}`);
+      core2.debug(`  GITHUB_ACTIONS: ${process.env.GITHUB_ACTIONS}`);
+      core2.debug(`  RUNNER_OS: ${process.env.RUNNER_OS}`);
+      core2.debug(`  GITHUB_REPOSITORY: ${process.env.GITHUB_REPOSITORY}`);
+    }
+    core2.info(`\uD83D\uDD27 Configuration: LLM=${enableLLMEnhancement}, Analysis=${enableCodebaseAnalysis}, Duplicates=${enableDuplicateDetection}, DryRun=${isDryRun}, Debug=${isDebugMode}`);
     const testFlightClient = getTestFlightClient();
     const llmClient = enableLLMEnhancement ? getLLMClient() : null;
     const codebaseAnalyzer = enableCodebaseAnalysis ? getCodebaseAnalyzer() : null;
@@ -49004,11 +49039,21 @@ async function run() {
       enableCodebaseAnalysis,
       enableDuplicateDetection,
       isDryRun,
+      isDebugMode,
       llmClient,
       codebaseAnalyzer,
       serviceFactory,
       idempotencyService
     };
+    if (isDebugMode) {
+      core2.debug("\uD83D\uDD27 Workflow state initialized:");
+      core2.debug(`  TestFlight client: ${!!workflowState.testFlightClient}`);
+      core2.debug(`  LLM client: ${!!workflowState.llmClient}`);
+      core2.debug(`  Codebase analyzer: ${!!workflowState.codebaseAnalyzer}`);
+      core2.debug(`  Service factory: ${!!workflowState.serviceFactory}`);
+      core2.debug(`  Idempotency service: ${!!workflowState.idempotencyService}`);
+      core2.debug(`  Processing window: ${workflowState.processingWindow.startTime.toISOString()} to ${workflowState.processingWindow.endTime.toISOString()}`);
+    }
     core2.info("\uD83D\uDCF1 Fetching TestFlight feedback...");
     const feedbackData = await testFlightClient.getRecentFeedback(processingWindow.startTime);
     if (feedbackData.length === 0) {
@@ -49089,14 +49134,51 @@ async function run() {
       if (failureHealthCheck.criticalIssues.length > 0) {
         core2.error(`Critical issues: ${failureHealthCheck.criticalIssues.join(", ")}`);
       }
+      const monitor = getSystemHealthMonitor();
+      const detailedHealth = await monitor.checkSystemHealth();
+      core2.error("\uD83D\uDD0D Detailed component status at failure:");
+      detailedHealth.components.forEach((component) => {
+        const status = component.status === "healthy" ? "✅" : component.status === "degraded" ? "⚠️" : "❌";
+        core2.error(`  ${status} ${component.component}: ${component.status}`);
+        if (component.error) {
+          core2.error(`    \uD83D\uDCCB Error: ${component.error}`);
+        }
+        if (component.details && typeof component.details === "object") {
+          Object.entries(component.details).forEach(([key, value]) => {
+            if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+              core2.error(`    \uD83D\uDCCA ${key}: ${value}`);
+            }
+          });
+        }
+      });
     } catch (healthError) {
       core2.error(`Could not perform health check after failure: ${healthError}`);
     }
     core2.error("\uD83D\uDD0D Debugging information:");
     core2.error(`  Node.js version: ${process.version}`);
     core2.error("  Environment: development");
+    core2.error(`  Platform: ${process.env.INPUT_PLATFORM || process.env.PLATFORM || "github"}`);
+    core2.error(`  GitHub Repository: ${process.env.GITHUB_REPOSITORY || "unknown"}`);
+    core2.error(`  Runner OS: ${process.env.RUNNER_OS || "unknown"}`);
     core2.error(`  Memory usage: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`);
     core2.error(`  Uptime: ${Math.round(process.uptime())}s`);
+    const relevantEnvVars = [
+      "INPUT_TESTFLIGHT_ISSUER_ID",
+      "INPUT_TESTFLIGHT_KEY_ID",
+      "INPUT_APP_ID",
+      "INPUT_GTHB_TOKEN",
+      "INPUT_LINEAR_API_TOKEN",
+      "INPUT_LINEAR_TEAM_ID",
+      "INPUT_ENABLE_LLM_ENHANCEMENT",
+      "INPUT_ANTHROPIC_API_KEY",
+      "INPUT_OPENAI_API_KEY"
+    ];
+    core2.error("\uD83D\uDD27 Environment variable status:");
+    relevantEnvVars.forEach((envVar) => {
+      const value = process.env[envVar];
+      const status = value ? value.length > 10 ? "✅ Set (hidden)" : "✅ Set" : "❌ Missing";
+      core2.error(`  ${envVar}: ${status}`);
+    });
     core2.setFailed(errorMessage);
   }
 }
@@ -49108,11 +49190,21 @@ async function processFeedbackItem(feedback, state) {
     llmClient,
     codebaseAnalyzer,
     serviceFactory,
-    isDryRun
+    isDryRun,
+    isDebugMode
   } = state;
   let issueCreated = false;
   let issueUpdated = false;
   const _issueResult = null;
+  if (isDebugMode) {
+    core2.debug(`\uD83D\uDD0D Processing feedback item: ${feedback.id}`);
+    core2.debug(`  Type: ${feedback.type}`);
+    core2.debug(`  App Version: ${feedback.appVersion}`);
+    core2.debug(`  Build Number: ${feedback.buildNumber}`);
+    core2.debug(`  Device: ${feedback.deviceInfo.model}`);
+    core2.debug(`  OS: ${feedback.deviceInfo.osVersion}`);
+    core2.debug(`  Submitted: ${feedback.submittedAt.toISOString()}`);
+  }
   try {
     if (enableDuplicateDetection) {
       core2.info(`\uD83D\uDD0D Checking for duplicate issues for feedback: ${feedback.id}`);

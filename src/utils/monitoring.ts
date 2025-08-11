@@ -176,10 +176,10 @@ export class SystemHealthMonitor {
 				responseTime: Date.now() - startTime,
 				details: health.details,
 				recommendations:
-					health.details.rateLimit && 
-					typeof health.details.rateLimit === 'object' && 
-					'remaining' in health.details.rateLimit &&
-					(health.details.rateLimit as { remaining: number }).remaining < 100
+					health.details.rateLimit &&
+						typeof health.details.rateLimit === 'object' &&
+						'remaining' in health.details.rateLimit &&
+						(health.details.rateLimit as { remaining: number }).remaining < 100
 						? [
 							"GitHub rate limit running low - consider reducing request frequency",
 						]
@@ -233,7 +233,7 @@ export class SystemHealthMonitor {
 
 			// For platform "both" or "linear", Linear is optional but should be configured properly if tokens are provided
 			const isLinearExpected = platform === "linear" || platform === "both";
-			
+
 			// If no Linear token provided but Linear is expected
 			if (!linearToken) {
 				return {
@@ -299,8 +299,8 @@ export class SystemHealthMonitor {
 			const platform = (process.env.INPUT_PLATFORM || process.env.PLATFORM || "github").toLowerCase();
 
 			// If Linear is not expected (github-only platform), don't treat this as critical
-			const status = platform === "github" ? "healthy" : 
-						 platform === "both" ? "degraded" : "unhealthy";
+			const status = platform === "github" ? "healthy" :
+				platform === "both" ? "degraded" : "unhealthy";
 
 			return {
 				component: "Linear Integration",
@@ -370,7 +370,7 @@ export class SystemHealthMonitor {
 
 		try {
 			// Check if LLM enhancement is enabled via GitHub Actions input or environment
-			const llmEnabled = 
+			const llmEnabled =
 				process.env.ENABLE_LLM_ENHANCEMENT === "true" ||
 				process.env.INPUT_ENABLE_LLM_ENHANCEMENT === "true" ||
 				process.env.LLM_ENHANCEMENT === "true";
@@ -419,7 +419,7 @@ export class SystemHealthMonitor {
 					recommendations: [
 						"Provide at least one LLM provider API key:",
 						"- openai_api_key for OpenAI GPT models",
-						"- anthropic_api_key for Anthropic Claude models", 
+						"- anthropic_api_key for Anthropic Claude models",
 						"- google_api_key for Google Gemini models",
 					],
 					lastChecked: new Date().toISOString(),
@@ -593,7 +593,7 @@ export class SystemHealthMonitor {
 				const missingGitHub = Object.entries(platformConfig.github)
 					.filter(([, value]) => !value || value.trim() === "")
 					.map(([key]) => key);
-				
+
 				if (missingGitHub.length > 0) {
 					if (platform === "github") {
 						platformIssues.push(...missingGitHub.map(key => `Missing required GitHub config: ${key}`));
@@ -607,7 +607,7 @@ export class SystemHealthMonitor {
 				const missingLinear = Object.entries(platformConfig.linear)
 					.filter(([, value]) => !value || value.trim() === "")
 					.map(([key]) => key);
-				
+
 				if (missingLinear.length > 0) {
 					if (platform === "linear") {
 						platformIssues.push(...missingLinear.map(key => `Missing required Linear config: ${key}`));

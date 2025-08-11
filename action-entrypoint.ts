@@ -45,25 +45,59 @@ interface WorkflowState {
 	serviceFactory: IssueServiceFactory;
 	idempotencyService: IdempotencyService;
 	isDryRun: boolean;
+	isDebugMode: boolean;
 }
 
 async function run(): Promise<void> {
 	try {
 		// Initialize and validate system
 		core.info("🚀 Starting TestFlight PM Enhanced Processing");
+		
+		// Get debug mode early for enhanced logging
+		const isDebugMode = core.getBooleanInput("debug");
 
 		// Perform initial health check
 		core.info("🔍 Performing system health check...");
 		const healthCheck = await quickHealthCheck();
 
+		// Enhanced health check debugging
+		if (isDebugMode) {
+			const monitor = getSystemHealthMonitor();
+			const detailedHealth = await monitor.checkSystemHealth();
+			core.debug("🔍 Detailed health check results:");
+			detailedHealth.components.forEach(component => {
+				core.debug(`  ${component.component}: ${component.status} (${component.responseTime}ms)`);
+				if (component.error) {
+					core.debug(`    Error: ${component.error}`);
+				}
+				if (component.recommendations && component.recommendations.length > 0) {
+					core.debug(`    Recommendations: ${component.recommendations.join(', ')}`);
+				}
+			});
+		}
+
 		if (healthCheck.status === "unhealthy") {
+			core.error("❌ System health check failed - detailed analysis:");
+			healthCheck.criticalIssues.forEach(issue => core.error(`  • ${issue}`));
+			
+			if (isDebugMode) {
+				core.error("🐛 Debug info - All health check components:");
+				const monitor = getSystemHealthMonitor();
+				const detailedHealth = await monitor.checkSystemHealth();
+				detailedHealth.components.forEach(c => {
+					core.error(`  ${c.component}: ${c.status} - ${c.error || 'No error'}`);
+				});
+			}
+			
 			core.setFailed(`System health check failed: ${healthCheck.message}`);
-			core.error(`Critical issues: ${healthCheck.criticalIssues.join(", ")}`);
 			return;
 		}
 
 		if (healthCheck.status === "degraded") {
 			core.warning(`System health degraded: ${healthCheck.message}`);
+			if (isDebugMode) {
+				core.warning("🐛 Debug info - Non-critical issues identified");
+			}
 		} else {
 			core.info(`✅ System health check passed: ${healthCheck.message}`);
 		}
@@ -98,8 +132,18 @@ async function run(): Promise<void> {
 		);
 		const isDryRun = core.getBooleanInput("dry_run");
 
+		// Enhanced debug logging
+		if (isDebugMode) {
+			core.info("🐛 Debug mode enabled - verbose logging active");
+			core.debug("Environment variables check:");
+			core.debug(`  NODE_ENV: ${process.env.NODE_ENV}`);
+			core.debug(`  GITHUB_ACTIONS: ${process.env.GITHUB_ACTIONS}`);
+			core.debug(`  RUNNER_OS: ${process.env.RUNNER_OS}`);
+			core.debug(`  GITHUB_REPOSITORY: ${process.env.GITHUB_REPOSITORY}`);
+		}
+
 		core.info(
-			`🔧 Configuration: LLM=${enableLLMEnhancement}, Analysis=${enableCodebaseAnalysis}, Duplicates=${enableDuplicateDetection}, DryRun=${isDryRun}`,
+			`🔧 Configuration: LLM=${enableLLMEnhancement}, Analysis=${enableCodebaseAnalysis}, Duplicates=${enableDuplicateDetection}, DryRun=${isDryRun}, Debug=${isDebugMode}`,
 		);
 
 		// Initialize services
@@ -131,11 +175,23 @@ async function run(): Promise<void> {
 			enableCodebaseAnalysis,
 			enableDuplicateDetection,
 			isDryRun,
+			isDebugMode,
 			llmClient,
 			codebaseAnalyzer,
 			serviceFactory,
 			idempotencyService,
 		};
+
+		// Debug workflow state
+		if (isDebugMode) {
+			core.debug("🔧 Workflow state initialized:");
+			core.debug(`  TestFlight client: ${!!workflowState.testFlightClient}`);
+			core.debug(`  LLM client: ${!!workflowState.llmClient}`);
+			core.debug(`  Codebase analyzer: ${!!workflowState.codebaseAnalyzer}`);
+			core.debug(`  Service factory: ${!!workflowState.serviceFactory}`);
+			core.debug(`  Idempotency service: ${!!workflowState.idempotencyService}`);
+			core.debug(`  Processing window: ${workflowState.processingWindow.startTime.toISOString()} to ${workflowState.processingWindow.endTime.toISOString()}`);
+		}
 
 		// Get TestFlight feedback
 		core.info("📱 Fetching TestFlight feedback...");
@@ -260,6 +316,27 @@ async function run(): Promise<void> {
 					`Critical issues: ${failureHealthCheck.criticalIssues.join(", ")}`,
 				);
 			}
+
+			// Enhanced failure analysis with detailed health check
+			const monitor = getSystemHealthMonitor();
+			const detailedHealth = await monitor.checkSystemHealth();
+			core.error("🔍 Detailed component status at failure:");
+			detailedHealth.components.forEach(component => {
+				const status = component.status === "healthy" ? "✅" : 
+							  component.status === "degraded" ? "⚠️" : "❌";
+				core.error(`  ${status} ${component.component}: ${component.status}`);
+				if (component.error) {
+					core.error(`    📋 Error: ${component.error}`);
+				}
+				if (component.details && typeof component.details === 'object') {
+					Object.entries(component.details).forEach(([key, value]) => {
+						if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+							core.error(`    📊 ${key}: ${value}`);
+						}
+					});
+				}
+			});
+			
 		} catch (healthError) {
 			core.error(
 				`Could not perform health check after failure: ${healthError}`,
@@ -270,10 +347,26 @@ async function run(): Promise<void> {
 		core.error("🔍 Debugging information:");
 		core.error(`  Node.js version: ${process.version}`);
 		core.error(`  Environment: ${process.env.NODE_ENV || "unknown"}`);
+		core.error(`  Platform: ${process.env.INPUT_PLATFORM || process.env.PLATFORM || "github"}`);
+		core.error(`  GitHub Repository: ${process.env.GITHUB_REPOSITORY || "unknown"}`);
+		core.error(`  Runner OS: ${process.env.RUNNER_OS || "unknown"}`);
 		core.error(
 			`  Memory usage: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`,
 		);
 		core.error(`  Uptime: ${Math.round(process.uptime())}s`);
+		
+		// Debug environment variables that might be relevant
+		const relevantEnvVars = [
+			'INPUT_TESTFLIGHT_ISSUER_ID', 'INPUT_TESTFLIGHT_KEY_ID', 'INPUT_APP_ID',
+			'INPUT_GTHB_TOKEN', 'INPUT_LINEAR_API_TOKEN', 'INPUT_LINEAR_TEAM_ID',
+			'INPUT_ENABLE_LLM_ENHANCEMENT', 'INPUT_ANTHROPIC_API_KEY', 'INPUT_OPENAI_API_KEY'
+		];
+		core.error("🔧 Environment variable status:");
+		relevantEnvVars.forEach(envVar => {
+			const value = process.env[envVar];
+			const status = value ? (value.length > 10 ? "✅ Set (hidden)" : "✅ Set") : "❌ Missing";
+			core.error(`  ${envVar}: ${status}`);
+		});
 
 		core.setFailed(errorMessage);
 	}
@@ -291,11 +384,22 @@ async function processFeedbackItem(
 		codebaseAnalyzer,
 		serviceFactory,
 		isDryRun,
+		isDebugMode,
 	} = state;
 
 	let issueCreated = false;
 	let issueUpdated = false;
 	const _issueResult: unknown = null;
+
+	if (isDebugMode) {
+		core.debug(`🔍 Processing feedback item: ${feedback.id}`);
+		core.debug(`  Type: ${feedback.type}`);
+		core.debug(`  App Version: ${feedback.appVersion}`);
+		core.debug(`  Build Number: ${feedback.buildNumber}`);
+		core.debug(`  Device: ${feedback.deviceInfo.model}`);
+		core.debug(`  OS: ${feedback.deviceInfo.osVersion}`);
+		core.debug(`  Submitted: ${feedback.submittedAt.toISOString()}`);
+	}
 
 	try {
 		// Check for duplicates first
