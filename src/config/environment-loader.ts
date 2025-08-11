@@ -10,7 +10,7 @@ import * as core from "@actions/core";
  * Checks if running in GitHub Actions environment
  */
 export function isGitHubActionEnvironment(): boolean {
-    return process.env.GITHUB_ACTION === "true" || !!process.env.GITHUB_ACTIONS;
+    return process.env.GITHUB_ACTIONS === "true" || !!process.env.GITHUB_ACTION;
 }
 
 /**

@@ -1024,6 +1024,28 @@ ${request.codebaseContext.length} relevant file(s) identified for analysis.`
 			};
 		}
 
+		// If enabled but no API keys are configured, treat as degraded not unhealthy
+		const availableProviders = this.getAvailableProviders();
+		if (availableProviders.length === 0) {
+			return {
+				status: "degraded",
+				providers: {
+					openai: { available: false, authenticated: false, error: "No API key configured" },
+					anthropic: { available: false, authenticated: false, error: "No API key configured" },
+					google: { available: false, authenticated: false, error: "No API key configured" },
+				},
+				config: configValidation,
+				usage: this.usageStats,
+				costStatus: {
+					withinLimits: true,
+					remainingBudget: {
+						run: this.config.costControls.maxCostPerRun,
+						month: this.config.costControls.maxCostPerMonth,
+					},
+				},
+			};
+		}
+
 		// Mock cost check since we removed the function
 		const costCheck = {
 			withinLimits: true,
@@ -1060,6 +1082,10 @@ ${request.codebaseContext.length} relevant file(s) identified for analysis.`
 
 		providerChecks.forEach((result, index) => {
 			const providerName = selectedProviders[index];
+			if (!providerName) {
+				return;
+			} // Guard against undefined
+
 			if (result.status === "fulfilled") {
 				providers[providerName] = result.value;
 			} else {
@@ -1074,12 +1100,21 @@ ${request.codebaseContext.length} relevant file(s) identified for analysis.`
 		const healthyProviders = Object.values(providers).filter(
 			(p) => p.available && p.authenticated,
 		).length;
-		const status: LLMHealthCheck["status"] =
-			healthyProviders === 0
-				? "unhealthy"
-				: healthyProviders === 1
-					? "degraded"
-					: "healthy";
+		const totalConfiguredProviders = selectedProviders.length;
+
+		// More lenient status calculation - only unhealthy if all providers fail with serious errors
+		let status: LLMHealthCheck["status"];
+		if (healthyProviders === 0) {
+			// Check if it's just missing API keys (degraded) vs real failures (unhealthy)
+			const hasRealFailures = Object.values(providers).some(p =>
+				p.error && !p.error.includes("No API key") && !p.error.includes("API key missing")
+			);
+			status = hasRealFailures ? "unhealthy" : "degraded";
+		} else if (healthyProviders < totalConfiguredProviders) {
+			status = "degraded";
+		} else {
+			status = "healthy";
+		}
 
 		return {
 			status,

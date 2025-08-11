@@ -207,12 +207,55 @@ export class SystemHealthMonitor {
 		const startTime = Date.now();
 
 		try {
+			// Check if Linear configuration is available
+			const platform = (process.env.INPUT_PLATFORM || process.env.PLATFORM || "github").toLowerCase();
+			const linearToken = process.env.LINEAR_API_TOKEN || process.env.INPUT_LINEAR_API_TOKEN;
+
+			// If Linear is not required for this platform, treat as healthy but not configured
+			if (platform === "github") {
+				return {
+					component: "Linear Integration",
+					status: "healthy",
+					responseTime: Date.now() - startTime,
+					details: {
+						configured: false,
+						reason: "Linear not required for GitHub-only platform",
+						timestamp: new Date().toISOString(),
+					},
+					recommendations: [],
+					lastChecked: new Date().toISOString(),
+				};
+			}
+
+			// If no Linear token provided but Linear is expected, treat as degraded
+			if (!linearToken) {
+				return {
+					component: "Linear Integration",
+					status: platform === "both" ? "degraded" : "unhealthy",
+					responseTime: Date.now() - startTime,
+					details: {
+						configured: false,
+						error: "Linear API token not provided",
+						timestamp: new Date().toISOString(),
+					},
+					recommendations: [
+						"Set LINEAR_API_TOKEN environment variable",
+						"Set LINEAR_TEAM_ID environment variable",
+					],
+					lastChecked: new Date().toISOString(),
+				};
+			}
+
+			// Test actual Linear integration
 			const client = getLinearClient();
 			const health = await client.healthCheck();
 
+			// For Linear health, keep the original status from the Linear client
+			const { status } = health;
+
 			return {
 				component: "Linear Integration",
-				status: health.status,
+				status,
 				responseTime: Date.now() - startTime,
 				details: health.details,
 				recommendations:
@@ -222,9 +265,11 @@ export class SystemHealthMonitor {
 				lastChecked: new Date().toISOString(),
 			};
 		} catch (error) {
+			const platform = (process.env.INPUT_PLATFORM || process.env.PLATFORM || "github").toLowerCase();
+
 			return {
 				component: "Linear Integration",
-				status: "unhealthy",
+				status: platform === "both" ? "degraded" : "unhealthy",
 				responseTime: Date.now() - startTime,
 				error: (error as Error).message,
 				details: {},
@@ -286,14 +331,39 @@ export class SystemHealthMonitor {
 		const startTime = Date.now();
 
 		try {
+			// Check if LLM enhancement is enabled
+			const llmEnabled = process.env.ENABLE_LLM_ENHANCEMENT === "true" ||
+				process.env.INPUT_ENABLE_LLM_ENHANCEMENT === "true";
+
+			if (!llmEnabled) {
+				return {
+					component: "LLM Integration",
+					status: "healthy", // Changed from degraded to healthy when disabled
+					responseTime: Date.now() - startTime,
+					details: {
+						enabled: false,
+						reason: "LLM enhancement is disabled",
+					},
+					recommendations: [],
+					lastChecked: new Date().toISOString(),
+				};
+			}
+
 			const client = getLLMClient();
 			const health = await client.healthCheck();
 
+			// LLM issues should generally be degraded, not unhealthy, since LLM is optional
+			let { status } = health;
+			if (status === "unhealthy") {
+				status = "degraded";
+			}
+
 			return {
 				component: "LLM Integration",
-				status: health.status,
+				status,
 				responseTime: Date.now() - startTime,
 				details: {
+					enabled: true,
 					providers: health.providers,
 					usage: health.usage,
 					costStatus: health.costStatus,
@@ -312,6 +382,7 @@ export class SystemHealthMonitor {
 				details: {},
 				recommendations: [
 					"LLM integration is optional - system can operate without it",
+					"Check LLM provider API keys if enhancement is needed",
 				],
 				lastChecked: new Date().toISOString(),
 			};
@@ -398,37 +469,65 @@ export class SystemHealthMonitor {
 		const startTime = Date.now();
 
 		try {
-			// Validate environment configuration
+			// Check platform to understand what's required vs optional
+			const platform = (process.env.INPUT_PLATFORM || process.env.PLATFORM || "github").toLowerCase();
+
+			// Validate core environment configuration
 			const envConfig = {
 				NODE_ENV: process.env.NODE_ENV,
 				APP_STORE_CONNECT_ISSUER_ID: process.env.APP_STORE_CONNECT_ISSUER_ID,
 				APP_STORE_CONNECT_KEY_ID: process.env.APP_STORE_CONNECT_KEY_ID,
-				APP_STORE_CONNECT_PRIVATE_KEY:
-					process.env.APP_STORE_CONNECT_PRIVATE_KEY,
-				GTHB_TOKEN: process.env.GTHB_TOKEN,
-				LINEAR_API_TOKEN: process.env.LINEAR_API_TOKEN,
+				APP_STORE_CONNECT_PRIVATE_KEY: process.env.APP_STORE_CONNECT_PRIVATE_KEY,
 			};
 
-			const validation = Validation.environment(envConfig);
+			// Add platform-specific configurations
+			const extendedEnvConfig: Record<string, string | undefined> = { ...envConfig };
+			if (platform === "github" || platform === "both") {
+				extendedEnvConfig.GTHB_TOKEN = process.env.GTHB_TOKEN;
+			}
+			if (platform === "linear" || platform === "both") {
+				extendedEnvConfig.LINEAR_API_TOKEN = process.env.LINEAR_API_TOKEN;
+			}
 
-			// Check API secrets
+			const validation = Validation.environment(extendedEnvConfig);
+
+			// Check API secrets only for configured platforms
 			const secrets: Record<string, string> = {};
-			if (envConfig.GTHB_TOKEN) {
-				secrets.GTHB_TOKEN = envConfig.GTHB_TOKEN;
+			if ((platform === "github" || platform === "both") && process.env.GTHB_TOKEN) {
+				secrets.GTHB_TOKEN = process.env.GTHB_TOKEN;
 			}
-			if (envConfig.LINEAR_API_TOKEN) {
-				secrets.LINEAR_API_TOKEN = envConfig.LINEAR_API_TOKEN;
+			if ((platform === "linear" || platform === "both") && process.env.LINEAR_API_TOKEN) {
+				secrets.LINEAR_API_TOKEN = process.env.LINEAR_API_TOKEN;
 			}
 
-			const secretValidation = Validation.apiSecrets(secrets);
+			// Only validate secrets if we have any configured
+			let secretValidation: { valid: boolean; errors: string[]; warnings: string[]; securityRisk: "low" | "medium" | "high"; recommendations: string[] } = {
+				valid: true,
+				errors: [],
+				warnings: [],
+				securityRisk: "low",
+				recommendations: []
+			};
+			if (Object.keys(secrets).length > 0) {
+				secretValidation = Validation.apiSecrets(secrets);
+			}
 
-			const status =
-				!validation.valid || !secretValidation.valid
-					? "unhealthy"
-					: validation.warnings.length > 0 ||
-						secretValidation.warnings.length > 0
-						? "degraded"
-						: "healthy";
+			// More lenient status calculation - prioritize core functionality
+			let status: "healthy" | "degraded" | "unhealthy";
+			const coreConfigValid = envConfig.APP_STORE_CONNECT_ISSUER_ID &&
+				envConfig.APP_STORE_CONNECT_KEY_ID &&
+				envConfig.APP_STORE_CONNECT_PRIVATE_KEY;
+
+			if (!coreConfigValid) {
+				status = "unhealthy";
+			} else if (!validation.valid || !secretValidation.valid) {
+				// Secondary validation failures are degraded, not unhealthy
+				status = "degraded";
+			} else if (validation.warnings.length > 0 || secretValidation.warnings.length > 0) {
+				status = "degraded";
+			} else {
+				status = "healthy";
+			}
 
 			return {
 				component: "Environment Configuration",
@@ -436,6 +535,8 @@ export class SystemHealthMonitor {
 				responseTime: Date.now() - startTime,
 				details: {
 					environment: envConfig.NODE_ENV,
+					platform,
+					coreConfigValid,
 					validationErrors: validation.errors,
 					validationWarnings: validation.warnings,
 					securityRisk: secretValidation.securityRisk,
@@ -450,7 +551,7 @@ export class SystemHealthMonitor {
 		} catch (error) {
 			return {
 				component: "Environment Configuration",
-				status: "unhealthy",
+				status: "degraded", // Changed from unhealthy to degraded for config issues
 				responseTime: Date.now() - startTime,
 				error: (error as Error).message,
 				details: {},
