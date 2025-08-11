@@ -187,8 +187,18 @@ export function validateLLMConfig(config: LLMConfig): string[] {
         errors.push("LLM primary provider is required when LLM is enabled");
     }
 
-    // Validate provider configurations
+    // Validate only selected provider configurations
+    const selectedProviders = new Set<string>([
+        config.primaryProvider,
+        ...config.fallbackProviders
+    ]);
+
     for (const [providerName, providerConfig] of Object.entries(config.providers)) {
+        // Only validate providers that are actually selected
+        if (!selectedProviders.has(providerName)) {
+            continue;
+        }
+
         if (!providerConfig.apiKey || providerConfig.apiKey.trim().length === 0) {
             errors.push(`${providerName} API key is required`);
         }
