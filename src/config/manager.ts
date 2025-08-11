@@ -169,7 +169,7 @@ export class ConfigurationManager {
             issuerId,
             keyId,
             privateKey,
-            appId: getEnvVar("TESTFLIGHT_APP_ID", ENV_VARS.TESTFLIGHT_APP_ID),
+            appId: getRequiredEnvVar("TESTFLIGHT_APP_ID", ENV_VARS.TESTFLIGHT_APP_ID),
             bundleId: getEnvVar("TESTFLIGHT_BUNDLE_ID", ENV_VARS.TESTFLIGHT_BUNDLE_ID),
             ...DEFAULT_HTTP_CONFIG,
         };

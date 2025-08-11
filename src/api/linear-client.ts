@@ -282,6 +282,26 @@ export class LinearClient {
 	}
 
 	/**
+	 * Gets the configured team ID for health checking
+	 */
+	public getConfiguredTeamId(): string {
+		return this.config.teamId;
+	}
+
+	/**
+	 * Tests basic Linear connectivity without full team validation
+	 * Used by health checkers for lightweight connectivity testing
+	 */
+	public async testConnectivity(): Promise<boolean> {
+		try {
+			await this.getCurrentUser();
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	/**
 	 * Gets available issue statuses for the team
 	 */
 	public async getIssueStatuses(): Promise<LinearIssueStatus[]> {

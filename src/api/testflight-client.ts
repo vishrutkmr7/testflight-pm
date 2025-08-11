@@ -38,8 +38,20 @@ export class TestFlightClient {
 	private readonly defaultTimeout = DEFAULT_HTTP_CONFIG.timeout;
 	private readonly defaultRetries = DEFAULT_HTTP_CONFIG.retries;
 	private readonly defaultRetryDelay = DEFAULT_HTTP_CONFIG.retryDelay;
+	private readonly appId: string;
 
 	private rateLimitInfo: RateLimitInfo | null = null;
+
+	constructor() {
+		// Get app ID from configuration
+		const { getConfiguration } = require("../config/index.js");
+		const config = getConfiguration();
+		this.appId = config.appStoreConnect.appId;
+		
+		if (!this.appId) {
+			throw new Error("TestFlight App ID is required but not configured. Please set TESTFLIGHT_APP_ID or app_id input.");
+		}
+	}
 
 	/**
 	 * Fetches crash reports for the configured app
@@ -51,6 +63,11 @@ export class TestFlightClient {
 			limit: DEFAULT_TESTFLIGHT_CONFIG.DEFAULT_LIMIT,
 			sort: DEFAULT_TESTFLIGHT_CONFIG.DEFAULT_SORT,
 			...params,
+			// Ensure app ID filter is always applied
+			filter: {
+				app: this.appId,
+				...params?.filter,
+			},
 		};
 
 		const response = await this.makeApiRequest<
@@ -70,6 +87,11 @@ export class TestFlightClient {
 			limit: DEFAULT_TESTFLIGHT_CONFIG.DEFAULT_LIMIT,
 			sort: DEFAULT_TESTFLIGHT_CONFIG.DEFAULT_SORT,
 			...params,
+			// Ensure app ID filter is always applied
+			filter: {
+				app: this.appId,
+				...params?.filter,
+			},
 		};
 
 		const response = await this.makeApiRequest<
@@ -223,6 +245,29 @@ export class TestFlightClient {
 	public getRateLimitInfo(): RateLimitInfo | null {
 		return this.rateLimitInfo;
 	}
+
+	/**
+	 * Gets the configured app ID for health checking
+	 */
+	public getConfiguredAppId(): string | null {
+		return this.appId || null;
+	}
+
+	/**
+	 * Tests authentication without making a full API request
+	 * Used by health checkers to verify credentials
+	 */
+	public async testAuthentication(): Promise<boolean> {
+		try {
+			const authInstance = getAuthInstance();
+			await authInstance.getValidToken();
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+
 
 	/**
 	 * Makes an authenticated API request with retry logic and rate limiting

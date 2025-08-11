@@ -199,7 +199,7 @@ export class EnvironmentValidator {
 		platformWarnings: string[]
 	): string {
 		let errorMessage = "";
-		
+
 		if (missingCoreConfig.length > 0) {
 			errorMessage += `Missing core config: ${missingCoreConfig.join(", ")}. `;
 		}

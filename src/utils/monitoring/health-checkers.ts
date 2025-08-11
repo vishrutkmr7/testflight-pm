@@ -163,25 +163,71 @@ export class LinearHealthChecker extends BasePlatformAwareHealthChecker {
         }
 
         // Test actual Linear integration
-        const client = getLinearClient();
-        const health = await client.healthCheck();
+        try {
+            const client = getLinearClient();
+            const health = await client.healthCheck();
 
-        const adjustedStatus = this.adjustStatusForPlatform(health.status, platformConfig.platform);
+            const adjustedStatus = this.adjustStatusForPlatform(health.status, platformConfig.platform);
 
-        return this.createSuccessResult(
-            adjustedStatus,
-            {
-                ...health.details,
-                platform: platformConfig.platform,
-                configured: true,
-                originalStatus: health.status,
-            },
-            health.status === "unhealthy" ? [
-                "Check Linear API token configuration",
-                "Verify Linear team ID",
-                "Linear issues won't prevent GitHub integration from working"
-            ] : []
-        );
+            return this.createSuccessResult(
+                adjustedStatus,
+                {
+                    ...health.details,
+                    platform: platformConfig.platform,
+                    configured: true,
+                    originalStatus: health.status,
+                },
+                health.status === "unhealthy" ? [
+                    "Check Linear API token configuration",
+                    "Verify Linear team ID exists and you have access to it",
+                    "Linear issues won't prevent GitHub integration from working"
+                ] : []
+            );
+        } catch (error) {
+            const errorMessage = (error as Error).message;
+
+            // Enhanced error handling for specific Linear API errors
+            let specificRecommendations: string[] = [];
+            let status: "degraded" | "unhealthy" = "degraded";
+
+            if (errorMessage.includes("Entity not found: Team")) {
+                specificRecommendations = [
+                    "The configured Linear team ID does not exist or you don't have access to it",
+                    "Check your Linear team ID in your workspace settings",
+                    "Ensure your Linear API token has access to the specified team",
+                    "You can find your team ID in Linear > Settings > API"
+                ];
+                // In multi-platform mode, invalid team ID is degraded, not unhealthy
+                status = platformConfig.isMultiPlatform ? "degraded" : "unhealthy";
+            } else if (errorMessage.includes("Authentication") || errorMessage.includes("authorization")) {
+                specificRecommendations = [
+                    "Linear API token is invalid or expired",
+                    "Generate a new API token in Linear > Settings > API",
+                    "Ensure the token has the required permissions"
+                ];
+                status = platformConfig.isMultiPlatform ? "degraded" : "unhealthy";
+            } else {
+                specificRecommendations = [
+                    "Check Linear API connectivity",
+                    "Verify Linear configuration",
+                    "Check network access to Linear's API"
+                ];
+            }
+
+            const adjustedStatus = this.adjustStatusForPlatform(status, platformConfig.platform);
+
+            return this.createSuccessResult(
+                adjustedStatus,
+                {
+                    error: errorMessage,
+                    configuredTeamId: linearTeamId,
+                    platform: platformConfig.platform,
+                    configured: true,
+                    timestamp: new Date().toISOString(),
+                },
+                specificRecommendations
+            );
+        }
     }
 
     protected override createErrorResult(error: Error): HealthCheckResult {
@@ -231,20 +277,78 @@ export class TestFlightHealthChecker extends BaseHealthChecker {
 
     protected async performCheck(): Promise<HealthCheckResult> {
         const client = getTestFlightClient();
-        const rateLimitInfo = client.getRateLimitInfo();
 
-        const recommendations = rateLimitInfo?.remaining && rateLimitInfo.remaining < 10
-            ? ["TestFlight rate limit running low"]
-            : [];
+        try {
+            // Check if app ID is configured
+            const appId = client.getConfiguredAppId();
+            if (!appId) {
+                return this.createSuccessResult(
+                    "unhealthy",
+                    {
+                        configured: false,
+                        error: "TestFlight App ID not configured",
+                        timestamp: new Date().toISOString(),
+                    },
+                    [
+                        "Set TESTFLIGHT_APP_ID environment variable or app_id in GitHub Action inputs",
+                        "Verify TestFlight configuration is complete"
+                    ]
+                );
+            }
 
-        return this.createSuccessResult(
-            "healthy",
-            {
-                rateLimitInfo: rateLimitInfo || "No rate limit data available",
-                configured: true,
-            },
-            recommendations
-        );
+            // Test authentication
+            const isAuthenticated = await client.testAuthentication();
+            if (!isAuthenticated) {
+                return this.createSuccessResult(
+                    "unhealthy",
+                    {
+                        appId,
+                        configured: true,
+                        authenticated: false,
+                        error: "TestFlight authentication failed",
+                        timestamp: new Date().toISOString(),
+                    },
+                    [
+                        "Check App Store Connect credentials",
+                        "Verify TESTFLIGHT_ISSUER_ID, TESTFLIGHT_KEY_ID, and TESTFLIGHT_PRIVATE_KEY",
+                        "Ensure credentials have TestFlight access permissions"
+                    ]
+                );
+            }
+
+            // Check rate limits
+            const rateLimitInfo = client.getRateLimitInfo();
+            const recommendations = rateLimitInfo?.remaining && rateLimitInfo.remaining < 10
+                ? ["TestFlight rate limit running low"]
+                : [];
+
+            return this.createSuccessResult(
+                "healthy",
+                {
+                    appId,
+                    configured: true,
+                    authenticated: true,
+                    rateLimitInfo: rateLimitInfo || "No rate limit data available",
+                    timestamp: new Date().toISOString(),
+                },
+                recommendations
+            );
+
+        } catch (error) {
+            return this.createSuccessResult(
+                "unhealthy",
+                {
+                    configured: false,
+                    error: (error as Error).message,
+                    timestamp: new Date().toISOString(),
+                },
+                [
+                    "Check TestFlight configuration",
+                    "Verify App Store Connect credentials",
+                    "Check network connectivity to Apple's APIs"
+                ]
+            );
+        }
     }
 
     protected override createErrorResult(error: Error): HealthCheckResult {
@@ -259,6 +363,7 @@ export class TestFlightHealthChecker extends BaseHealthChecker {
             recommendations: [
                 "Check App Store Connect credentials",
                 "Verify TestFlight API connectivity",
+                "Ensure TestFlight configuration is complete"
             ],
             lastChecked: new Date().toISOString(),
         };
@@ -520,13 +625,13 @@ export class EnvironmentConfigurationHealthChecker extends BaseHealthChecker {
 
         return {
             core: {
-                // Check both direct env vars and GitHub Action inputs
+                // Use getEnvVar consistently - this is the authoritative source
                 TESTFLIGHT_ISSUER_ID: !!getEnvVar("TESTFLIGHT_ISSUER_ID", "testflight_issuer_id"),
                 TESTFLIGHT_KEY_ID: !!getEnvVar("TESTFLIGHT_KEY_ID", "testflight_key_id"),
                 TESTFLIGHT_PRIVATE_KEY: !!getEnvVar("TESTFLIGHT_PRIVATE_KEY", "testflight_private_key"),
                 TESTFLIGHT_APP_ID: !!getEnvVar("TESTFLIGHT_APP_ID", "app_id"),
 
-                // Show detailed status for debugging
+                // Show detailed status for debugging - but only for troubleshooting, not for determining final status
                 "TESTFLIGHT_ISSUER_ID (env)": process.env.TESTFLIGHT_ISSUER_ID ? "present" : "missing",
                 "INPUT_TESTFLIGHT_ISSUER_ID": process.env.INPUT_TESTFLIGHT_ISSUER_ID ? "present" : "missing",
                 "TESTFLIGHT_KEY_ID (env)": process.env.TESTFLIGHT_KEY_ID ? "present" : "missing",
@@ -553,7 +658,7 @@ export class EnvironmentConfigurationHealthChecker extends BaseHealthChecker {
 
     private getDetailedConfigurationStatus(): Record<string, string> {
         const { getEnvVar } = require("../../config/environment-loader.js");
-        
+
         const coreConfigs = [
             { name: "TESTFLIGHT_ISSUER_ID", inputName: "testflight_issuer_id" },
             { name: "TESTFLIGHT_KEY_ID", inputName: "testflight_key_id" },
@@ -562,26 +667,27 @@ export class EnvironmentConfigurationHealthChecker extends BaseHealthChecker {
         ];
 
         const status: Record<string, string> = {};
-        
+
         for (const config of coreConfigs) {
             const value = getEnvVar(config.name, config.inputName);
             const directEnv = process.env[config.name];
             const inputEnv = process.env[`INPUT_${config.inputName.toUpperCase().replace(/-/g, "_")}`];
-            
+
             // Enhanced debugging to show actual values and validation logic
-            const actualValue = value ? (value.trim() || "EMPTY_STRING") : "UNDEFINED";
             const isValid = value && value.trim() !== "";
-            
+
             if (isValid) {
-                status[`✅ ${config.name}`] = directEnv ? "present (direct)" : "present (from input)";
+                const source = directEnv ? "direct env" : "GitHub Action input";
+                status[`✅ ${config.name}`] = `present (${source})`;
             } else {
-                status[`❌ ${config.name}`] = `missing (actual value: "${actualValue}")`;
-                status[`    env ${config.name}`] = directEnv ? `"${directEnv.substring(0, 10)}..."` : "missing";
-                status[`    input INPUT_${config.inputName.toUpperCase().replace(/-/g, "_")}`] = inputEnv ? `"${inputEnv.substring(0, 10)}..."` : "missing";
-                status[`    getEnvVar result`] = `"${actualValue}"`;
+                // Show debugging info for troubleshooting
+                status[`❌ ${config.name}`] = "missing from both direct env and GitHub inputs";
+                status[`    Direct env ${config.name}`] = directEnv ? "present" : "missing";
+                status[`    GitHub input INPUT_${config.inputName.toUpperCase().replace(/-/g, "_")}`] = inputEnv ? "present" : "missing";
+                status[`    getEnvVar result`] = value ? `"${value.substring(0, 10)}..."` : "undefined";
             }
         }
-        
+
         return status;
     }
 }
