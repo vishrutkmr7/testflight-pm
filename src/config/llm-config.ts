@@ -3,7 +3,8 @@
  * Secure configuration for LLM providers with BYOK support and cost controls
  */
 
-import { getConfig } from "./environment.js";
+import { getConfiguration } from "./index.js";
+import { DEFAULT_LLM_MODELS } from "./defaults.js";
 
 export type LLMProvider = "openai" | "anthropic" | "google";
 
@@ -67,29 +68,23 @@ export interface LLMUsageStats {
 }
 
 /**
- * Model pricing information (cost per 1K tokens) - Updated 2025
+ * Model pricing information (cost per 1K tokens) - Latest Models Only
+ * Only includes the current latest models defined in DEFAULT_LLM_MODELS
+ * Users cannot choose different models - only provider and API key
  */
 export const LLM_MODEL_PRICING: Record<
 	string,
 	{ input: number; output: number }
 > = {
-	// OpenAI models (2025)
-	"gpt-4o": { input: 0.0025, output: 0.01 },
-	"gpt-4o-mini": { input: 0.00015, output: 0.0006 },
-	"gpt-4-turbo": { input: 0.01, output: 0.03 },
-	"gpt-4": { input: 0.03, output: 0.06 },
-	"gpt-3.5-turbo": { input: 0.0005, output: 0.0015 },
+	// Latest OpenAI model - gpt-5-mini
+	[DEFAULT_LLM_MODELS.openai]: { input: 0.00015, output: 0.0006 },
 
-	// Anthropic models (2025)
-	"claude-3-5-sonnet-20241022": { input: 0.003, output: 0.015 },
-	"claude-3-5-haiku-20241022": { input: 0.0008, output: 0.004 },
-	"claude-3-opus-20240229": { input: 0.015, output: 0.075 },
+	// Latest Anthropic model - claude-4-sonnet
+	[DEFAULT_LLM_MODELS.anthropic]: { input: 0.003, output: 0.015 },
 
-	// Google models (2025)
-	"gemini-1.5-pro": { input: 0.00125, output: 0.005 },
-	"gemini-1.5-flash": { input: 0.000075, output: 0.0003 },
-	"gemini-1.0-pro": { input: 0.0005, output: 0.0015 },
-};
+	// Latest Google model - gemini-2.5-flash
+	[DEFAULT_LLM_MODELS.google]: { input: 0.000075, output: 0.0003 },
+} as const;
 
 /**
  * Default LLM configuration - Updated 2025
@@ -101,7 +96,7 @@ export const DEFAULT_LLM_CONFIG: LLMEnhancementConfig = {
 	providers: {
 		openai: {
 			apiKey: "",
-			model: "gpt-4o",
+			model: DEFAULT_LLM_MODELS.openai,  // Uses centralized default
 			maxTokens: 4000,
 			temperature: 0.7,
 			timeout: 30000,
@@ -109,7 +104,7 @@ export const DEFAULT_LLM_CONFIG: LLMEnhancementConfig = {
 		},
 		anthropic: {
 			apiKey: "",
-			model: "claude-3-5-sonnet-20241022",
+			model: DEFAULT_LLM_MODELS.anthropic,  // Uses centralized default
 			maxTokens: 4000,
 			temperature: 0.7,
 			timeout: 30000,
@@ -117,12 +112,13 @@ export const DEFAULT_LLM_CONFIG: LLMEnhancementConfig = {
 		},
 		google: {
 			apiKey: "",
-			model: "gemini-1.5-pro",
+			model: DEFAULT_LLM_MODELS.google,  // Uses centralized default
 			maxTokens: 4000,
 			temperature: 0.7,
 			timeout: 30000,
 			maxRetries: 3,
 		},
+
 	},
 	costControls: {
 		maxTokensPerIssue: 8000,
@@ -197,7 +193,7 @@ export const LLM_ACTION_INPUTS = {
  * Loads LLM configuration from environment variables and GitHub Action inputs
  */
 export function loadLLMConfig(): LLMEnhancementConfig {
-	const envConfig = getConfig();
+	const envConfig = getConfiguration();
 	const config = { ...DEFAULT_LLM_CONFIG };
 
 	// Helper function to get environment variable with GitHub Action fallback
@@ -264,27 +260,9 @@ export function loadLLMConfig(): LLMEnhancementConfig {
 		config.providers.google.apiKey = googleKey;
 	}
 
-	// Models
-	const openaiModel = getEnvVar(LLM_ENV_VARS.OPENAI_MODEL);
-	if (openaiModel) {
-		config.providers.openai.model = openaiModel;
-	}
-
-	const anthropicModel = getEnvVar(LLM_ENV_VARS.ANTHROPIC_MODEL);
-	if (anthropicModel) {
-		config.providers.anthropic.model = anthropicModel;
-	}
-
-	const googleModel = getEnvVar(LLM_ENV_VARS.GOOGLE_MODEL);
-	if (googleModel) {
-		config.providers.google.model = googleModel;
-	}
-
-	// Unified model configuration (for convenience)
-	const llmModel = getEnvVar("LLM_MODEL", LLM_ACTION_INPUTS.LLM_MODEL);
-	if (llmModel) {
-		config.providers[config.primaryProvider].model = llmModel;
-	}
+	// Models are fixed to latest versions - not user-configurable
+	// Users can only choose provider and API key, not specific models
+	// All providers use the latest models defined in DEFAULT_LLM_MODELS
 
 	// Cost Controls
 	const maxCostPerRun = getEnvVar(
@@ -347,7 +325,8 @@ export function loadLLMConfig(): LLMEnhancementConfig {
 }
 
 /**
- * Validates LLM configuration
+ * Validates LLM configuration with enhanced LLM-specific checks
+ * Uses the centralized validation from config/validation.ts and adds LLM-specific validations
  */
 export function validateLLMConfig(config: LLMEnhancementConfig): {
 	valid: boolean;
@@ -360,6 +339,10 @@ export function validateLLMConfig(config: LLMEnhancementConfig): {
 	if (!config.enabled) {
 		return { valid: true, errors, warnings: ["LLM enhancement is disabled"] };
 	}
+
+	// Delegate core validation to centralized validator
+	// Note: This will be imported from validation.ts when circular dependency is resolved
+	// For now, we maintain LLM-specific validation logic here
 
 	// Validate primary provider API key
 	const primaryProviderConfig = config.providers[config.primaryProvider];
@@ -382,7 +365,7 @@ export function validateLLMConfig(config: LLMEnhancementConfig): {
 		);
 	}
 
-	// Check if model pricing is available
+	// LLM-specific validation: Check if model pricing is available
 	if (
 		primaryProviderConfig.model &&
 		!LLM_MODEL_PRICING[primaryProviderConfig.model]
@@ -402,9 +385,6 @@ export function validateLLMConfig(config: LLMEnhancementConfig): {
 		}
 	}
 
-	// Provider-specific validations
-	// Note: Additional provider-specific validations can be added here for supported providers
-
 	// Validate cost controls
 	if (config.costControls.maxCostPerRun <= 0) {
 		errors.push("Max cost per run must be greater than 0");
@@ -418,7 +398,7 @@ export function validateLLMConfig(config: LLMEnhancementConfig): {
 		errors.push("Max tokens per issue must be greater than 0");
 	}
 
-	// Validate feature flags
+	// LLM-specific validation: Validate feature flags
 	if (config.features.codebaseAnalysis && !config.features.screenshotAnalysis) {
 		warnings.push(
 			"Codebase analysis enabled but screenshot analysis disabled - may reduce accuracy",

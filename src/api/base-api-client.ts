@@ -4,7 +4,7 @@
  * Implements DRY and SOLID principles for API client architecture
  */
 
-import { HTTP_CONFIG } from "../config/constants.js";
+import { DEFAULT_HTTP_CONFIG } from "../config/index.js";
 
 export interface ApiRequestConfig {
 	method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
@@ -56,9 +56,9 @@ export abstract class BaseApiClient {
 
 	protected constructor(
 		baseUrl: string,
-		timeout: number = HTTP_CONFIG.DEFAULT_TIMEOUT,
-		retries: number = HTTP_CONFIG.DEFAULT_RETRIES,
-		retryDelay: number = HTTP_CONFIG.DEFAULT_RETRY_DELAY,
+		timeout: number = DEFAULT_HTTP_CONFIG.timeout,
+		retries: number = DEFAULT_HTTP_CONFIG.retries,
+		retryDelay: number = DEFAULT_HTTP_CONFIG.retryDelay,
 	) {
 		this.baseUrl = baseUrl;
 		this.defaultTimeout = timeout;

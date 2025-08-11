@@ -17,11 +17,11 @@ import type {
 } from "../../types/linear.js";
 import type { ProcessedFeedbackData } from "../../types/testflight.js";
 import {
-	DEFAULT_LABELS,
+	DEFAULT_LABEL_CONFIG,
 	ERROR_MESSAGES,
 	PRIORITY_LEVELS,
-} from "../config/constants.js";
-import { getConfig } from "../config/environment.js";
+	getConfiguration,
+} from "../config/index.js";
 
 /**
  * Linear API Client with official SDK integration, rate limiting awareness, and secure configuration
@@ -32,7 +32,7 @@ export class LinearClient {
 	private teamCache: LinearTeam | null = null;
 
 	constructor() {
-		const envConfig = getConfig();
+		const envConfig = getConfiguration();
 
 		if (!envConfig.linear) {
 			throw new Error(ERROR_MESSAGES.LINEAR_CONFIG_MISSING);
@@ -42,9 +42,9 @@ export class LinearClient {
 			apiToken: envConfig.linear.apiToken,
 			teamId: envConfig.linear.teamId,
 			defaultPriority: PRIORITY_LEVELS.NORMAL,
-			defaultLabels: [...DEFAULT_LABELS.BASE],
-			crashLabels: [...DEFAULT_LABELS.CRASH],
-			feedbackLabels: [...DEFAULT_LABELS.FEEDBACK],
+			defaultLabels: [...DEFAULT_LABEL_CONFIG.defaultLabels],
+			crashLabels: [...DEFAULT_LABEL_CONFIG.crashLabels],
+			feedbackLabels: [...DEFAULT_LABEL_CONFIG.feedbackLabels],
 			enableDuplicateDetection: true,
 			duplicateDetectionDays: 7,
 		};
@@ -176,43 +176,43 @@ export class LinearClient {
 			const issueForComment: LinearIssue = issueBasic
 				? await this.convertToLinearIssue(issueBasic)
 				: {
+					id: "unknown",
+					identifier: "unknown",
+					title: "Unknown Issue",
+					description: "",
+					url: "",
+					priority: 3,
+					state: {
 						id: "unknown",
-						identifier: "unknown",
-						title: "Unknown Issue",
+						name: "Unknown",
 						description: "",
-						url: "",
-						priority: 3,
-						state: {
-							id: "unknown",
-							name: "Unknown",
-							description: "",
-							color: "#000000",
-							position: 0,
-							type: "backlog",
-							createdAt: new Date().toISOString(),
-							updatedAt: new Date().toISOString(),
-							team,
-						},
-						assignee: undefined,
-						team,
-						labels: [],
+						color: "#000000",
+						position: 0,
+						type: "backlog",
 						createdAt: new Date().toISOString(),
 						updatedAt: new Date().toISOString(),
-						estimate: 0,
-						sortOrder: 0,
-						number: 0,
-						creator: await this.createFallbackUser(),
-						parent: undefined,
-						children: [],
-						relations: [],
-						comments: [],
-						attachments: [],
-						project: undefined,
-						cycle: undefined,
-						previousIdentifiers: [],
-						customerTicketCount: 0,
-						subscribers: [],
-					};
+						team,
+					},
+					assignee: undefined,
+					team,
+					labels: [],
+					createdAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+					estimate: 0,
+					sortOrder: 0,
+					number: 0,
+					creator: await this.createFallbackUser(),
+					parent: undefined,
+					children: [],
+					relations: [],
+					comments: [],
+					attachments: [],
+					project: undefined,
+					cycle: undefined,
+					previousIdentifiers: [],
+					customerTicketCount: 0,
+					subscribers: [],
+				};
 
 			return {
 				id: comment.id,
@@ -875,7 +875,7 @@ export function clearLinearClientInstance(): void {
  */
 export function validateLinearConfig(): boolean {
 	try {
-		const config = getConfig();
+		const config = getConfiguration();
 		return !!(config.linear?.apiToken && config.linear?.teamId);
 	} catch {
 		return false;

@@ -5,7 +5,7 @@
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { TestFlightWebhookEvent } from "../../types/testflight.js";
-import { getConfig } from "../config/environment.js";
+import { getConfiguration } from "../config/index.js";
 
 export interface WebhookRequest {
 	body: string;
@@ -22,8 +22,8 @@ export interface WebhookResponse {
 
 export interface ProcessedWebhookEvent {
 	eventType:
-		| "BETA_FEEDBACK_CRASH_SUBMISSION"
-		| "BETA_FEEDBACK_SCREENSHOT_SUBMISSION";
+	| "BETA_FEEDBACK_CRASH_SUBMISSION"
+	| "BETA_FEEDBACK_SCREENSHOT_SUBMISSION";
 	eventTime: Date;
 	feedbackId: string;
 	feedbackType: "crash" | "screenshot";
@@ -42,7 +42,7 @@ export class TestFlightWebhookReceiver {
 	private readonly maxPayloadSize = 10 * 1024 * 1024; // 10MB max payload
 
 	constructor() {
-		const config = getConfig();
+		const config = getConfiguration();
 		this.webhookSecret = config.webhook?.secret || "";
 
 		if (!this.webhookSecret) {

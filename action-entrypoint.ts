@@ -9,7 +9,7 @@ import { getCodebaseAnalyzer } from "./src/analysis/codebase-analyzer.js";
 import type { LLMClient } from "./src/api/llm-client.js";
 import { getLLMClient } from "./src/api/llm-client.js";
 import { getTestFlightClient } from "./src/api/testflight-client.js";
-import { getConfig } from "./src/config/environment.js";
+import { getConfiguration } from "./src/config/index.js";
 import type { EnhancedIssueCreationResult } from "./src/integrations/llm-enhanced-creator.js";
 import type { IdempotencyService } from "./src/utils/idempotency-service.js";
 import { getIdempotencyService } from "./src/utils/idempotency-service.js";
@@ -69,7 +69,7 @@ async function run(): Promise<void> {
 		}
 
 		// Load and validate configuration
-		const _config = getConfig();
+		const _config = getConfiguration();
 
 		// Validate configuration
 		core.info("🔧 Validating configuration...");

@@ -6,7 +6,7 @@
 import type { LinearIssue, LinearPriority } from "../../types/linear.js";
 import type { ProcessedFeedbackData } from "../../types/testflight.js";
 import { getLinearClient, validateLinearConfig } from "../api/linear-client.js";
-import { DEFAULT_LABELS } from "../config/constants.js";
+import { DEFAULT_LABEL_CONFIG } from "../config/index.js";
 
 export interface LinearIssueCreationOptions {
 	priority?: LinearPriority;
@@ -244,7 +244,7 @@ export function generateFeedbackLabels(
 
 	// Type-based labels
 	if (feedback.type === "crash") {
-		labels.push(...DEFAULT_LABELS.CRASH);
+		labels.push(...DEFAULT_LABEL_CONFIG.crashLabels);
 
 		// Severity-based labels
 		if (feedback.crashData?.exceptionType?.toLowerCase().includes("fatal")) {

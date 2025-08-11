@@ -8,7 +8,7 @@ import type { GitHubIssueCreationResult } from "../../types/github.js";
 import type { ProcessedFeedbackData } from "../../types/testflight.js";
 import { getGitHubClient } from "../api/github-client.js";
 import { getLinearClient } from "../api/linear-client.js";
-import { HTTP_CONFIG } from "../config/constants.js";
+import { DEFAULT_HTTP_CONFIG } from "../config/index.js";
 import type { LinearIssueCreationResult } from "../utils/linear-utils.js";
 import { getStateManager } from "./state-manager.js";
 
@@ -64,8 +64,8 @@ export class IdempotencyService {
 			enableStateTracking: true,
 			enableGitHubDuplicateDetection: true,
 			enableLinearDuplicateDetection: true,
-			retryAttempts: HTTP_CONFIG.DEFAULT_RETRIES,
-			retryDelayMs: HTTP_CONFIG.DEFAULT_RETRY_DELAY,
+			retryAttempts: DEFAULT_HTTP_CONFIG.retries,
+			retryDelayMs: DEFAULT_HTTP_CONFIG.retryDelay,
 			searchTimeoutMs: 10000, // 10 seconds max for duplicate search
 			confidenceThreshold: 0.7, // Minimum confidence for duplicate detection
 			...config,

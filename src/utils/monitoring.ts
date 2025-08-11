@@ -586,19 +586,37 @@ export async function quickHealthCheck(): Promise<{
 		const monitor = getSystemHealthMonitor();
 		const health = await monitor.checkSystemHealth();
 
+		// If platform is explicitly GitHub-only, don't mark Linear as critical
+		const platform = (process.env.INPUT_PLATFORM || process.env.PLATFORM || "github").toLowerCase();
 		const criticalIssues = health.components
-			.filter((c) => c.status === "unhealthy")
+			.filter((c) => {
+				if (c.status !== "unhealthy") {
+					return false;
+				}
+				if (platform === "github" && c.component === "Linear Integration") {
+					return false;
+				}
+				return true;
+			})
 			.map((c) => `${c.component}: ${c.error || "unhealthy"}`);
 
+		// Adjust overall status based on filtered critical issues
+		let adjustedStatus: "healthy" | "degraded" | "unhealthy" = health.overall;
+		if (criticalIssues.length === 0) {
+			adjustedStatus = "healthy";
+		} else if (adjustedStatus !== "unhealthy") {
+			adjustedStatus = health.overall; // keep degraded if any
+		}
+
 		let message = "System operational";
-		if (health.overall === "unhealthy") {
+		if (adjustedStatus === "unhealthy") {
 			message = `System has ${criticalIssues.length} critical issues`;
-		} else if (health.overall === "degraded") {
+		} else if (adjustedStatus === "degraded") {
 			message = `System functional with ${health.metrics.degradedComponents} warnings`;
 		}
 
 		return {
-			status: health.overall,
+			status: adjustedStatus,
 			message,
 			criticalIssues,
 		};

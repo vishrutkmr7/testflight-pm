@@ -6990,70 +6990,7 @@ var init_dist = __esm(() => {
   };
 });
 
-// src/config/constants.ts
-var API_ENDPOINTS, HTTP_CONFIG, DEFAULT_LABELS, PRIORITY_LEVELS, TESTFLIGHT_CONFIG, ERROR_MESSAGES, PATHS, VALIDATION_PATTERNS;
-var init_constants = __esm(() => {
-  API_ENDPOINTS = {
-    GITHUB: "https://api.github.com",
-    APP_STORE_CONNECT: "https://api.appstoreconnect.apple.com/v1",
-    LINEAR_GRAPHQL: "https://api.linear.app/graphql"
-  };
-  HTTP_CONFIG = {
-    DEFAULT_TIMEOUT: 30000,
-    DEFAULT_RETRIES: 3,
-    DEFAULT_RETRY_DELAY: 1000,
-    RATE_LIMIT_BUFFER: 100
-  };
-  DEFAULT_LABELS = {
-    BASE: ["testflight", "testflight-pm", "feedback"],
-    CRASH: ["bug", "crash", "urgent"],
-    FEEDBACK: ["enhancement", "user-feedback"],
-    PRIORITY: {
-      URGENT: "priority:urgent",
-      HIGH: "priority:high",
-      NORMAL: "priority:normal",
-      LOW: "priority:low"
-    },
-    PLATFORM: {
-      IOS: "platform:ios",
-      TESTFLIGHT: "testflight"
-    }
-  };
-  PRIORITY_LEVELS = {
-    URGENT: 4,
-    HIGH: 3,
-    NORMAL: 2,
-    LOW: 1
-  };
-  TESTFLIGHT_CONFIG = {
-    DEFAULT_LIMIT: 50,
-    MAX_LIMIT: 200,
-    DEFAULT_SORT: "-submittedAt",
-    FETCH_LOOKBACK_HOURS: 24
-  };
-  ERROR_MESSAGES = {
-    INVALID_PRIVATE_KEY: "Invalid private key format. Must be a PEM formatted private key.",
-    MISSING_ENV_VAR: "Required environment variable not found",
-    GITHUB_CONFIG_MISSING: "GitHub configuration not found. Please set GTHB_TOKEN, GITHUB_OWNER, and GITHUB_REPO.",
-    LINEAR_CONFIG_MISSING: "Linear configuration not found. Please set LINEAR_API_TOKEN and LINEAR_TEAM_ID.",
-    APP_STORE_CONFIG_MISSING: "App Store Connect configuration not found. Please set APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_KEY_ID, and APP_STORE_CONNECT_PRIVATE_KEY.",
-    RATE_LIMIT_EXCEEDED: "API rate limit exceeded. Please wait before making more requests.",
-    AUTHENTICATION_FAILED: "Authentication failed. Please check your credentials."
-  };
-  PATHS = {
-    TEMP_DIR: "/tmp/testflight-pm",
-    SCREENSHOTS_DIR: "/tmp/testflight-pm/screenshots",
-    LOGS_DIR: "/tmp/testflight-pm/logs"
-  };
-  VALIDATION_PATTERNS = {
-    BUNDLE_ID: /^[a-zA-Z0-9.-]+\.[a-zA-Z0-9.-]+$/,
-    API_KEY_ID: /^[A-Z0-9]{10}$/,
-    ISSUER_ID: /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i,
-    GTHB_TOKEN: /^gh[ps]_[A-Za-z0-9_]{36,255}$/
-  };
-});
-
-// src/config/environment.ts
+// src/config/environment-loader.ts
 import * as core from "@actions/core";
 function isGitHubActionEnvironment() {
   return process.env.GITHUB_ACTION === "true" || !!process.env.GITHUB_ACTIONS;
@@ -7066,7 +7003,8 @@ function getEnvVar(name, githubActionInputName) {
   }
   return value;
 }
-function validateRequiredEnvVar(name, value, githubActionInputName) {
+function getRequiredEnvVar(name, githubActionInputName) {
+  const value = getEnvVar(name, githubActionInputName);
   if (!value || value.trim() === "") {
     const sources = [name];
     if (githubActionInputName) {
@@ -7076,6 +7014,211 @@ function validateRequiredEnvVar(name, value, githubActionInputName) {
   }
   return value.trim();
 }
+function getBooleanEnvVar(name, githubActionInputName, defaultValue = false) {
+  const value = getEnvVar(name, githubActionInputName);
+  if (!value) {
+    return defaultValue;
+  }
+  if (isGitHubActionEnvironment() && githubActionInputName) {
+    return core.getBooleanInput(githubActionInputName) || defaultValue;
+  }
+  return value.toLowerCase() === "true";
+}
+function getNumericEnvVar(name, githubActionInputName, defaultValue = 0) {
+  const value = getEnvVar(name, githubActionInputName);
+  if (!value) {
+    return defaultValue;
+  }
+  const parsed = Number.parseInt(value, 10);
+  return Number.isNaN(parsed) ? defaultValue : parsed;
+}
+function getFloatEnvVar(name, githubActionInputName, defaultValue = 0) {
+  const value = getEnvVar(name, githubActionInputName);
+  if (!value) {
+    return defaultValue;
+  }
+  const parsed = Number.parseFloat(value);
+  return Number.isNaN(parsed) ? defaultValue : parsed;
+}
+function getListEnvVar(name, githubActionInputName, defaultValue = []) {
+  const value = getEnvVar(name, githubActionInputName);
+  if (!value) {
+    return defaultValue;
+  }
+  return value.split(",").map((item) => item.trim()).filter((item) => item.length > 0);
+}
+function getGitHubContext() {
+  if (!isGitHubActionEnvironment()) {
+    return null;
+  }
+  return {
+    repository: process.env.GITHUB_REPOSITORY,
+    repositoryOwner: process.env.GITHUB_REPOSITORY_OWNER,
+    repositoryName: process.env.GITHUB_REPOSITORY?.split("/")[1],
+    ref: process.env.GITHUB_REF,
+    sha: process.env.GITHUB_SHA,
+    actor: process.env.GITHUB_ACTOR,
+    workflow: process.env.GITHUB_WORKFLOW,
+    runId: process.env.GITHUB_RUN_ID,
+    runNumber: process.env.GITHUB_RUN_NUMBER
+  };
+}
+var ENV_VARS;
+var init_environment_loader = __esm(() => {
+  ENV_VARS = {
+    APP_STORE_CONNECT_ISSUER_ID: "app-store-connect-issuer-id",
+    APP_STORE_CONNECT_KEY_ID: "app-store-connect-key-id",
+    APP_STORE_CONNECT_PRIVATE_KEY: "app-store-connect-private-key",
+    APP_STORE_CONNECT_PRIVATE_KEY_PATH: undefined,
+    TESTFLIGHT_APP_ID: "testflight-app-id",
+    TESTFLIGHT_BUNDLE_ID: "testflight-bundle-id",
+    GITHUB_TOKEN: "gthb-token",
+    GITHUB_OWNER: "github-owner",
+    GITHUB_REPO: "github-repo",
+    LINEAR_API_TOKEN: "linear-api-token",
+    LINEAR_TEAM_ID: "linear-team-id",
+    WEBHOOK_SECRET: undefined,
+    WEBHOOK_PORT: undefined,
+    ENABLE_LLM_ENHANCEMENT: "enable_llm_enhancement",
+    LLM_PROVIDER: "llm_provider",
+    LLM_FALLBACK_PROVIDERS: "llm_fallback_providers",
+    OPENAI_API_KEY: "openai_api_key",
+    OPENAI_MODEL: "openai_model",
+    ANTHROPIC_API_KEY: "anthropic_api_key",
+    ANTHROPIC_MODEL: "anthropic_model",
+    GOOGLE_API_KEY: "google_api_key",
+    GOOGLE_MODEL: "google_model",
+    MAX_LLM_COST_PER_RUN: "max_llm_cost_per_run",
+    MAX_LLM_COST_PER_MONTH: "max_llm_cost_per_month",
+    MAX_TOKENS_PER_ISSUE: "max_tokens_per_issue",
+    ENABLE_DUPLICATE_DETECTION: "enable_duplicate_detection",
+    DUPLICATE_DETECTION_DAYS: "duplicate_detection_days",
+    ENABLE_CODEBASE_ANALYSIS: "enable_codebase_analysis",
+    CODEBASE_ANALYSIS_DEPTH: "codebase_analysis_depth",
+    MIN_FEEDBACK_LENGTH: "min_feedback_length",
+    PROCESSING_WINDOW_HOURS: "processing_window_hours",
+    WORKSPACE_ROOT: "workspace_root",
+    CRASH_LABELS: "crash_labels",
+    FEEDBACK_LABELS: "feedback_labels",
+    ADDITIONAL_LABELS: "additional_labels",
+    NODE_ENV: undefined,
+    LOG_LEVEL: undefined,
+    DEBUG: undefined,
+    DRY_RUN: "dry_run"
+  };
+});
+
+// src/config/defaults.ts
+var API_ENDPOINTS, DEFAULT_HTTP_CONFIG, DEFAULT_LABEL_CONFIG, PRIORITY_LEVELS, DEFAULT_TESTFLIGHT_CONFIG, VALIDATION_PATTERNS, DEFAULT_LLM_MODELS, DEFAULT_LLM_PROVIDERS, DEFAULT_LLM_COST_CONTROLS, DEFAULT_PROCESSING_CONFIG, ERROR_MESSAGES, PLATFORM_DEFAULTS;
+var init_defaults = __esm(() => {
+  API_ENDPOINTS = {
+    GITHUB: "https://api.github.com",
+    APP_STORE_CONNECT: "https://api.appstoreconnect.apple.com/v1",
+    LINEAR_GRAPHQL: "https://api.linear.app/graphql"
+  };
+  DEFAULT_HTTP_CONFIG = {
+    timeout: 30000,
+    retries: 3,
+    retryDelay: 1000,
+    rateLimitBuffer: 100
+  };
+  DEFAULT_LABEL_CONFIG = {
+    defaultLabels: ["testflight", "testflight-pm", "feedback"],
+    crashLabels: ["bug", "crash", "urgent"],
+    feedbackLabels: ["enhancement", "user-feedback"],
+    additionalLabels: []
+  };
+  PRIORITY_LEVELS = {
+    URGENT: 4,
+    HIGH: 3,
+    NORMAL: 2,
+    LOW: 1
+  };
+  DEFAULT_TESTFLIGHT_CONFIG = {
+    DEFAULT_LIMIT: 50,
+    MAX_LIMIT: 200,
+    DEFAULT_SORT: "-submittedAt",
+    FETCH_LOOKBACK_HOURS: 24
+  };
+  VALIDATION_PATTERNS = {
+    BUNDLE_ID: /^[a-zA-Z0-9.-]+\.[a-zA-Z0-9.-]+$/,
+    API_KEY_ID: /^[A-Z0-9]{10}$/,
+    ISSUER_ID: /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i,
+    GTHB_TOKEN: /^gh[ps]_[A-Za-z0-9_]{36,255}$/
+  };
+  DEFAULT_LLM_MODELS = {
+    openai: "gpt-5-mini",
+    anthropic: "claude-4-sonnet",
+    google: "gemini-2.5-flash"
+  };
+  DEFAULT_LLM_PROVIDERS = {
+    openai: {
+      model: DEFAULT_LLM_MODELS.openai,
+      maxTokens: 4000,
+      temperature: 0.2,
+      timeout: 30000,
+      maxRetries: 3
+    },
+    anthropic: {
+      model: DEFAULT_LLM_MODELS.anthropic,
+      maxTokens: 4000,
+      temperature: 0.2,
+      timeout: 30000,
+      maxRetries: 3
+    },
+    google: {
+      model: DEFAULT_LLM_MODELS.google,
+      maxTokens: 4000,
+      temperature: 0.2,
+      timeout: 30000,
+      maxRetries: 3
+    }
+  };
+  DEFAULT_LLM_COST_CONTROLS = {
+    maxCostPerRun: 5,
+    maxCostPerMonth: 200,
+    maxTokensPerIssue: 4000,
+    enableCostAlerts: true,
+    preventOverage: true
+  };
+  DEFAULT_PROCESSING_CONFIG = {
+    enableDuplicateDetection: true,
+    duplicateDetectionDays: 7,
+    enableCodebaseAnalysis: true,
+    codebaseAnalysisDepth: "moderate",
+    minFeedbackLength: 10,
+    processingWindowHours: 24,
+    workspaceRoot: "."
+  };
+  ERROR_MESSAGES = {
+    INVALID_PRIVATE_KEY: "Invalid private key format. Must be a PEM formatted private key.",
+    MISSING_ENV_VAR: "Required environment variable not found",
+    GITHUB_CONFIG_MISSING: "GitHub configuration not found. Please set GTHB_TOKEN, GITHUB_OWNER, and GITHUB_REPO.",
+    LINEAR_CONFIG_MISSING: "Linear configuration not found. Please set LINEAR_API_TOKEN and LINEAR_TEAM_ID.",
+    APP_STORE_CONFIG_MISSING: "App Store Connect configuration not found. Please set APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_KEY_ID, and APP_STORE_CONNECT_PRIVATE_KEY.",
+    RATE_LIMIT_EXCEEDED: "API rate limit exceeded. Please wait before making more requests.",
+    AUTHENTICATION_FAILED: "Authentication failed. Please check your credentials.",
+    INVALID_CONFIGURATION: "Configuration validation failed"
+  };
+  PLATFORM_DEFAULTS = {
+    github: {
+      enableScreenshotUpload: true,
+      maxScreenshotSize: 25 * 1024 * 1024,
+      enableDuplicateDetection: true,
+      duplicateDetectionDays: 7
+    },
+    linear: {
+      defaultPriority: PRIORITY_LEVELS.NORMAL,
+      enableDuplicateDetection: true,
+      duplicateDetectionDays: 7
+    },
+    webhook: {
+      maxPayloadSize: 10 * 1024 * 1024
+    }
+  };
+});
+
+// src/config/validation.ts
 function validatePrivateKey(privateKey) {
   const cleanKey = privateKey.replace(/\\n/g, `
 `);
@@ -7090,126 +7233,336 @@ function validatePrivateKey(privateKey) {
   }
   return cleanKey;
 }
-function loadEnvironmentConfig() {
+function validateAppStoreConnectConfig(config) {
+  const errors = [];
+  if (!VALIDATION_PATTERNS.ISSUER_ID.test(config.issuerId)) {
+    errors.push("Invalid App Store Connect issuer ID format");
+  }
+  if (!VALIDATION_PATTERNS.API_KEY_ID.test(config.keyId)) {
+    errors.push("Invalid App Store Connect key ID format");
+  }
   try {
+    validatePrivateKey(config.privateKey);
+  } catch (error) {
+    errors.push(`Private key validation failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  if (config.bundleId && !VALIDATION_PATTERNS.BUNDLE_ID.test(config.bundleId)) {
+    errors.push("Invalid bundle ID format");
+  }
+  return errors;
+}
+function validateGitHubConfig(config) {
+  const errors = [];
+  if (!VALIDATION_PATTERNS.GTHB_TOKEN.test(config.token)) {
+    errors.push("Invalid GitHub token format");
+  }
+  if (!config.owner || config.owner.trim().length === 0) {
+    errors.push("GitHub repository owner is required");
+  }
+  if (!config.repo || config.repo.trim().length === 0) {
+    errors.push("GitHub repository name is required");
+  }
+  if (!Array.isArray(config.defaultLabels) || config.defaultLabels.length === 0) {
+    errors.push("GitHub default labels must be a non-empty array");
+  }
+  if (!Array.isArray(config.crashLabels) || config.crashLabels.length === 0) {
+    errors.push("GitHub crash labels must be a non-empty array");
+  }
+  if (!Array.isArray(config.feedbackLabels) || config.feedbackLabels.length === 0) {
+    errors.push("GitHub feedback labels must be a non-empty array");
+  }
+  if (config.maxScreenshotSize && config.maxScreenshotSize <= 0) {
+    errors.push("GitHub max screenshot size must be positive");
+  }
+  if (config.duplicateDetectionDays && config.duplicateDetectionDays <= 0) {
+    errors.push("GitHub duplicate detection days must be positive");
+  }
+  return errors;
+}
+function validateLinearConfig(config) {
+  const errors = [];
+  if (!config.apiToken || config.apiToken.trim().length === 0) {
+    errors.push("Linear API token is required");
+  }
+  if (!config.teamId || config.teamId.trim().length === 0) {
+    errors.push("Linear team ID is required");
+  }
+  if (!Array.isArray(config.defaultLabels) || config.defaultLabels.length === 0) {
+    errors.push("Linear default labels must be a non-empty array");
+  }
+  if (!Array.isArray(config.crashLabels) || config.crashLabels.length === 0) {
+    errors.push("Linear crash labels must be a non-empty array");
+  }
+  if (!Array.isArray(config.feedbackLabels) || config.feedbackLabels.length === 0) {
+    errors.push("Linear feedback labels must be a non-empty array");
+  }
+  if (config.defaultPriority && (config.defaultPriority < 1 || config.defaultPriority > 4)) {
+    errors.push("Linear default priority must be between 1 and 4");
+  }
+  if (config.duplicateDetectionDays && config.duplicateDetectionDays <= 0) {
+    errors.push("Linear duplicate detection days must be positive");
+  }
+  return errors;
+}
+function validateLLMConfig(config) {
+  const errors = [];
+  if (!config.enabled) {
+    return errors;
+  }
+  if (!config.primaryProvider) {
+    errors.push("LLM primary provider is required when LLM is enabled");
+  }
+  for (const [providerName, providerConfig] of Object.entries(config.providers)) {
+    if (!providerConfig.apiKey || providerConfig.apiKey.trim().length === 0) {
+      errors.push(`${providerName} API key is required`);
+    }
+    if (!providerConfig.model || providerConfig.model.trim().length === 0) {
+      errors.push(`${providerName} model is required`);
+    }
+    if (providerConfig.maxTokens <= 0) {
+      errors.push(`${providerName} max tokens must be positive`);
+    }
+    if (providerConfig.temperature < 0 || providerConfig.temperature > 2) {
+      errors.push(`${providerName} temperature must be between 0 and 2`);
+    }
+  }
+  if (config.costControls.maxCostPerRun <= 0) {
+    errors.push("LLM max cost per run must be positive");
+  }
+  if (config.costControls.maxCostPerMonth <= 0) {
+    errors.push("LLM max cost per month must be positive");
+  }
+  if (config.costControls.maxTokensPerIssue <= 0) {
+    errors.push("LLM max tokens per issue must be positive");
+  }
+  return errors;
+}
+function validateApplicationConfig(config) {
+  const errors = [];
+  const warnings = [];
+  errors.push(...validateAppStoreConnectConfig(config.appStoreConnect));
+  if (config.github) {
+    errors.push(...validateGitHubConfig(config.github));
+  } else if (config.isGitHubAction) {
+    warnings.push("GitHub configuration missing in GitHub Action environment");
+  }
+  if (config.linear) {
+    errors.push(...validateLinearConfig(config.linear));
+  }
+  if (config.llm) {
+    errors.push(...validateLLMConfig(config.llm));
+  }
+  if (config.processing) {
+    if (config.processing.duplicateDetectionDays <= 0) {
+      errors.push("Processing duplicate detection days must be positive");
+    }
+    if (config.processing.minFeedbackLength < 0) {
+      errors.push("Processing min feedback length cannot be negative");
+    }
+    if (config.processing.processingWindowHours <= 0) {
+      errors.push("Processing window hours must be positive");
+    }
+  }
+  if (config.isGitHubAction && !config.github) {
+    errors.push("GitHub configuration is required in GitHub Action environment");
+  }
+  return {
+    isValid: errors.length === 0,
+    errors,
+    warnings
+  };
+}
+var init_validation = __esm(() => {
+  init_defaults();
+});
+
+// src/config/manager.ts
+class ConfigurationManager {
+  cachedConfig = null;
+  configSources = new Map;
+  lastLoadTime = null;
+  loadConfiguration() {
+    if (this.cachedConfig && this.shouldUseCachedConfig()) {
+      return this.cachedConfig;
+    }
+    const config = this.buildConfiguration();
+    const validationResult = validateApplicationConfig(config);
+    if (!validationResult.isValid) {
+      throw new Error(`Configuration validation failed:
+${validationResult.errors.join(`
+`)}`);
+    }
+    if (validationResult.warnings.length > 0) {
+      console.warn("Configuration warnings:", validationResult.warnings.join(`
+`));
+    }
+    this.cachedConfig = config;
+    this.lastLoadTime = new Date;
+    return config;
+  }
+  validateConfiguration() {
+    const config = this.buildConfiguration();
+    return validateApplicationConfig(config);
+  }
+  clearCache() {
+    this.cachedConfig = null;
+    this.configSources.clear();
+    this.lastLoadTime = null;
+  }
+  getConfigSources() {
+    return new Map(this.configSources);
+  }
+  buildConfiguration() {
     const isGitHubAction = isGitHubActionEnvironment();
-    const issuerId = validateRequiredEnvVar("APP_STORE_CONNECT_ISSUER_ID", getEnvVar("APP_STORE_CONNECT_ISSUER_ID", "app-store-connect-issuer-id"), "app-store-connect-issuer-id");
-    const keyId = validateRequiredEnvVar("APP_STORE_CONNECT_KEY_ID", getEnvVar("APP_STORE_CONNECT_KEY_ID", "app-store-connect-key-id"), "app-store-connect-key-id");
+    return {
+      environment: this.getEnvironment(),
+      logLevel: this.getLogLevel(isGitHubAction),
+      isGitHubAction,
+      debug: getBooleanEnvVar("DEBUG", undefined, false),
+      dryRun: getBooleanEnvVar(ENV_VARS.DRY_RUN, ENV_VARS.DRY_RUN, false),
+      appStoreConnect: this.buildAppStoreConnectConfig(isGitHubAction),
+      github: this.buildGitHubConfig(isGitHubAction),
+      linear: this.buildLinearConfig(),
+      webhook: this.buildWebhookConfig(isGitHubAction),
+      llm: this.buildLLMConfig(),
+      processing: this.buildProcessingConfig()
+    };
+  }
+  buildAppStoreConnectConfig(isGitHubAction) {
+    const issuerId = getRequiredEnvVar("APP_STORE_CONNECT_ISSUER_ID", ENV_VARS.APP_STORE_CONNECT_ISSUER_ID);
+    const keyId = getRequiredEnvVar("APP_STORE_CONNECT_KEY_ID", ENV_VARS.APP_STORE_CONNECT_KEY_ID);
     let privateKey;
-    const privateKeyEnv = getEnvVar("APP_STORE_CONNECT_PRIVATE_KEY", "app-store-connect-private-key");
+    const privateKeyEnv = getEnvVar("APP_STORE_CONNECT_PRIVATE_KEY", ENV_VARS.APP_STORE_CONNECT_PRIVATE_KEY);
     const privateKeyPathEnv = getEnvVar("APP_STORE_CONNECT_PRIVATE_KEY_PATH");
     if (privateKeyEnv) {
       privateKey = validatePrivateKey(privateKeyEnv);
+      this.recordConfigSource("appStoreConnect.privateKey", "environment");
     } else if (privateKeyPathEnv && !isGitHubAction) {
       try {
         const fs = __require("node:fs");
         const keyContent = fs.readFileSync(privateKeyPathEnv, "utf8");
         privateKey = validatePrivateKey(keyContent);
+        this.recordConfigSource("appStoreConnect.privateKey", "file", privateKeyPathEnv);
       } catch (error) {
         throw new Error(`Failed to read private key from ${privateKeyPathEnv}: ${error}`);
       }
     } else {
       throw new Error("APP_STORE_CONNECT_PRIVATE_KEY must be set (file paths not supported in GitHub Actions)");
     }
-    const appStoreConnect = {
+    return {
       issuerId,
       keyId,
       privateKey,
-      appId: getEnvVar("TESTFLIGHT_APP_ID", "testflight-app-id"),
-      bundleId: getEnvVar("TESTFLIGHT_BUNDLE_ID", "testflight-bundle-id")
+      appId: getEnvVar("TESTFLIGHT_APP_ID", ENV_VARS.TESTFLIGHT_APP_ID),
+      bundleId: getEnvVar("TESTFLIGHT_BUNDLE_ID", ENV_VARS.TESTFLIGHT_BUNDLE_ID),
+      ...DEFAULT_HTTP_CONFIG
     };
-    let github;
-    const githubToken = getEnvVar("GTHB_TOKEN", "gthb-token");
-    if (githubToken) {
-      const githubOwner = getEnvVar("GITHUB_OWNER", "github-owner") || (isGitHubAction ? process.env.GITHUB_REPOSITORY_OWNER : undefined);
-      const githubRepo = getEnvVar("GITHUB_REPO", "github-repo") || (isGitHubAction ? process.env.GITHUB_REPOSITORY?.split("/")[1] : undefined);
-      if (githubOwner && githubRepo) {
-        github = {
-          token: githubToken,
-          owner: githubOwner,
-          repo: githubRepo
-        };
-      } else if (isGitHubAction) {
+  }
+  buildGitHubConfig(isGitHubAction) {
+    const githubToken = getEnvVar("GTHB_TOKEN", ENV_VARS.GITHUB_TOKEN);
+    if (!githubToken) {
+      return;
+    }
+    const context = getGitHubContext();
+    const githubOwner = getEnvVar("GITHUB_OWNER", ENV_VARS.GITHUB_OWNER) || (isGitHubAction ? context?.repositoryOwner : undefined);
+    const githubRepo = getEnvVar("GITHUB_REPO", ENV_VARS.GITHUB_REPO) || (isGitHubAction ? context?.repositoryName : undefined);
+    if (!githubOwner || !githubRepo) {
+      if (isGitHubAction) {
         throw new Error("GitHub configuration incomplete in GitHub Action environment");
       }
+      return;
     }
-    let linear;
-    const linearToken = getEnvVar("LINEAR_API_TOKEN", "linear-api-token");
-    if (linearToken) {
-      const linearTeamId = getEnvVar("LINEAR_TEAM_ID", "linear-team-id");
-      if (!linearTeamId) {
-        throw new Error("LINEAR_TEAM_ID is required when LINEAR_API_TOKEN is provided");
-      }
-      linear = {
-        apiToken: linearToken,
-        teamId: linearTeamId
-      };
+    const crashLabels = getListEnvVar("CRASH_LABELS", ENV_VARS.CRASH_LABELS, DEFAULT_LABEL_CONFIG.crashLabels);
+    const feedbackLabels = getListEnvVar("FEEDBACK_LABELS", ENV_VARS.FEEDBACK_LABELS, DEFAULT_LABEL_CONFIG.feedbackLabels);
+    const additionalLabels = getListEnvVar("ADDITIONAL_LABELS", ENV_VARS.ADDITIONAL_LABELS, []);
+    return {
+      token: githubToken,
+      owner: githubOwner,
+      repo: githubRepo,
+      defaultLabels: [...DEFAULT_LABEL_CONFIG.defaultLabels, ...additionalLabels],
+      crashLabels,
+      feedbackLabels,
+      ...DEFAULT_HTTP_CONFIG,
+      ...PLATFORM_DEFAULTS.github,
+      enableDuplicateDetection: getBooleanEnvVar("ENABLE_DUPLICATE_DETECTION", ENV_VARS.ENABLE_DUPLICATE_DETECTION, PLATFORM_DEFAULTS.github.enableDuplicateDetection),
+      duplicateDetectionDays: getNumericEnvVar("DUPLICATE_DETECTION_DAYS", ENV_VARS.DUPLICATE_DETECTION_DAYS, PLATFORM_DEFAULTS.github.duplicateDetectionDays)
+    };
+  }
+  buildLinearConfig() {
+    const linearToken = getEnvVar("LINEAR_API_TOKEN", ENV_VARS.LINEAR_API_TOKEN);
+    if (!linearToken) {
+      return;
     }
-    let webhook;
-    if (!isGitHubAction) {
-      const webhookSecret = getEnvVar("WEBHOOK_SECRET");
-      if (webhookSecret) {
-        webhook = {
-          secret: webhookSecret,
-          port: Number.parseInt(getEnvVar("WEBHOOK_PORT") || "3000", 10)
-        };
-      }
+    const linearTeamId = getEnvVar("LINEAR_TEAM_ID", ENV_VARS.LINEAR_TEAM_ID);
+    if (!linearTeamId) {
+      throw new Error("LINEAR_TEAM_ID is required when LINEAR_API_TOKEN is provided");
     }
-    const llmConfig = core.getInput("enable_llm_enhancement") === "true" ? {
-      enabled: true,
-      primaryProvider: core.getInput("llm_provider") || "openai",
-      fallbackProviders: (core.getInput("llm_fallback_providers") || "anthropic,google").split(",").map((p) => p.trim()),
-      providers: {
-        openai: {
-          apiKey: core.getInput("openai_api_key") || process.env.OPENAI_API_KEY || "",
-          model: core.getInput("openai_model") || "gpt-4.1-mini",
-          maxTokens: 4000,
-          temperature: 0.1,
-          timeout: 30000,
-          maxRetries: 3
-        },
-        anthropic: {
-          apiKey: core.getInput("anthropic_api_key") || process.env.ANTHROPIC_API_KEY || "",
-          model: core.getInput("anthropic_model") || "claude-3.7-sonnet",
-          maxTokens: 4000,
-          temperature: 0.1,
-          timeout: 30000,
-          maxRetries: 3
-        },
-        google: {
-          apiKey: core.getInput("google_api_key") || process.env.GOOGLE_API_KEY || "",
-          model: core.getInput("google_model") || "gemini-2.0-flash",
-          maxTokens: 4000,
-          temperature: 0.1,
-          timeout: 30000,
-          maxRetries: 3
-        },
-        deepseek: {
-          apiKey: core.getInput("deepseek_api_key") || process.env.DEEPSEEK_API_KEY || "",
-          model: core.getInput("deepseek_model") || "deepseek-v3",
-          maxTokens: 4000,
-          temperature: 0.1,
-          timeout: 30000,
-          maxRetries: 3
-        },
-        xai: {
-          apiKey: core.getInput("xai_api_key") || process.env.XAI_API_KEY || "",
-          model: core.getInput("xai_model") || "grok-3",
-          maxTokens: 4000,
-          temperature: 0.1,
-          timeout: 30000,
-          maxRetries: 3
-        }
+    const crashLabels = getListEnvVar("CRASH_LABELS", ENV_VARS.CRASH_LABELS, DEFAULT_LABEL_CONFIG.crashLabels);
+    const feedbackLabels = getListEnvVar("FEEDBACK_LABELS", ENV_VARS.FEEDBACK_LABELS, DEFAULT_LABEL_CONFIG.feedbackLabels);
+    const additionalLabels = getListEnvVar("ADDITIONAL_LABELS", ENV_VARS.ADDITIONAL_LABELS, []);
+    return {
+      apiToken: linearToken,
+      teamId: linearTeamId,
+      defaultLabels: [...DEFAULT_LABEL_CONFIG.defaultLabels, ...additionalLabels],
+      crashLabels,
+      feedbackLabels,
+      ...DEFAULT_HTTP_CONFIG,
+      ...PLATFORM_DEFAULTS.linear,
+      enableDuplicateDetection: getBooleanEnvVar("ENABLE_DUPLICATE_DETECTION", ENV_VARS.ENABLE_DUPLICATE_DETECTION, PLATFORM_DEFAULTS.linear.enableDuplicateDetection),
+      duplicateDetectionDays: getNumericEnvVar("DUPLICATE_DETECTION_DAYS", ENV_VARS.DUPLICATE_DETECTION_DAYS, PLATFORM_DEFAULTS.linear.duplicateDetectionDays)
+    };
+  }
+  buildWebhookConfig(isGitHubAction) {
+    if (isGitHubAction) {
+      return;
+    }
+    const webhookSecret = getEnvVar("WEBHOOK_SECRET");
+    if (!webhookSecret) {
+      return;
+    }
+    return {
+      secret: webhookSecret,
+      port: getNumericEnvVar("WEBHOOK_PORT", undefined, 3000),
+      ...PLATFORM_DEFAULTS.webhook
+    };
+  }
+  buildLLMConfig() {
+    const enabled = getBooleanEnvVar("ENABLE_LLM_ENHANCEMENT", ENV_VARS.ENABLE_LLM_ENHANCEMENT, false);
+    if (!enabled) {
+      return;
+    }
+    const primaryProvider = getEnvVar("LLM_PROVIDER", ENV_VARS.LLM_PROVIDER) || "openai";
+    const fallbackProviders = getListEnvVar("LLM_FALLBACK_PROVIDERS", ENV_VARS.LLM_FALLBACK_PROVIDERS, ["anthropic", "google"]);
+    const providers = {
+      openai: {
+        apiKey: getEnvVar("OPENAI_API_KEY", ENV_VARS.OPENAI_API_KEY) || "",
+        model: getEnvVar("OPENAI_MODEL", ENV_VARS.OPENAI_MODEL) || DEFAULT_LLM_PROVIDERS.openai.model,
+        ...DEFAULT_LLM_PROVIDERS.openai
       },
+      anthropic: {
+        apiKey: getEnvVar("ANTHROPIC_API_KEY", ENV_VARS.ANTHROPIC_API_KEY) || "",
+        model: getEnvVar("ANTHROPIC_MODEL", ENV_VARS.ANTHROPIC_MODEL) || DEFAULT_LLM_PROVIDERS.anthropic.model,
+        ...DEFAULT_LLM_PROVIDERS.anthropic
+      },
+      google: {
+        apiKey: getEnvVar("GOOGLE_API_KEY", ENV_VARS.GOOGLE_API_KEY) || "",
+        model: getEnvVar("GOOGLE_MODEL", ENV_VARS.GOOGLE_MODEL) || DEFAULT_LLM_PROVIDERS.google.model,
+        ...DEFAULT_LLM_PROVIDERS.google
+      }
+    };
+    return {
+      enabled: true,
+      primaryProvider,
+      fallbackProviders,
+      providers,
       costControls: {
-        maxCostPerRun: parseFloat(core.getInput("max_llm_cost_per_run") || "5.00"),
-        maxCostPerMonth: parseFloat(core.getInput("max_llm_cost_per_month") || "200.00"),
-        maxTokensPerIssue: parseInt(core.getInput("max_tokens_per_issue") || "4000", 10),
-        enableCostAlerts: true,
-        preventOverage: true
+        maxCostPerRun: getFloatEnvVar("MAX_LLM_COST_PER_RUN", ENV_VARS.MAX_LLM_COST_PER_RUN, DEFAULT_LLM_COST_CONTROLS.maxCostPerRun),
+        maxCostPerMonth: getFloatEnvVar("MAX_LLM_COST_PER_MONTH", ENV_VARS.MAX_LLM_COST_PER_MONTH, DEFAULT_LLM_COST_CONTROLS.maxCostPerMonth),
+        maxTokensPerIssue: getNumericEnvVar("MAX_TOKENS_PER_ISSUE", ENV_VARS.MAX_TOKENS_PER_ISSUE, DEFAULT_LLM_COST_CONTROLS.maxTokensPerIssue),
+        ...DEFAULT_LLM_COST_CONTROLS
       },
       features: {
-        codebaseAnalysis: core.getBooleanInput("enable_codebase_analysis") || true,
+        codebaseAnalysis: getBooleanEnvVar("ENABLE_CODEBASE_ANALYSIS", ENV_VARS.ENABLE_CODEBASE_ANALYSIS, true),
         screenshotAnalysis: true,
         priorityClassification: true,
         labelGeneration: true,
@@ -7221,53 +7574,84 @@ function loadEnvironmentConfig() {
         logRequestsResponses: false,
         enableDataRetentionPolicy: false
       }
-    } : undefined;
-    const config = {
-      nodeEnv: "development",
-      logLevel: process.env.LOG_LEVEL || (isGitHubAction ? "info" : "debug"),
-      isGitHubAction,
-      appStoreConnect,
-      github,
-      linear,
-      webhook,
-      llm: llmConfig,
-      processing: {
-        enableDuplicateDetection: core.getBooleanInput("enable_duplicate_detection"),
-        duplicateDetectionDays: parseInt(core.getInput("duplicate_detection_days") || "7", 10),
-        enableCodebaseAnalysis: core.getBooleanInput("enable_codebase_analysis"),
-        codebaseAnalysisDepth: core.getInput("codebase_analysis_depth") || "moderate",
-        minFeedbackLength: parseInt(core.getInput("min_feedback_length") || "10", 10),
-        processingWindowHours: parseInt(core.getInput("processing_window_hours") || "24", 10),
-        workspaceRoot: core.getInput("workspace_root") || "."
-      },
-      labels: {
-        crash: (core.getInput("crash_labels") || "bug,crash,testflight").split(",").map((l) => l.trim()),
-        feedback: (core.getInput("feedback_labels") || "enhancement,feedback,testflight").split(",").map((l) => l.trim()),
-        additional: core.getInput("additional_labels").split(",").map((l) => l.trim()).filter((l) => l.length > 0)
-      },
-      debug: core.getBooleanInput("debug") || getEnvVar("DEBUG") === "true",
-      dryRun: core.getBooleanInput("dry_run")
     };
-    return config;
-  } catch (error) {
-    console.error("Environment configuration error:", error);
-    throw new Error(`Failed to load environment configuration: ${error}`);
+  }
+  buildProcessingConfig() {
+    return {
+      enableDuplicateDetection: getBooleanEnvVar("ENABLE_DUPLICATE_DETECTION", ENV_VARS.ENABLE_DUPLICATE_DETECTION, DEFAULT_PROCESSING_CONFIG.enableDuplicateDetection),
+      duplicateDetectionDays: getNumericEnvVar("DUPLICATE_DETECTION_DAYS", ENV_VARS.DUPLICATE_DETECTION_DAYS, DEFAULT_PROCESSING_CONFIG.duplicateDetectionDays),
+      enableCodebaseAnalysis: getBooleanEnvVar("ENABLE_CODEBASE_ANALYSIS", ENV_VARS.ENABLE_CODEBASE_ANALYSIS, DEFAULT_PROCESSING_CONFIG.enableCodebaseAnalysis),
+      codebaseAnalysisDepth: getEnvVar("CODEBASE_ANALYSIS_DEPTH", ENV_VARS.CODEBASE_ANALYSIS_DEPTH) || DEFAULT_PROCESSING_CONFIG.codebaseAnalysisDepth,
+      minFeedbackLength: getNumericEnvVar("MIN_FEEDBACK_LENGTH", ENV_VARS.MIN_FEEDBACK_LENGTH, DEFAULT_PROCESSING_CONFIG.minFeedbackLength),
+      processingWindowHours: getNumericEnvVar("PROCESSING_WINDOW_HOURS", ENV_VARS.PROCESSING_WINDOW_HOURS, DEFAULT_PROCESSING_CONFIG.processingWindowHours),
+      workspaceRoot: getEnvVar("WORKSPACE_ROOT", ENV_VARS.WORKSPACE_ROOT) || DEFAULT_PROCESSING_CONFIG.workspaceRoot
+    };
+  }
+  getEnvironment() {
+    const nodeEnv = "development";
+    if (nodeEnv && ["development", "production", "test"].includes(nodeEnv)) {
+      return nodeEnv;
+    }
+    return isGitHubActionEnvironment() ? "production" : "development";
+  }
+  getLogLevel(isGitHubAction) {
+    const logLevel = process.env.LOG_LEVEL;
+    if (logLevel && ["debug", "info", "warn", "error"].includes(logLevel)) {
+      return logLevel;
+    }
+    return isGitHubAction ? "info" : "debug";
+  }
+  recordConfigSource(key, type, source) {
+    this.configSources.set(key, {
+      type,
+      source: source || type,
+      timestamp: new Date
+    });
+  }
+  shouldUseCachedConfig() {
+    if (!this.lastLoadTime) {
+      return false;
+    }
+    const cacheMaxAge = this.cachedConfig?.environment === "production" ? 5 * 60 * 1000 : 0;
+    return Date.now() - this.lastLoadTime.getTime() < cacheMaxAge;
   }
 }
-function getConfig() {
-  if (!_cachedConfig) {
-    _cachedConfig = loadEnvironmentConfig();
+function getConfigManager() {
+  if (!configManager) {
+    configManager = new ConfigurationManager;
   }
-  return _cachedConfig;
+  return configManager;
 }
-var _cachedConfig = null;
-var init_environment = __esm(() => {
-  init_constants();
+function getConfiguration() {
+  return getConfigManager().loadConfiguration();
+}
+var configManager = null;
+var init_manager = __esm(() => {
+  init_environment_loader();
+  init_defaults();
+  init_validation();
+});
+
+// src/config/index.ts
+var PATHS;
+var init_config = __esm(() => {
+  init_manager();
+  init_manager();
+  init_defaults();
+  init_defaults();
+  init_validation();
+  init_environment_loader();
+  init_llm_config();
+  PATHS = {
+    TEMP_DIR: "/tmp/testflight-pm",
+    SCREENSHOTS_DIR: "/tmp/testflight-pm/screenshots",
+    LOGS_DIR: "/tmp/testflight-pm/logs"
+  };
 });
 
 // src/config/llm-config.ts
 function loadLLMConfig() {
-  const envConfig = getConfig();
+  const envConfig = getConfiguration();
   const config = { ...DEFAULT_LLM_CONFIG };
   function getEnvVar2(envName, actionInput) {
     if (envConfig.isGitHubAction && actionInput) {
@@ -7302,22 +7686,6 @@ function loadLLMConfig() {
   const googleKey = getEnvVar2(LLM_ENV_VARS.GOOGLE_API_KEY);
   if (googleKey) {
     config.providers.google.apiKey = googleKey;
-  }
-  const openaiModel = getEnvVar2(LLM_ENV_VARS.OPENAI_MODEL);
-  if (openaiModel) {
-    config.providers.openai.model = openaiModel;
-  }
-  const anthropicModel = getEnvVar2(LLM_ENV_VARS.ANTHROPIC_MODEL);
-  if (anthropicModel) {
-    config.providers.anthropic.model = anthropicModel;
-  }
-  const googleModel = getEnvVar2(LLM_ENV_VARS.GOOGLE_MODEL);
-  if (googleModel) {
-    config.providers.google.model = googleModel;
-  }
-  const llmModel = getEnvVar2("LLM_MODEL", LLM_ACTION_INPUTS.LLM_MODEL);
-  if (llmModel) {
-    config.providers[config.primaryProvider].model = llmModel;
   }
   const maxCostPerRun = getEnvVar2(LLM_ENV_VARS.MAX_LLM_COST_PER_RUN, LLM_ACTION_INPUTS.MAX_LLM_COST_PER_RUN);
   if (maxCostPerRun) {
@@ -7356,7 +7724,7 @@ function loadLLMConfig() {
   }
   return config;
 }
-function validateLLMConfig(config) {
+function validateLLMConfig2(config) {
   const errors = [];
   const warnings = [];
   if (!config.enabled) {
@@ -7404,19 +7772,12 @@ function getLLMConfig() {
 }
 var LLM_MODEL_PRICING, DEFAULT_LLM_CONFIG, LLM_ENV_VARS, LLM_ACTION_INPUTS, _llmConfig = null;
 var init_llm_config = __esm(() => {
-  init_environment();
+  init_config();
+  init_defaults();
   LLM_MODEL_PRICING = {
-    "gpt-4o": { input: 0.0025, output: 0.01 },
-    "gpt-4o-mini": { input: 0.00015, output: 0.0006 },
-    "gpt-4-turbo": { input: 0.01, output: 0.03 },
-    "gpt-4": { input: 0.03, output: 0.06 },
-    "gpt-3.5-turbo": { input: 0.0005, output: 0.0015 },
-    "claude-3-5-sonnet-20241022": { input: 0.003, output: 0.015 },
-    "claude-3-5-haiku-20241022": { input: 0.0008, output: 0.004 },
-    "claude-3-opus-20240229": { input: 0.015, output: 0.075 },
-    "gemini-1.5-pro": { input: 0.00125, output: 0.005 },
-    "gemini-1.5-flash": { input: 0.000075, output: 0.0003 },
-    "gemini-1.0-pro": { input: 0.0005, output: 0.0015 }
+    [DEFAULT_LLM_MODELS.openai]: { input: 0.00015, output: 0.0006 },
+    [DEFAULT_LLM_MODELS.anthropic]: { input: 0.003, output: 0.015 },
+    [DEFAULT_LLM_MODELS.google]: { input: 0.000075, output: 0.0003 }
   };
   DEFAULT_LLM_CONFIG = {
     enabled: false,
@@ -7425,7 +7786,7 @@ var init_llm_config = __esm(() => {
     providers: {
       openai: {
         apiKey: "",
-        model: "gpt-4o",
+        model: DEFAULT_LLM_MODELS.openai,
         maxTokens: 4000,
         temperature: 0.7,
         timeout: 30000,
@@ -7433,7 +7794,7 @@ var init_llm_config = __esm(() => {
       },
       anthropic: {
         apiKey: "",
-        model: "claude-3-5-sonnet-20241022",
+        model: DEFAULT_LLM_MODELS.anthropic,
         maxTokens: 4000,
         temperature: 0.7,
         timeout: 30000,
@@ -7441,7 +7802,7 @@ var init_llm_config = __esm(() => {
       },
       google: {
         apiKey: "",
-        model: "gemini-1.5-pro",
+        model: DEFAULT_LLM_MODELS.google,
         maxTokens: 4000,
         temperature: 0.7,
         timeout: 30000,
@@ -7506,7 +7867,7 @@ class LLMClient {
   usageStats;
   constructor() {
     this.config = getLLMConfig();
-    if (!validateLLMConfig(this.config)) {
+    if (!validateLLMConfig2(this.config)) {
       throw new Error("Invalid LLM configuration");
     }
     this.usageStats = this.initializeUsageStats();
@@ -7542,18 +7903,17 @@ class LLMClient {
         if (!options.skipCostCheck) {
           await this.validateCostLimits(request, options, currentProvider);
         }
-        let universalRequest;
-        try {
-          universalRequest = toUniversal(currentProvider, request);
-          if (!universalRequest) {
-            universalRequest = request;
-          }
-        } catch {
-          universalRequest = request;
+        const providerConfig = this.config.providers[currentProvider];
+        if (!providerConfig) {
+          throw new Error(`Provider ${currentProvider} not configured`);
         }
-        const rawResponse = await this.callProviderAPI(currentProvider, universalRequest, options);
-        const universalResponse = fromUniversal(currentProvider, rawResponse);
-        const llmResponse = this.convertUniversalToLLMResponse(universalResponse, currentProvider);
+        const universalRequest = toUniversal(currentProvider, {
+          ...request,
+          model: request.model || providerConfig.model
+        });
+        const providerSpecificRequest = fromUniversal(currentProvider, universalRequest);
+        const rawResponse = await this.makeUnifiedAPICall(currentProvider, providerSpecificRequest, providerConfig, options);
+        const llmResponse = this.convertUniversalToLLMResponse(rawResponse, currentProvider);
         this.updateUsageStats(llmResponse);
         return llmResponse;
       } catch (error) {
@@ -7670,20 +8030,19 @@ class LLMClient {
       return request;
     }
   }
-  async callProviderAPI(provider, universalRequest, options) {
-    const providerConfig = this.config.providers[provider];
-    if (!providerConfig) {
-      throw new Error(`Provider ${provider} not configured`);
-    }
+  async makeUnifiedAPICall(provider, providerSpecificRequest, providerConfig, options) {
     const timeout = options.timeout || 30000;
     const controller = new AbortController;
     const timeoutId = setTimeout(() => controller.abort(), timeout);
     try {
-      const { endpoint, headers, body } = this.prepareProviderRequest(provider, universalRequest, providerConfig);
+      const { endpoint, headers } = this.getProviderEndpointConfig(provider, providerConfig, providerSpecificRequest);
       const response = await fetch(endpoint, {
         method: "POST",
-        headers,
-        body: JSON.stringify(body),
+        headers: {
+          ...headers,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(providerSpecificRequest),
         signal: controller.signal
       });
       clearTimeout(timeoutId);
@@ -7696,34 +8055,25 @@ class LLMClient {
       clearTimeout(timeoutId);
     }
   }
-  prepareProviderRequest(provider, universalRequest, providerConfig) {
+  getProviderEndpointConfig(provider, providerConfig, request) {
     switch (provider) {
       case "openai":
         return {
           endpoint: "https://api.openai.com/v1/chat/completions",
-          headers: {
-            Authorization: `Bearer ${providerConfig.apiKey}`,
-            "Content-Type": "application/json"
-          },
-          body: universalRequest
+          headers: { Authorization: `Bearer ${providerConfig.apiKey}` }
         };
       case "anthropic":
         return {
           endpoint: "https://api.anthropic.com/v1/messages",
           headers: {
             "x-api-key": providerConfig.apiKey,
-            "anthropic-version": "2023-06-01",
-            "Content-Type": "application/json"
-          },
-          body: universalRequest
+            "anthropic-version": "2023-06-01"
+          }
         };
       case "google":
         return {
-          endpoint: `https://generativelanguage.googleapis.com/v1beta/models/${universalRequest.model || "gemini-pro"}:generateContent?key=${providerConfig.apiKey}`,
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: universalRequest
+          endpoint: `https://generativelanguage.googleapis.com/v1beta/models/${request.model || providerConfig.model || DEFAULT_LLM_MODELS.google}:generateContent?key=${providerConfig.apiKey}`,
+          headers: {}
         };
       default:
         throw new Error(`Unsupported provider: ${provider}`);
@@ -7911,17 +8261,20 @@ ${changesText}`
     return this.parseUnstructuredResponse(response, startTime);
   }
   parseUnstructuredResponse(response, startTime) {
-    const content = response.content;
+    const { content } = response;
     const lines = content.split(`
 `);
     const title = lines.find((line) => line.trim() && !line.startsWith("#"))?.trim() || "TestFlight Issue";
     const labels = ["testflight"];
-    if (content.toLowerCase().includes("crash"))
+    if (content.toLowerCase().includes("crash")) {
       labels.push("crash", "bug");
-    if (content.toLowerCase().includes("ui"))
+    }
+    if (content.toLowerCase().includes("ui")) {
       labels.push("ui");
-    if (content.toLowerCase().includes("performance"))
+    }
+    if (content.toLowerCase().includes("performance")) {
       labels.push("performance");
+    }
     let priority = "medium";
     if (content.toLowerCase().includes("critical") || content.toLowerCase().includes("urgent")) {
       priority = "urgent";
@@ -8023,7 +8376,26 @@ ${request.codebaseContext.length} relevant file(s) identified for analysis.` : "
     return { ...this.usageStats };
   }
   async healthCheck() {
-    const configValidation = validateLLMConfig(this.config);
+    const configValidation = validateLLMConfig2(this.config);
+    if (!this.config.enabled) {
+      return {
+        status: "degraded",
+        providers: {
+          openai: { available: false, authenticated: false },
+          anthropic: { available: false, authenticated: false },
+          google: { available: false, authenticated: false }
+        },
+        config: configValidation,
+        usage: this.usageStats,
+        costStatus: {
+          withinLimits: true,
+          remainingBudget: {
+            run: this.config.costControls.maxCostPerRun,
+            month: this.config.costControls.maxCostPerMonth
+          }
+        }
+      };
+    }
     const costCheck = {
       withinLimits: true,
       exceededLimits: [],
@@ -8099,6 +8471,7 @@ var _llmClientInstance = null;
 var init_llm_client = __esm(() => {
   init_dist();
   init_llm_config();
+  init_defaults();
 });
 
 // src/api/app-store-connect-auth.ts
@@ -8130,7 +8503,7 @@ class AppStoreConnectAuth {
   }
   async generateNewToken() {
     try {
-      const config = getConfig();
+      const config = getConfiguration();
       const { issuerId, keyId, privateKey } = config.appStoreConnect;
       const now = Math.floor(Date.now() / 1000);
       const exp = now + this.tokenLifetimeMinutes * 60;
@@ -8221,20 +8594,20 @@ function getAuthInstance() {
 }
 var _authInstance = null;
 var init_app_store_connect_auth = __esm(() => {
-  init_environment();
+  init_config();
 });
 
 // src/api/testflight-client.ts
 class TestFlightClient {
   baseUrl = API_ENDPOINTS.APP_STORE_CONNECT;
-  defaultTimeout = HTTP_CONFIG.DEFAULT_TIMEOUT;
-  defaultRetries = HTTP_CONFIG.DEFAULT_RETRIES;
-  defaultRetryDelay = HTTP_CONFIG.DEFAULT_RETRY_DELAY;
+  defaultTimeout = DEFAULT_HTTP_CONFIG.timeout;
+  defaultRetries = DEFAULT_HTTP_CONFIG.retries;
+  defaultRetryDelay = DEFAULT_HTTP_CONFIG.retryDelay;
   rateLimitInfo = null;
   async getCrashReports(params) {
     const queryParams = {
-      limit: TESTFLIGHT_CONFIG.DEFAULT_LIMIT,
-      sort: TESTFLIGHT_CONFIG.DEFAULT_SORT,
+      limit: DEFAULT_TESTFLIGHT_CONFIG.DEFAULT_LIMIT,
+      sort: DEFAULT_TESTFLIGHT_CONFIG.DEFAULT_SORT,
       ...params
     };
     const response = await this.makeApiRequest("/betaFeedbackCrashSubmissions", queryParams);
@@ -8242,8 +8615,8 @@ class TestFlightClient {
   }
   async getScreenshotFeedback(params) {
     const queryParams = {
-      limit: TESTFLIGHT_CONFIG.DEFAULT_LIMIT,
-      sort: TESTFLIGHT_CONFIG.DEFAULT_SORT,
+      limit: DEFAULT_TESTFLIGHT_CONFIG.DEFAULT_LIMIT,
+      sort: DEFAULT_TESTFLIGHT_CONFIG.DEFAULT_SORT,
       ...params
     };
     const response = await this.makeApiRequest("/betaFeedbackScreenshotSubmissions", queryParams);
@@ -8499,14 +8872,14 @@ function getTestFlightClient() {
 }
 var _clientInstance = null;
 var init_testflight_client = __esm(() => {
-  init_constants();
+  init_config();
   init_app_store_connect_auth();
 });
 
 // src/api/github-client.ts
 var exports_github_client = {};
 __export(exports_github_client, {
-  validateGitHubConfig: () => validateGitHubConfig,
+  validateGitHubConfig: () => validateGitHubConfig2,
   getGitHubClient: () => getGitHubClient,
   clearGitHubClientInstance: () => clearGitHubClientInstance,
   GitHubClient: () => GitHubClient
@@ -8515,15 +8888,15 @@ __export(exports_github_client, {
 class GitHubClient {
   config;
   baseUrl = API_ENDPOINTS.GITHUB;
-  defaultTimeout = HTTP_CONFIG.DEFAULT_TIMEOUT;
-  defaultRetries = HTTP_CONFIG.DEFAULT_RETRIES;
-  defaultRetryDelay = HTTP_CONFIG.DEFAULT_RETRY_DELAY;
+  defaultTimeout = DEFAULT_HTTP_CONFIG.timeout;
+  defaultRetries = DEFAULT_HTTP_CONFIG.retries;
+  defaultRetryDelay = DEFAULT_HTTP_CONFIG.retryDelay;
   labelsCache = new Map;
   milestonesCache = new Map;
   rateLimitInfo = null;
   lastCacheUpdate = {};
   constructor() {
-    const envConfig = getConfig();
+    const envConfig = getConfiguration();
     if (!envConfig.github) {
       throw new Error("GitHub configuration not found. Please set GTHB_TOKEN, GITHUB_OWNER, and GITHUB_REPO.");
     }
@@ -8531,9 +8904,9 @@ class GitHubClient {
       token: envConfig.github.token,
       owner: envConfig.github.owner,
       repo: envConfig.github.repo,
-      defaultLabels: [...DEFAULT_LABELS.BASE],
-      crashLabels: [...DEFAULT_LABELS.CRASH],
-      feedbackLabels: [...DEFAULT_LABELS.FEEDBACK],
+      defaultLabels: [...DEFAULT_LABEL_CONFIG.defaultLabels],
+      crashLabels: [...DEFAULT_LABEL_CONFIG.crashLabels],
+      feedbackLabels: [...DEFAULT_LABEL_CONFIG.feedbackLabels],
       enableDuplicateDetection: true,
       duplicateDetectionDays: 7,
       enableScreenshotUpload: true,
@@ -9261,9 +9634,9 @@ function getGitHubClient() {
 function clearGitHubClientInstance() {
   _githubClientInstance = null;
 }
-function validateGitHubConfig() {
+function validateGitHubConfig2() {
   try {
-    const config = getConfig();
+    const config = getConfiguration();
     return !!(config.github?.token && config.github?.owner && config.github?.repo);
   } catch {
     return false;
@@ -9271,8 +9644,7 @@ function validateGitHubConfig() {
 }
 var _githubClientInstance = null;
 var init_github_client = __esm(() => {
-  init_constants();
-  init_environment();
+  init_config();
   init_testflight_client();
 });
 
@@ -26485,7 +26857,7 @@ var require_index_cjs_min = __commonJS((exports) => {
 // src/api/linear-client.ts
 var exports_linear_client = {};
 __export(exports_linear_client, {
-  validateLinearConfig: () => validateLinearConfig,
+  validateLinearConfig: () => validateLinearConfig2,
   getLinearClient: () => getLinearClient,
   clearLinearClientInstance: () => clearLinearClientInstance,
   LinearClient: () => LinearClient
@@ -26496,7 +26868,7 @@ class LinearClient {
   sdk;
   teamCache = null;
   constructor() {
-    const envConfig = getConfig();
+    const envConfig = getConfiguration();
     if (!envConfig.linear) {
       throw new Error(ERROR_MESSAGES.LINEAR_CONFIG_MISSING);
     }
@@ -26504,9 +26876,9 @@ class LinearClient {
       apiToken: envConfig.linear.apiToken,
       teamId: envConfig.linear.teamId,
       defaultPriority: PRIORITY_LEVELS.NORMAL,
-      defaultLabels: [...DEFAULT_LABELS.BASE],
-      crashLabels: [...DEFAULT_LABELS.CRASH],
-      feedbackLabels: [...DEFAULT_LABELS.FEEDBACK],
+      defaultLabels: [...DEFAULT_LABEL_CONFIG.defaultLabels],
+      crashLabels: [...DEFAULT_LABEL_CONFIG.crashLabels],
+      feedbackLabels: [...DEFAULT_LABEL_CONFIG.feedbackLabels],
       enableDuplicateDetection: true,
       duplicateDetectionDays: 7
     };
@@ -27155,9 +27527,9 @@ function getLinearClient() {
 function clearLinearClientInstance() {
   _linearClientInstance = null;
 }
-function validateLinearConfig() {
+function validateLinearConfig2() {
   try {
-    const config = getConfig();
+    const config = getConfiguration();
     return !!(config.linear?.apiToken && config.linear?.teamId);
   } catch {
     return false;
@@ -27166,8 +27538,7 @@ function validateLinearConfig() {
 var import_sdk, _linearClientInstance = null;
 var init_linear_client = __esm(() => {
   import_sdk = __toESM(require_index_cjs_min(), 1);
-  init_constants();
-  init_environment();
+  init_config();
 });
 
 // src/utils/state-manager.ts
@@ -27365,7 +27736,7 @@ function getStateManager() {
 }
 var _stateManagerInstance = null;
 var init_state_manager = __esm(() => {
-  init_constants();
+  init_config();
 });
 
 // src/utils/idempotency-service.ts
@@ -27376,8 +27747,8 @@ class IdempotencyService {
       enableStateTracking: true,
       enableGitHubDuplicateDetection: true,
       enableLinearDuplicateDetection: true,
-      retryAttempts: HTTP_CONFIG.DEFAULT_RETRIES,
-      retryDelayMs: HTTP_CONFIG.DEFAULT_RETRY_DELAY,
+      retryAttempts: DEFAULT_HTTP_CONFIG.retries,
+      retryDelayMs: DEFAULT_HTTP_CONFIG.retryDelay,
       searchTimeoutMs: 1e4,
       confidenceThreshold: 0.7,
       ...config
@@ -27680,7 +28051,7 @@ var _idempotencyServiceInstance = null;
 var init_idempotency_service = __esm(() => {
   init_github_client();
   init_linear_client();
-  init_constants();
+  init_config();
   init_state_manager();
 });
 
@@ -28102,7 +28473,7 @@ class LLMEnhancedIssueCreator {
       result.processingTime = Date.now() - startTime;
       if (llmAnalysis) {
         result.cost = llmAnalysis.metadata.cost;
-        result.confidence = llmAnalysis.metadata.confidence;
+        result.confidence = llmAnalysis.analysis.confidence;
       }
       console.log(`Enhanced issue creation ${result.success ? "succeeded" : "failed"} for feedback ${feedback.id}`);
       return result;
@@ -28116,7 +28487,7 @@ class LLMEnhancedIssueCreator {
   validateConfiguration(options, result) {
     if (options.enableLLMEnhancement) {
       const llmConfig = getLLMConfig();
-      const validation = validateLLMConfig(llmConfig);
+      const validation = validateLLMConfig2(llmConfig);
       if (!validation.valid) {
         result.errors.push(`LLM configuration invalid: ${validation.errors.join(", ")}`);
         result.warnings.push(...validation.warnings);
@@ -28176,49 +28547,27 @@ class LLMEnhancedIssueCreator {
     try {
       console.log("Performing LLM enhancement analysis");
       const enhancementRequest = {
-        feedback: {
-          id: context.feedback.id,
-          type: context.feedback.type,
-          appVersion: context.feedback.appVersion,
-          buildNumber: context.feedback.buildNumber,
-          deviceInfo: {
-            model: context.feedback.deviceInfo.model,
-            osVersion: context.feedback.deviceInfo.osVersion,
-            family: context.feedback.deviceInfo.family,
-            locale: context.feedback.deviceInfo.locale
-          },
-          submittedAt: context.feedback.submittedAt.toISOString(),
-          crashData: context.feedback.crashData ? {
-            type: context.feedback.crashData.type,
-            exceptionType: context.feedback.crashData.exceptionType,
-            exceptionMessage: context.feedback.crashData.exceptionMessage,
-            trace: context.feedback.crashData.trace
-          } : undefined,
-          screenshotData: context.feedback.screenshotData ? {
-            text: context.feedback.screenshotData.text,
-            images: context.feedback.screenshotData.images.map((img) => ({
-              fileName: img.fileName,
-              url: img.url
-            }))
-          } : undefined
-        },
-        codebaseContext: context.codebaseAnalysis ? {
-          relevantFiles: context.codebaseAnalysis.relevantFiles.map((area) => ({
-            path: area.file,
-            content: area.content,
-            lines: area.lines,
-            confidence: area.confidence
-          })),
-          recentChanges: context.recentChanges,
-          relatedIssues: context.relatedIssues
+        title: `${context.feedback.type === "crash" ? "Crash" : "Feedback"}: ${context.feedback.appVersion || "Unknown Version"}`,
+        description: context.feedback.screenshotData?.text || context.feedback.crashData?.exceptionMessage || "No description available",
+        feedbackType: context.feedback.type === "crash" ? "crash" : "general",
+        crashData: context.feedback.crashData ? {
+          trace: Array.isArray(context.feedback.crashData.trace) ? context.feedback.crashData.trace : [context.feedback.crashData.trace],
+          device: context.feedback.deviceInfo.model,
+          osVersion: context.feedback.deviceInfo.osVersion
         } : undefined,
+        codebaseContext: context.codebaseAnalysis ? context.codebaseAnalysis.relevantFiles.map((area) => ({
+          file: area.file,
+          content: area.content,
+          relevance: area.confidence
+        })) : undefined,
+        recentChanges: context.recentChanges,
         options: {
           provider: options.llmProvider,
           enableFallback: true
         }
       };
       const enhancement = await this.llmClient.enhanceIssue(enhancementRequest);
-      console.log(`LLM enhancement completed with confidence: ${enhancement.metadata.confidence}`);
+      console.log(`LLM enhancement completed with confidence: ${enhancement.analysis.confidence}`);
       return enhancement;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -28260,7 +28609,7 @@ class LLMEnhancedIssueCreator {
       }
       const createOptions = {
         ...options.github,
-        customTitle: llmAnalysis?.title,
+        customTitle: llmAnalysis?.enhancedTitle,
         customBody: llmAnalysis ? this.formatEnhancedGitHubBody(llmAnalysis, context) : undefined,
         additionalLabels: llmAnalysis?.labels || [],
         enableDuplicateDetection: !options.skipDuplicateDetection
@@ -28296,7 +28645,7 @@ class LLMEnhancedIssueCreator {
       };
       const createOptions = {
         ...options.linear,
-        customTitle: llmAnalysis?.title,
+        customTitle: llmAnalysis?.enhancedTitle,
         customDescription: llmAnalysis ? this.formatEnhancedLinearDescription(llmAnalysis, context) : undefined,
         additionalLabels: llmAnalysis?.labels || [],
         priority: llmAnalysis ? priorityMap[llmAnalysis.priority] : undefined,
@@ -28317,81 +28666,62 @@ class LLMEnhancedIssueCreator {
     }
   }
   formatEnhancedGitHubBody(llmAnalysis, _context) {
-    let body = llmAnalysis.description;
-    if (llmAnalysis.relevantCodeAreas.length > 0) {
+    let body = llmAnalysis.enhancedDescription;
+    if (llmAnalysis.analysis.affectedComponents.length > 0) {
       body += `
 
-## \uD83C\uDFAF Relevant Code Areas
+## \uD83C\uDFAF Affected Components
 
 `;
-      for (const area of llmAnalysis.relevantCodeAreas) {
-        body += `### \`${area.file}\` (Lines ${area.lines})
-`;
-        body += `**Confidence:** ${(area.confidence * 100).toFixed(0)}%
-`;
-        body += `**Reason:** ${area.reason}
-
+      for (const component of llmAnalysis.analysis.affectedComponents) {
+        body += `- ${component}
 `;
       }
     }
-    if (llmAnalysis.reproductionSteps && llmAnalysis.reproductionSteps.length > 0) {
-      body += `
-
-## \uD83D\uDD04 Reproduction Steps
-
-`;
-      for (let i = 0;i < llmAnalysis.reproductionSteps.length; i++) {
-        body += `${i + 1}. ${llmAnalysis.reproductionSteps[i]}
-`;
-      }
-    }
-    if (llmAnalysis.rootCauseAnalysis) {
+    if (llmAnalysis.analysis.rootCause) {
       body += `
 
 ## \uD83D\uDD0D Root Cause Analysis
 
-${llmAnalysis.rootCauseAnalysis}`;
+${llmAnalysis.analysis.rootCause}`;
     }
-    if (llmAnalysis.suggestedFix) {
+    if (llmAnalysis.analysis.suggestedFix) {
       body += `
 
 ## \uD83D\uDCA1 Suggested Fix
 
-${llmAnalysis.suggestedFix}`;
+${llmAnalysis.analysis.suggestedFix}`;
     }
     body += `
 
 ---
-*Enhanced with LLM analysis (${llmAnalysis.metadata.provider}/${llmAnalysis.metadata.model}) - Confidence: ${(llmAnalysis.metadata.confidence * 100).toFixed(0)}%*`;
+*Enhanced with LLM analysis (${llmAnalysis.metadata.provider}/${llmAnalysis.metadata.model}) - Confidence: ${(llmAnalysis.analysis.confidence * 100).toFixed(0)}%*`;
     return body;
   }
   formatEnhancedLinearDescription(llmAnalysis, _context) {
-    let { description } = llmAnalysis;
-    if (llmAnalysis.relevantCodeAreas.length > 0) {
+    let description = llmAnalysis.enhancedDescription;
+    if (llmAnalysis.analysis.affectedComponents.length > 0) {
       description += `
 
-## Relevant Code Areas
+## Affected Components
 
 `;
-      for (const area of llmAnalysis.relevantCodeAreas) {
-        description += `**${area.file}** (Lines ${area.lines}) - ${(area.confidence * 100).toFixed(0)}% confidence
-`;
-        description += `${area.reason}
-
+      for (const component of llmAnalysis.analysis.affectedComponents) {
+        description += `- ${component}
 `;
       }
     }
-    if (llmAnalysis.rootCauseAnalysis) {
+    if (llmAnalysis.analysis.rootCause) {
       description += `
 
 **Root Cause Analysis:**
-${llmAnalysis.rootCauseAnalysis}`;
+${llmAnalysis.analysis.rootCause}`;
     }
-    if (llmAnalysis.suggestedFix) {
+    if (llmAnalysis.analysis.suggestedFix) {
       description += `
 
 **Suggested Fix:**
-${llmAnalysis.suggestedFix}`;
+${llmAnalysis.analysis.suggestedFix}`;
     }
     return description;
   }
@@ -28484,17 +28814,21 @@ ${llmAnalysis.suggestedFix}`;
     for (const block of commitBlocks) {
       const lines = block.split(`
 `).filter((line) => line.trim());
-      if (lines.length === 0)
+      if (lines.length === 0) {
         continue;
+      }
       const firstLine = lines[0];
-      if (!firstLine)
+      if (!firstLine) {
         continue;
+      }
       const commitInfo = firstLine.split("|");
-      if (commitInfo.length !== 4)
+      if (commitInfo.length !== 4) {
         continue;
+      }
       const [hash, author, timestamp, message] = commitInfo;
-      if (!hash || !author || !timestamp || !message)
+      if (!hash || !author || !timestamp || !message) {
         continue;
+      }
       const files = lines.slice(1).filter((line) => line.trim() && !line.includes("|"));
       commits.push({
         hash,
@@ -28634,7 +28968,7 @@ var init_llm_enhanced_creator = __esm(() => {
 init_codebase_analyzer();
 init_llm_client();
 init_testflight_client();
-init_environment();
+init_config();
 init_idempotency_service();
 import * as core2 from "@actions/core";
 
@@ -28647,7 +28981,7 @@ init_testflight_client();
 init_state_manager();
 
 // src/utils/validation.ts
-init_constants();
+init_config();
 function validateEnvironmentConfiguration(config) {
   const errors = [];
   const warnings = [];
@@ -29358,15 +29692,30 @@ async function quickHealthCheck() {
   try {
     const monitor = getSystemHealthMonitor();
     const health = await monitor.checkSystemHealth();
-    const criticalIssues = health.components.filter((c) => c.status === "unhealthy").map((c) => `${c.component}: ${c.error || "unhealthy"}`);
+    const platform = (process.env.INPUT_PLATFORM || process.env.PLATFORM || "github").toLowerCase();
+    const criticalIssues = health.components.filter((c) => {
+      if (c.status !== "unhealthy") {
+        return false;
+      }
+      if (platform === "github" && c.component === "Linear Integration") {
+        return false;
+      }
+      return true;
+    }).map((c) => `${c.component}: ${c.error || "unhealthy"}`);
+    let adjustedStatus = health.overall;
+    if (criticalIssues.length === 0) {
+      adjustedStatus = "healthy";
+    } else if (adjustedStatus !== "unhealthy") {
+      adjustedStatus = health.overall;
+    }
     let message = "System operational";
-    if (health.overall === "unhealthy") {
+    if (adjustedStatus === "unhealthy") {
       message = `System has ${criticalIssues.length} critical issues`;
-    } else if (health.overall === "degraded") {
+    } else if (adjustedStatus === "degraded") {
       message = `System functional with ${health.metrics.degradedComponents} warnings`;
     }
     return {
-      status: health.overall,
+      status: adjustedStatus,
       message,
       criticalIssues
     };
@@ -29586,7 +29935,7 @@ async function run() {
     } else {
       core2.info(`✅ System health check passed: ${healthCheck.message}`);
     }
-    const _config = getConfig();
+    const _config = getConfiguration();
     core2.info("\uD83D\uDD27 Validating configuration...");
     const envValidation = Validation.environment(process.env);
     if (!envValidation.valid) {

@@ -203,7 +203,7 @@ export class LLMEnhancedIssueCreator {
 
 			if (llmAnalysis) {
 				result.cost = llmAnalysis.metadata.cost;
-				result.confidence = llmAnalysis.metadata.confidence;
+				result.confidence = llmAnalysis.analysis.confidence;
 			}
 
 			console.log(
@@ -350,50 +350,26 @@ export class LLMEnhancedIssueCreator {
 			console.log("Performing LLM enhancement analysis");
 
 			const enhancementRequest: LLMEnhancementRequest = {
-				feedback: {
-					id: context.feedback.id,
-					type: context.feedback.type,
-					appVersion: context.feedback.appVersion,
-					buildNumber: context.feedback.buildNumber,
-					deviceInfo: {
-						model: context.feedback.deviceInfo.model,
-						osVersion: context.feedback.deviceInfo.osVersion,
-						family: context.feedback.deviceInfo.family,
-						locale: context.feedback.deviceInfo.locale,
-					},
-					submittedAt: context.feedback.submittedAt.toISOString(),
-					crashData: context.feedback.crashData
-						? {
-								type: context.feedback.crashData.type,
-								exceptionType: context.feedback.crashData.exceptionType,
-								exceptionMessage: context.feedback.crashData.exceptionMessage,
-								trace: context.feedback.crashData.trace,
-							}
-						: undefined,
-					screenshotData: context.feedback.screenshotData
-						? {
-								text: context.feedback.screenshotData.text,
-								images: context.feedback.screenshotData.images.map((img) => ({
-									fileName: img.fileName,
-									url: img.url,
-								})),
-							}
-						: undefined,
-				},
-				codebaseContext: context.codebaseAnalysis
+				title: `${context.feedback.type === "crash" ? "Crash" : "Feedback"}: ${context.feedback.appVersion || "Unknown Version"}`,
+				description: context.feedback.screenshotData?.text || context.feedback.crashData?.exceptionMessage || "No description available",
+				feedbackType: context.feedback.type === "crash" ? "crash" : "general",
+				crashData: context.feedback.crashData
 					? {
-							relevantFiles: context.codebaseAnalysis.relevantFiles.map(
-								(area) => ({
-									path: area.file,
-									content: area.content,
-									lines: area.lines,
-									confidence: area.confidence,
-								}),
-							),
-							recentChanges: context.recentChanges,
-							relatedIssues: context.relatedIssues,
-						}
+						trace: Array.isArray(context.feedback.crashData.trace)
+							? context.feedback.crashData.trace
+							: [context.feedback.crashData.trace],
+						device: context.feedback.deviceInfo.model,
+						osVersion: context.feedback.deviceInfo.osVersion,
+					}
 					: undefined,
+				codebaseContext: context.codebaseAnalysis
+					? context.codebaseAnalysis.relevantFiles.map((area) => ({
+						file: area.file,
+						content: area.content,
+						relevance: area.confidence,
+					}))
+					: undefined,
+				recentChanges: context.recentChanges,
 				options: {
 					provider: options.llmProvider,
 					enableFallback: true,
@@ -403,7 +379,7 @@ export class LLMEnhancedIssueCreator {
 			const enhancement = await this.llmClient.enhanceIssue(enhancementRequest);
 
 			console.log(
-				`LLM enhancement completed with confidence: ${enhancement.metadata.confidence}`,
+				`LLM enhancement completed with confidence: ${enhancement.analysis.confidence}`,
 			);
 			return enhancement;
 		} catch (error) {
@@ -458,7 +434,7 @@ export class LLMEnhancedIssueCreator {
 			// Use enhanced data if available
 			const createOptions: GitHubIssueCreationOptions = {
 				...options.github,
-				customTitle: llmAnalysis?.title,
+				customTitle: llmAnalysis?.enhancedTitle,
 				customBody: llmAnalysis
 					? this.formatEnhancedGitHubBody(llmAnalysis, context)
 					: undefined,
@@ -496,7 +472,7 @@ export class LLMEnhancedIssueCreator {
 						id: "dry-run",
 						identifier: "DRY-1",
 						title: "DRY RUN",
-					} as any,
+					} as LinearIssueCreationResult["issue"],
 					wasExisting: false,
 					action: "created",
 					message: "DRY RUN: Linear issue would be created",
@@ -513,7 +489,7 @@ export class LLMEnhancedIssueCreator {
 
 			const createOptions: LinearIssueCreationOptions = {
 				...options.linear,
-				customTitle: llmAnalysis?.title,
+				customTitle: llmAnalysis?.enhancedTitle,
 				customDescription: llmAnalysis
 					? this.formatEnhancedLinearDescription(llmAnalysis, context)
 					: undefined,
@@ -552,42 +528,28 @@ export class LLMEnhancedIssueCreator {
 		llmAnalysis: LLMEnhancementResponse,
 		_context: EnhancementContext,
 	): string {
-		let body = llmAnalysis.description;
+		let body = llmAnalysis.enhancedDescription;
 
-		// Add relevant code areas section
-		if (llmAnalysis.relevantCodeAreas.length > 0) {
-			body += "\n\n## 🎯 Relevant Code Areas\n\n";
-
-			for (const area of llmAnalysis.relevantCodeAreas) {
-				body += `### \`${area.file}\` (Lines ${area.lines})\n`;
-				body += `**Confidence:** ${(area.confidence * 100).toFixed(0)}%\n`;
-				body += `**Reason:** ${area.reason}\n\n`;
-			}
-		}
-
-		// Add reproduction steps if available
-		if (
-			llmAnalysis.reproductionSteps &&
-			llmAnalysis.reproductionSteps.length > 0
-		) {
-			body += "\n\n## 🔄 Reproduction Steps\n\n";
-			for (let i = 0; i < llmAnalysis.reproductionSteps.length; i++) {
-				body += `${i + 1}. ${llmAnalysis.reproductionSteps[i]}\n`;
+		// Add analysis section
+		if (llmAnalysis.analysis.affectedComponents.length > 0) {
+			body += "\n\n## 🎯 Affected Components\n\n";
+			for (const component of llmAnalysis.analysis.affectedComponents) {
+				body += `- ${component}\n`;
 			}
 		}
 
 		// Add root cause analysis if available
-		if (llmAnalysis.rootCauseAnalysis) {
-			body += `\n\n## 🔍 Root Cause Analysis\n\n${llmAnalysis.rootCauseAnalysis}`;
+		if (llmAnalysis.analysis.rootCause) {
+			body += `\n\n## 🔍 Root Cause Analysis\n\n${llmAnalysis.analysis.rootCause}`;
 		}
 
 		// Add suggested fix if available
-		if (llmAnalysis.suggestedFix) {
-			body += `\n\n## 💡 Suggested Fix\n\n${llmAnalysis.suggestedFix}`;
+		if (llmAnalysis.analysis.suggestedFix) {
+			body += `\n\n## 💡 Suggested Fix\n\n${llmAnalysis.analysis.suggestedFix}`;
 		}
 
 		// Add LLM enhancement metadata
-		body += `\n\n---\n*Enhanced with LLM analysis (${llmAnalysis.metadata.provider}/${llmAnalysis.metadata.model}) - Confidence: ${(llmAnalysis.metadata.confidence * 100).toFixed(0)}%*`;
+		body += `\n\n---\n*Enhanced with LLM analysis (${llmAnalysis.metadata.provider}/${llmAnalysis.metadata.model}) - Confidence: ${(llmAnalysis.analysis.confidence * 100).toFixed(0)}%*`;
 
 		return body;
 	}
@@ -599,25 +561,23 @@ export class LLMEnhancedIssueCreator {
 		llmAnalysis: LLMEnhancementResponse,
 		_context: EnhancementContext,
 	): string {
-		let { description } = llmAnalysis;
+		let description = llmAnalysis.enhancedDescription;
 
-		// Add relevant code areas (Linear format)
-		if (llmAnalysis.relevantCodeAreas.length > 0) {
-			description += "\n\n## Relevant Code Areas\n\n";
-
-			for (const area of llmAnalysis.relevantCodeAreas) {
-				description += `**${area.file}** (Lines ${area.lines}) - ${(area.confidence * 100).toFixed(0)}% confidence\n`;
-				description += `${area.reason}\n\n`;
+		// Add affected components (Linear format)
+		if (llmAnalysis.analysis.affectedComponents.length > 0) {
+			description += "\n\n## Affected Components\n\n";
+			for (const component of llmAnalysis.analysis.affectedComponents) {
+				description += `- ${component}\n`;
 			}
 		}
 
 		// Add analysis details
-		if (llmAnalysis.rootCauseAnalysis) {
-			description += `\n\n**Root Cause Analysis:**\n${llmAnalysis.rootCauseAnalysis}`;
+		if (llmAnalysis.analysis.rootCause) {
+			description += `\n\n**Root Cause Analysis:**\n${llmAnalysis.analysis.rootCause}`;
 		}
 
-		if (llmAnalysis.suggestedFix) {
-			description += `\n\n**Suggested Fix:**\n${llmAnalysis.suggestedFix}`;
+		if (llmAnalysis.analysis.suggestedFix) {
+			description += `\n\n**Suggested Fix:**\n${llmAnalysis.analysis.suggestedFix}`;
 		}
 
 		return description;
@@ -797,16 +757,24 @@ export class LLMEnhancedIssueCreator {
 
 		for (const block of commitBlocks) {
 			const lines = block.split("\n").filter((line) => line.trim());
-			if (lines.length === 0) continue;
+			if (lines.length === 0) {
+				continue;
+			}
 
 			const firstLine = lines[0];
-			if (!firstLine) continue;
+			if (!firstLine) {
+				continue;
+			}
 
 			const commitInfo = firstLine.split("|");
-			if (commitInfo.length !== 4) continue;
+			if (commitInfo.length !== 4) {
+				continue;
+			}
 
 			const [hash, author, timestamp, message] = commitInfo;
-			if (!hash || !author || !timestamp || !message) continue;
+			if (!hash || !author || !timestamp || !message) {
+				continue;
+			}
 
 			const files = lines
 				.slice(1)

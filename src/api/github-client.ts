@@ -28,10 +28,10 @@ import type {
 import type { ProcessedFeedbackData } from "../../types/testflight.js";
 import {
 	API_ENDPOINTS,
-	DEFAULT_LABELS,
-	HTTP_CONFIG,
-} from "../config/constants.js";
-import { getConfig } from "../config/environment.js";
+	DEFAULT_LABEL_CONFIG,
+	DEFAULT_HTTP_CONFIG,
+	getConfiguration,
+} from "../config/index.js";
 import { getTestFlightClient } from "./testflight-client.js";
 
 /**
@@ -40,9 +40,9 @@ import { getTestFlightClient } from "./testflight-client.js";
 export class GitHubClient {
 	private readonly config: GitHubIntegrationConfig;
 	private readonly baseUrl = API_ENDPOINTS.GITHUB;
-	private readonly defaultTimeout = HTTP_CONFIG.DEFAULT_TIMEOUT;
-	private readonly defaultRetries = HTTP_CONFIG.DEFAULT_RETRIES;
-	private readonly defaultRetryDelay = HTTP_CONFIG.DEFAULT_RETRY_DELAY;
+	private readonly defaultTimeout = DEFAULT_HTTP_CONFIG.timeout;
+	private readonly defaultRetries = DEFAULT_HTTP_CONFIG.retries;
+	private readonly defaultRetryDelay = DEFAULT_HTTP_CONFIG.retryDelay;
 
 	private labelsCache: Map<string, GitHubLabel> = new Map();
 	private milestonesCache: Map<string, GitHubMilestone> = new Map();
@@ -50,7 +50,7 @@ export class GitHubClient {
 	private lastCacheUpdate: { labels?: Date; milestones?: Date } = {};
 
 	constructor() {
-		const envConfig = getConfig();
+		const envConfig = getConfiguration();
 
 		if (!envConfig.github) {
 			throw new Error(
@@ -62,9 +62,9 @@ export class GitHubClient {
 			token: envConfig.github.token,
 			owner: envConfig.github.owner,
 			repo: envConfig.github.repo,
-			defaultLabels: [...DEFAULT_LABELS.BASE],
-			crashLabels: [...DEFAULT_LABELS.CRASH],
-			feedbackLabels: [...DEFAULT_LABELS.FEEDBACK],
+			defaultLabels: [...DEFAULT_LABEL_CONFIG.defaultLabels],
+			crashLabels: [...DEFAULT_LABEL_CONFIG.crashLabels],
+			feedbackLabels: [...DEFAULT_LABEL_CONFIG.feedbackLabels],
 			enableDuplicateDetection: true,
 			duplicateDetectionDays: 7,
 			enableScreenshotUpload: true,
@@ -1178,7 +1178,7 @@ export function clearGitHubClientInstance(): void {
  */
 export function validateGitHubConfig(): boolean {
 	try {
-		const config = getConfig();
+		const config = getConfiguration();
 		return !!(
 			config.github?.token &&
 			config.github?.owner &&

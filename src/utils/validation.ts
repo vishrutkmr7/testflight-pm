@@ -1,9 +1,24 @@
 /**
- * Comprehensive Validation Utilities
- * Production-ready validation for inputs, configurations, and security
+ * Runtime Validation Utilities
+ * Production-ready validation for runtime inputs, security, and operational concerns
+ * 
+ * SCOPE: This module handles runtime validation, input sanitization, and security checks
+ * DIFFERS FROM: src/config/validation.ts which handles compile-time configuration validation
+ * 
+ * Use this module for:
+ * - Environment variable validation at runtime
+ * - User input sanitization
+ * - Security validation
+ * - Rate limiting
+ * - API request validation
+ * 
+ * Use src/config/validation.ts for:
+ * - TypeScript configuration object validation
+ * - Compile-time configuration checks
+ * - Structured configuration validation
  */
 
-import { VALIDATION_PATTERNS } from "../config/constants.js";
+import { VALIDATION_PATTERNS } from "../config/index.js";
 
 export interface ValidationResult {
 	valid: boolean;

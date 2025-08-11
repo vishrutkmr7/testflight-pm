@@ -42,9 +42,9 @@ LINEAR_TEAM_ID             # Your Linear Team ID
 
 #### AI Enhancement (Optional but Recommended)
 ```
-OPENAI_API_KEY             # OpenAI API key for GPT models
-ANTHROPIC_API_KEY          # Anthropic API key for Claude models (optional)
-GOOGLE_API_KEY             # Google API key for Gemini models (optional)
+OPENAI_API_KEY             # OpenAI API key for GPT-4o models (best performance)
+ANTHROPIC_API_KEY          # Anthropic API key for Claude-3.5-Sonnet (excellent reasoning)
+GOOGLE_API_KEY             # Google API key for Gemini-2.0-Flash (fast and cost-effective)
 ```
 
 ### 2. Create Workflow File
@@ -119,10 +119,13 @@ That's it! The action will process your TestFlight feedback and create enhanced 
 | `enable_llm_enhancement` | ❌ | `false` | Enable AI-powered issue enhancement |
 | `llm_provider` | ❌ | `openai` | Primary AI provider: `openai`, `anthropic`, `google` |
 | `llm_fallback_providers` | ❌ | `anthropic,google` | Comma-separated fallback providers with automatic translation |
-| `max_llm_cost_per_run` | ❌ | `5.00` | Maximum AI cost per workflow run (USD) |
-| `max_llm_cost_per_month` | ❌ | `200.00` | Maximum AI cost per month (USD) |
+| `openai_model` | ❌ | `gpt-5-mini` | **[DEPRECATED]** Model selection is now automatic - latest models only |
+| `anthropic_model` | ❌ | `claude-4-sonnet` | **[DEPRECATED]** Model selection is now automatic - latest models only |
+| `google_model` | ❌ | `gemini-2.5-flash` | **[DEPRECATED]** Model selection is now automatic - latest models only |
+| `max_llm_cost_per_run` | ❌ | `2.00` | Maximum AI cost per workflow run (USD) |
+| `max_llm_cost_per_month` | ❌ | `50.00` | Maximum AI cost per month (USD) |
 
-The action uses [llm-bridge](https://github.com/supermemoryai/llm-bridge) for seamless AI provider interoperability, automatic cost optimization, and universal error handling across OpenAI, Anthropic, and Google APIs.
+The action provides intelligent AI provider management with automatic cost optimization, fallback handling, and universal error handling across OpenAI, Anthropic, and Google APIs.
 
 ### Processing Options
 
@@ -344,7 +347,7 @@ This provides:
     
     # Create issues in both GitHub and Linear
     platform: 'both'
-    github_token: ${{ secrets.GITHUB_TOKEN }}
+    gthb_token: ${{ secrets.GTHB_TOKEN }}
     linear_api_token: ${{ secrets.LINEAR_API_TOKEN }}
     linear_team_id: ${{ secrets.LINEAR_TEAM_ID }}
     
@@ -354,7 +357,7 @@ This provides:
     additional_labels: 'mobile,testflight'
 ```
 
-### AI-Enhanced with Multiple Providers & Universal Bridge
+### AI-Enhanced with Multiple Providers
 
 ```yaml
 - uses: vishrutkmr7/testflight-pm@v1
@@ -365,28 +368,33 @@ This provides:
     app_id: ${{ secrets.TESTFLIGHT_APP_ID }}
     
     platform: 'github'
-    github_token: ${{ secrets.GITHUB_TOKEN }}
+    gthb_token: ${{ secrets.GTHB_TOKEN }}
     
-    # AI configuration with automatic provider translation
+    # AI configuration with automatic provider fallback
     enable_llm_enhancement: 'true'
     llm_provider: 'openai'
     llm_fallback_providers: 'anthropic,google'
     
-    # API keys for multiple providers (automatic cost-based selection)
+    # Latest AI models (January 2025)
+    openai_model: 'gpt-5-mini'
+    anthropic_model: 'claude-4-sonnet'
+    google_model: 'gemini-2.5-flash'
+    
+    # API keys for multiple providers
     openai_api_key: ${{ secrets.OPENAI_API_KEY }}
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     google_api_key: ${{ secrets.GOOGLE_API_KEY }}
     
     # Cost controls with intelligent provider switching
-    max_llm_cost_per_run: '10.00'
-    max_llm_cost_per_month: '500.00'
+    max_llm_cost_per_run: '5.00'
+    max_llm_cost_per_month: '100.00'
 ```
 
-**LLM Bridge Benefits:**
+**AI Provider Benefits:**
 - 🔄 **Automatic Fallback**: Seamlessly switch between providers when one fails
-- 💰 **Cost Optimization**: Automatically selects cheapest provider for each request
-- 🌐 **Universal Format**: Consistent API interactions across all providers
-- 🛡️ **Error Translation**: Unified error handling with provider-specific translation
+- 💰 **Cost Optimization**: Smart provider selection based on cost and performance
+- 🌐 **Latest Models**: Uses cutting-edge models from OpenAI, Anthropic, and Google
+- 🛡️ **Error Handling**: Unified error handling with provider-specific translation
 
 ### High-Frequency Processing
 

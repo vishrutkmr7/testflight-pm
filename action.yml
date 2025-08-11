@@ -49,7 +49,7 @@ inputs:
     default: "false"
   
   llm_provider:
-    description: "Primary LLM provider (openai, anthropic, google, deepseek, xai)"
+    description: "Primary LLM provider (openai, anthropic, google)"
     required: false
     default: "openai"
   
@@ -68,44 +68,32 @@ inputs:
   google_api_key:
     description: "Google API Key for Gemini models"
     required: false
-  deepseek_api_key:
-    description: "DeepSeek API Key for DeepSeek models"
-    required: false
-  xai_api_key:
-    description: "xAI API Key for Grok models"
-    required: false
 
-  # LLM Model Configuration
+  # LLM Model Configuration - DEPRECATED: Models are now fixed to latest versions
+  # These inputs are kept for backward compatibility but are ignored
+  # Users cannot configure models - only provider selection and API keys are supported
   openai_model:
-    description: "OpenAI model to use"
+    description: "[DEPRECATED] OpenAI model - fixed to latest (gpt-5-mini)"
     required: false
-    default: "gpt-4.1-mini"
+    default: "gpt-5-mini"  # Ignored - uses DEFAULT_LLM_MODELS.openai
   anthropic_model:
-    description: "Anthropic model to use"
+    description: "[DEPRECATED] Anthropic model - fixed to latest (claude-4-sonnet)"
     required: false
-    default: "claude-3.7-sonnet"
+    default: "claude-4-sonnet"  # Ignored - uses DEFAULT_LLM_MODELS.anthropic
   google_model:
-    description: "Google model to use" 
+    description: "[DEPRECATED] Google model - fixed to latest (gemini-2.5-flash)" 
     required: false
-    default: "gemini-2.0-flash"
-  deepseek_model:
-    description: "DeepSeek model to use"
-    required: false
-    default: "deepseek-v3"
-  xai_model:
-    description: "xAI model to use"
-    required: false
-    default: "grok-3"
+    default: "gemini-2.5-flash"  # Ignored - uses DEFAULT_LLM_MODELS.google
 
   # LLM Cost Controls
   max_llm_cost_per_run:
     description: "Maximum LLM cost per action run (USD)"
     required: false
-    default: "5.00"
+    default: "2.00"
   max_llm_cost_per_month:
     description: "Maximum LLM cost per month (USD)"
     required: false
-    default: "200.00"
+    default: "50.00"
   max_tokens_per_issue:
     description: "Maximum tokens per issue enhancement"
     required: false

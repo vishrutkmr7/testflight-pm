@@ -3,7 +3,7 @@
  * Secure JWT token generation and management
  */
 
-import { getConfig } from "../config/environment.js";
+import { getConfiguration } from "../config/index.js";
 
 export interface JwtTokenPayload {
 	iss: string; // Issuer ID
@@ -62,7 +62,7 @@ export class AppStoreConnectAuth {
 		const now = new Date();
 		const refreshThreshold = new Date(
 			this.currentToken.expiresAt.getTime() -
-				this.refreshThresholdMinutes * 60 * 1000,
+			this.refreshThresholdMinutes * 60 * 1000,
 		);
 
 		return now < refreshThreshold;
@@ -73,7 +73,7 @@ export class AppStoreConnectAuth {
 	 */
 	private async generateNewToken(): Promise<string> {
 		try {
-			const config = getConfig();
+			const config = getConfiguration();
 			const { issuerId, keyId, privateKey } = config.appStoreConnect;
 
 			const now = Math.floor(Date.now() / 1000);

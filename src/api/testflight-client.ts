@@ -13,9 +13,9 @@ import type {
 } from "../../types/testflight.js";
 import {
 	API_ENDPOINTS,
-	HTTP_CONFIG,
-	TESTFLIGHT_CONFIG,
-} from "../config/constants.js";
+	DEFAULT_HTTP_CONFIG,
+	DEFAULT_TESTFLIGHT_CONFIG,
+} from "../config/index.js";
 import { getAuthInstance } from "./app-store-connect-auth.js";
 
 export interface RateLimitInfo {
@@ -35,9 +35,9 @@ export interface ApiRequestOptions {
  */
 export class TestFlightClient {
 	private readonly baseUrl = API_ENDPOINTS.APP_STORE_CONNECT;
-	private readonly defaultTimeout = HTTP_CONFIG.DEFAULT_TIMEOUT;
-	private readonly defaultRetries = HTTP_CONFIG.DEFAULT_RETRIES;
-	private readonly defaultRetryDelay = HTTP_CONFIG.DEFAULT_RETRY_DELAY;
+	private readonly defaultTimeout = DEFAULT_HTTP_CONFIG.timeout;
+	private readonly defaultRetries = DEFAULT_HTTP_CONFIG.retries;
+	private readonly defaultRetryDelay = DEFAULT_HTTP_CONFIG.retryDelay;
 
 	private rateLimitInfo: RateLimitInfo | null = null;
 
@@ -48,8 +48,8 @@ export class TestFlightClient {
 		params?: TestFlightQueryParams,
 	): Promise<TestFlightCrashReport[]> {
 		const queryParams = {
-			limit: TESTFLIGHT_CONFIG.DEFAULT_LIMIT,
-			sort: TESTFLIGHT_CONFIG.DEFAULT_SORT,
+			limit: DEFAULT_TESTFLIGHT_CONFIG.DEFAULT_LIMIT,
+			sort: DEFAULT_TESTFLIGHT_CONFIG.DEFAULT_SORT,
 			...params,
 		};
 
@@ -67,8 +67,8 @@ export class TestFlightClient {
 		params?: TestFlightQueryParams,
 	): Promise<TestFlightScreenshotFeedback[]> {
 		const queryParams = {
-			limit: TESTFLIGHT_CONFIG.DEFAULT_LIMIT,
-			sort: TESTFLIGHT_CONFIG.DEFAULT_SORT,
+			limit: DEFAULT_TESTFLIGHT_CONFIG.DEFAULT_LIMIT,
+			sort: DEFAULT_TESTFLIGHT_CONFIG.DEFAULT_SORT,
 			...params,
 		};
 

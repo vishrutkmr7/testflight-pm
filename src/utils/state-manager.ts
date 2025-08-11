@@ -5,7 +5,7 @@
 
 import { promises as fs } from "node:fs";
 import { dirname, join } from "node:path";
-import { PATHS } from "../config/constants.js";
+import { PATHS } from "../config/index.js";
 
 export interface ProcessedFeedbackState {
 	feedbackIds: Set<string>;

@@ -11,7 +11,7 @@ import type {
 } from "../../types/github.js";
 import type { ProcessedFeedbackData } from "../../types/testflight.js";
 import { getGitHubClient, validateGitHubConfig } from "../api/github-client.js";
-import { DEFAULT_LABELS, ERROR_MESSAGES } from "../config/constants.js";
+import { DEFAULT_LABEL_CONFIG, ERROR_MESSAGES } from "../config/index.js";
 
 /**
  * Creates a GitHub issue from TestFlight feedback with intelligent handling
@@ -220,7 +220,7 @@ export function generateFeedbackLabels(
 
 	// Type-based labels
 	if (feedback.type === "crash") {
-		labels.push(...DEFAULT_LABELS.CRASH);
+		labels.push(...DEFAULT_LABEL_CONFIG.crashLabels);
 
 		// Severity-based labels
 		if (

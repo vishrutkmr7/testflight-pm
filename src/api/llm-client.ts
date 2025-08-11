@@ -18,6 +18,7 @@ import type {
 	LLMUsageStats,
 } from "../config/llm-config.js";
 import { getLLMConfig, validateLLMConfig } from "../config/llm-config.js";
+import { DEFAULT_LLM_MODELS } from "../config/defaults.js";
 
 export interface LLMMessage {
 	role: "system" | "user" | "assistant";
@@ -247,30 +248,32 @@ export class LLMClient {
 					await this.validateCostLimits(request, options, currentProvider);
 				}
 
-				// Convert to universal format using llm-bridge
-				let universalRequest: UniversalBody | LLMRequest;
-				try {
-					universalRequest = toUniversal(currentProvider, request);
-					if (!universalRequest) {
-						universalRequest = request;
-					}
-				} catch {
-					universalRequest = request;
+				// Get provider configuration
+				const providerConfig = this.config.providers[currentProvider];
+				if (!providerConfig) {
+					throw new Error(`Provider ${currentProvider} not configured`);
 				}
 
-				// Make the actual API call
-				const rawResponse = await this.callProviderAPI(
+				// Convert to universal format using llm-bridge
+				const universalRequest = toUniversal(currentProvider, {
+					...request,
+					model: request.model || providerConfig.model,
+				});
+
+				// Convert universal format back to provider-specific format
+				const providerSpecificRequest = fromUniversal(currentProvider, universalRequest);
+
+				// Make unified API call using llm-bridge converted format
+				const rawResponse = await this.makeUnifiedAPICall(
 					currentProvider,
-					universalRequest,
+					providerSpecificRequest,
+					providerConfig,
 					options,
 				);
 
-				// Convert response back using llm-bridge
-				const universalResponse = fromUniversal(currentProvider, rawResponse as any);
-
-				// Convert to our internal format
+				// Convert response to our internal format
 				const llmResponse = this.convertUniversalToLLMResponse(
-					universalResponse,
+					rawResponse,
 					currentProvider,
 				);
 
@@ -344,7 +347,7 @@ export class LLMClient {
 		}
 
 		if (availableProviders.length === 1) {
-			return availableProviders[0]!;
+			return availableProviders[0] as LLMProvider;
 		}
 
 		// If user prefers cheapest option, calculate costs
@@ -485,33 +488,34 @@ export class LLMClient {
 	}
 
 	/**
-	 * Make the actual API call to the provider
+	 * Make unified API call using llm-bridge converted format
+	 * This replaces provider-specific HTTP logic with a universal approach
 	 */
-	private async callProviderAPI(
+	private async makeUnifiedAPICall(
 		provider: LLMProvider,
-		universalRequest: UniversalBody | LLMRequest,
+		providerSpecificRequest: Record<string, unknown>,
+		providerConfig: { apiKey: string; model?: string },
 		options: LLMRequestOptions,
 	): Promise<unknown> {
-		const providerConfig = this.config.providers[provider];
-		if (!providerConfig) {
-			throw new Error(`Provider ${provider} not configured`);
-		}
-
 		const timeout = options.timeout || 30000;
 		const controller = new AbortController();
 		const timeoutId = setTimeout(() => controller.abort(), timeout);
 
 		try {
-			const { endpoint, headers, body } = this.prepareProviderRequest(
+			// Get provider configuration using llm-bridge provider adapter patterns
+			const { endpoint, headers } = this.getProviderEndpointConfig(
 				provider,
-				universalRequest,
 				providerConfig,
+				providerSpecificRequest,
 			);
 
 			const response = await fetch(endpoint, {
 				method: "POST",
-				headers,
-				body: JSON.stringify(body),
+				headers: {
+					...headers,
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify(providerSpecificRequest),
 				signal: controller.signal,
 			});
 
@@ -529,22 +533,18 @@ export class LLMClient {
 	}
 
 	/**
-	 * Prepare provider-specific request configuration
+	 * Get provider endpoint configuration - simplified and universal
 	 */
-	private prepareProviderRequest(
+	private getProviderEndpointConfig(
 		provider: LLMProvider,
-		universalRequest: UniversalBody | LLMRequest,
 		providerConfig: { apiKey: string; model?: string },
-	): { endpoint: string; headers: Record<string, string>; body: unknown } {
+		request: Record<string, unknown>,
+	): { endpoint: string; headers: Record<string, string> } {
 		switch (provider) {
 			case "openai":
 				return {
 					endpoint: "https://api.openai.com/v1/chat/completions",
-					headers: {
-						Authorization: `Bearer ${providerConfig.apiKey}`,
-						"Content-Type": "application/json",
-					},
-					body: universalRequest,
+					headers: { Authorization: `Bearer ${providerConfig.apiKey}` },
 				};
 
 			case "anthropic":
@@ -553,18 +553,13 @@ export class LLMClient {
 					headers: {
 						"x-api-key": providerConfig.apiKey,
 						"anthropic-version": "2023-06-01",
-						"Content-Type": "application/json",
 					},
-					body: universalRequest,
 				};
 
 			case "google":
 				return {
-					endpoint: `https://generativelanguage.googleapis.com/v1beta/models/${universalRequest.model || "gemini-pro"}:generateContent?key=${providerConfig.apiKey}`,
-					headers: {
-						"Content-Type": "application/json",
-					},
-					body: universalRequest,
+					endpoint: `https://generativelanguage.googleapis.com/v1beta/models/${request.model || providerConfig.model || DEFAULT_LLM_MODELS.google}:generateContent?key=${providerConfig.apiKey}`,
+					headers: {},
 				};
 
 			default:
@@ -839,7 +834,7 @@ ${request.crashData.trace.join("\n")}
 		response: LLMResponse,
 		startTime: number,
 	): LLMEnhancementResponse {
-		const content = response.content;
+		const { content } = response;
 		const lines = content.split("\n");
 
 		// Extract title (first meaningful line)
@@ -849,10 +844,15 @@ ${request.crashData.trace.join("\n")}
 
 		// Basic label detection
 		const labels = ["testflight"];
-		if (content.toLowerCase().includes("crash")) labels.push("crash", "bug");
-		if (content.toLowerCase().includes("ui")) labels.push("ui");
-		if (content.toLowerCase().includes("performance"))
+		if (content.toLowerCase().includes("crash")) {
+			labels.push("crash", "bug");
+		}
+		if (content.toLowerCase().includes("ui")) {
+			labels.push("ui");
+		}
+		if (content.toLowerCase().includes("performance")) {
 			labels.push("performance");
+		}
 
 		// Basic priority detection
 		let priority: "urgent" | "high" | "medium" | "low" = "medium";
@@ -1002,6 +1002,27 @@ ${request.codebaseContext.length} relevant file(s) identified for analysis.`
 	 */
 	public async healthCheck(): Promise<LLMHealthCheck> {
 		const configValidation = validateLLMConfig(this.config);
+
+		// If LLM enhancement is disabled, treat as optional/degraded rather than unhealthy
+		if (!this.config.enabled) {
+			return {
+				status: "degraded",
+				providers: {
+					openai: { available: false, authenticated: false },
+					anthropic: { available: false, authenticated: false },
+					google: { available: false, authenticated: false },
+				},
+				config: configValidation,
+				usage: this.usageStats,
+				costStatus: {
+					withinLimits: true,
+					remainingBudget: {
+						run: this.config.costControls.maxCostPerRun,
+						month: this.config.costControls.maxCostPerMonth,
+					},
+				},
+			};
+		}
 
 		// Mock cost check since we removed the function
 		const costCheck = {
