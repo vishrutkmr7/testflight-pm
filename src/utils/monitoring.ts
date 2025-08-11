@@ -9,7 +9,6 @@ import { getLinearClient } from "../api/linear-client.js";
 import { getLLMClient } from "../api/llm-client.js";
 import { getTestFlightClient } from "../api/testflight-client.js";
 import { getStateManager } from "./state-manager.js";
-import { Validation } from "./validation.js";
 
 export interface HealthCheck {
 	component: string;
@@ -62,7 +61,7 @@ export class SystemHealthMonitor {
 			enableDetailedChecks: true,
 			timeoutMs: 30000,
 			includeMetrics: true,
-			environment: (process.env.NODE_ENV as any) || "development",
+			environment: (process.env.NODE_ENV as "development" | "production" | "test") || "development",
 			...config,
 		};
 	}
@@ -177,7 +176,10 @@ export class SystemHealthMonitor {
 				responseTime: Date.now() - startTime,
 				details: health.details,
 				recommendations:
-					(health.details.rateLimit as any)?.remaining < 100
+					health.details.rateLimit && 
+					typeof health.details.rateLimit === 'object' && 
+					'remaining' in health.details.rateLimit &&
+					(health.details.rateLimit as { remaining: number }).remaining < 100
 						? [
 							"GitHub rate limit running low - consider reducing request frequency",
 						]
@@ -210,6 +212,7 @@ export class SystemHealthMonitor {
 			// Check if Linear configuration is available
 			const platform = (process.env.INPUT_PLATFORM || process.env.PLATFORM || "github").toLowerCase();
 			const linearToken = process.env.LINEAR_API_TOKEN || process.env.INPUT_LINEAR_API_TOKEN;
+			const linearTeamId = process.env.LINEAR_TEAM_ID || process.env.INPUT_LINEAR_TEAM_ID;
 
 			// If Linear is not required for this platform, treat as healthy but not configured
 			if (platform === "github") {
@@ -220,6 +223,7 @@ export class SystemHealthMonitor {
 					details: {
 						configured: false,
 						reason: "Linear not required for GitHub-only platform",
+						platform,
 						timestamp: new Date().toISOString(),
 					},
 					recommendations: [],
@@ -227,20 +231,43 @@ export class SystemHealthMonitor {
 				};
 			}
 
-			// If no Linear token provided but Linear is expected, treat as degraded
+			// For platform "both" or "linear", Linear is optional but should be configured properly if tokens are provided
+			const isLinearExpected = platform === "linear" || platform === "both";
+			
+			// If no Linear token provided but Linear is expected
 			if (!linearToken) {
 				return {
 					component: "Linear Integration",
-					status: platform === "both" ? "degraded" : "unhealthy",
+					status: platform === "linear" ? "unhealthy" : "healthy", // healthy for "both" when not configured
 					responseTime: Date.now() - startTime,
 					details: {
 						configured: false,
-						error: "Linear API token not provided",
+						platform,
+						reason: isLinearExpected ? "Linear API token not provided" : "Linear not configured",
+						timestamp: new Date().toISOString(),
+					},
+					recommendations: isLinearExpected ? [
+						"Set linear_api_token in GitHub Action inputs or LINEAR_API_TOKEN environment variable",
+						"Set linear_team_id in GitHub Action inputs or LINEAR_TEAM_ID environment variable",
+					] : [],
+					lastChecked: new Date().toISOString(),
+				};
+			}
+
+			// If Linear token provided but missing team ID
+			if (!linearTeamId) {
+				return {
+					component: "Linear Integration",
+					status: "degraded",
+					responseTime: Date.now() - startTime,
+					details: {
+						configured: false,
+						platform,
+						error: "Linear API token provided but team ID missing",
 						timestamp: new Date().toISOString(),
 					},
 					recommendations: [
-						"Set LINEAR_API_TOKEN environment variable",
-						"Set LINEAR_TEAM_ID environment variable",
+						"Set linear_team_id in GitHub Action inputs or LINEAR_TEAM_ID environment variable",
 					],
 					lastChecked: new Date().toISOString(),
 				};
@@ -257,7 +284,11 @@ export class SystemHealthMonitor {
 				component: "Linear Integration",
 				status,
 				responseTime: Date.now() - startTime,
-				details: health.details,
+				details: {
+					...health.details,
+					platform,
+					configured: true,
+				},
 				recommendations:
 					health.status === "unhealthy"
 						? ["Check Linear API token configuration", "Verify Linear team ID"]
@@ -267,12 +298,19 @@ export class SystemHealthMonitor {
 		} catch (error) {
 			const platform = (process.env.INPUT_PLATFORM || process.env.PLATFORM || "github").toLowerCase();
 
+			// If Linear is not expected (github-only platform), don't treat this as critical
+			const status = platform === "github" ? "healthy" : 
+						 platform === "both" ? "degraded" : "unhealthy";
+
 			return {
 				component: "Linear Integration",
-				status: platform === "both" ? "degraded" : "unhealthy",
+				status,
 				responseTime: Date.now() - startTime,
 				error: (error as Error).message,
-				details: {},
+				details: {
+					platform,
+					configured: false,
+				},
 				recommendations: [
 					"Check Linear API token configuration",
 					"Verify Linear API connectivity",
@@ -331,28 +369,68 @@ export class SystemHealthMonitor {
 		const startTime = Date.now();
 
 		try {
-			// Check if LLM enhancement is enabled
-			const llmEnabled = process.env.ENABLE_LLM_ENHANCEMENT === "true" ||
-				process.env.INPUT_ENABLE_LLM_ENHANCEMENT === "true";
+			// Check if LLM enhancement is enabled via GitHub Actions input or environment
+			const llmEnabled = 
+				process.env.ENABLE_LLM_ENHANCEMENT === "true" ||
+				process.env.INPUT_ENABLE_LLM_ENHANCEMENT === "true" ||
+				process.env.LLM_ENHANCEMENT === "true";
 
 			if (!llmEnabled) {
 				return {
 					component: "LLM Integration",
-					status: "healthy", // Changed from degraded to healthy when disabled
+					status: "healthy", // Healthy when disabled - LLM is optional
 					responseTime: Date.now() - startTime,
 					details: {
 						enabled: false,
-						reason: "LLM enhancement is disabled",
+						reason: "LLM enhancement is disabled or not configured",
+						checkedVars: ["ENABLE_LLM_ENHANCEMENT", "INPUT_ENABLE_LLM_ENHANCEMENT", "LLM_ENHANCEMENT"],
+						timestamp: new Date().toISOString(),
 					},
-					recommendations: [],
+					recommendations: [
+						"LLM enhancement is optional. Enable with enable_llm_enhancement: true in GitHub Actions",
+					],
 					lastChecked: new Date().toISOString(),
 				};
 			}
 
+			// Check for available API keys
+			const apiKeys = {
+				openai: process.env.OPENAI_API_KEY || process.env.INPUT_OPENAI_API_KEY,
+				anthropic: process.env.ANTHROPIC_API_KEY || process.env.INPUT_ANTHROPIC_API_KEY,
+				google: process.env.GOOGLE_API_KEY || process.env.INPUT_GOOGLE_API_KEY,
+			};
+
+			const availableProviders = Object.entries(apiKeys)
+				.filter(([, key]) => key && key.trim().length > 0)
+				.map(([provider]) => provider);
+
+			if (availableProviders.length === 0) {
+				return {
+					component: "LLM Integration",
+					status: "degraded", // Degraded when enabled but no keys provided
+					responseTime: Date.now() - startTime,
+					details: {
+						enabled: true,
+						configured: false,
+						reason: "LLM enhancement enabled but no API keys provided",
+						availableProviders: [],
+						timestamp: new Date().toISOString(),
+					},
+					recommendations: [
+						"Provide at least one LLM provider API key:",
+						"- openai_api_key for OpenAI GPT models",
+						"- anthropic_api_key for Anthropic Claude models", 
+						"- google_api_key for Google Gemini models",
+					],
+					lastChecked: new Date().toISOString(),
+				};
+			}
+
+			// Try to initialize LLM client and check health
 			const client = getLLMClient();
 			const health = await client.healthCheck();
 
-			// LLM issues should generally be degraded, not unhealthy, since LLM is optional
+			// LLM issues should generally be degraded, not unhealthy, since LLM is optional enhancement
 			let { status } = health;
 			if (status === "unhealthy") {
 				status = "degraded";
@@ -364,9 +442,12 @@ export class SystemHealthMonitor {
 				responseTime: Date.now() - startTime,
 				details: {
 					enabled: true,
+					configured: true,
+					availableProviders,
 					providers: health.providers,
 					usage: health.usage,
 					costStatus: health.costStatus,
+					timestamp: new Date().toISOString(),
 				},
 				recommendations: health.costStatus.withinLimits
 					? []
@@ -374,15 +455,21 @@ export class SystemHealthMonitor {
 				lastChecked: new Date().toISOString(),
 			};
 		} catch (error) {
+			// Always treat LLM issues as degraded since it's optional
 			return {
 				component: "LLM Integration",
-				status: "degraded", // LLM is optional
+				status: "degraded", // LLM is optional enhancement
 				responseTime: Date.now() - startTime,
 				error: (error as Error).message,
-				details: {},
+				details: {
+					enabled: true,
+					configured: false,
+					timestamp: new Date().toISOString(),
+				},
 				recommendations: [
 					"LLM integration is optional - system can operate without it",
 					"Check LLM provider API keys if enhancement is needed",
+					"Verify LLM configuration and try again",
 				],
 				lastChecked: new Date().toISOString(),
 			};
@@ -472,61 +559,98 @@ export class SystemHealthMonitor {
 			// Check platform to understand what's required vs optional
 			const platform = (process.env.INPUT_PLATFORM || process.env.PLATFORM || "github").toLowerCase();
 
-			// Validate core environment configuration
-			const envConfig = {
-				NODE_ENV: process.env.NODE_ENV,
-				APP_STORE_CONNECT_ISSUER_ID: process.env.APP_STORE_CONNECT_ISSUER_ID,
-				APP_STORE_CONNECT_KEY_ID: process.env.APP_STORE_CONNECT_KEY_ID,
-				APP_STORE_CONNECT_PRIVATE_KEY: process.env.APP_STORE_CONNECT_PRIVATE_KEY,
+			// Core required configuration (TestFlight/App Store Connect)
+			const coreConfig = {
+				APP_STORE_CONNECT_ISSUER_ID: process.env.APP_STORE_CONNECT_ISSUER_ID || process.env.INPUT_TESTFLIGHT_ISSUER_ID,
+				APP_STORE_CONNECT_KEY_ID: process.env.APP_STORE_CONNECT_KEY_ID || process.env.INPUT_TESTFLIGHT_KEY_ID,
+				APP_STORE_CONNECT_PRIVATE_KEY: process.env.APP_STORE_CONNECT_PRIVATE_KEY || process.env.INPUT_TESTFLIGHT_PRIVATE_KEY,
+				TESTFLIGHT_APP_ID: process.env.TESTFLIGHT_APP_ID || process.env.INPUT_APP_ID,
 			};
 
-			// Add platform-specific configurations
-			const extendedEnvConfig: Record<string, string | undefined> = { ...envConfig };
+			// Platform-specific configuration
+			const platformConfig = {
+				github: {
+					GTHB_TOKEN: process.env.GTHB_TOKEN || process.env.INPUT_GTHB_TOKEN,
+					GITHUB_OWNER: process.env.GITHUB_OWNER || process.env.INPUT_GITHUB_OWNER,
+					GITHUB_REPO: process.env.GITHUB_REPO || process.env.INPUT_GITHUB_REPO,
+				},
+				linear: {
+					LINEAR_API_TOKEN: process.env.LINEAR_API_TOKEN || process.env.INPUT_LINEAR_API_TOKEN,
+					LINEAR_TEAM_ID: process.env.LINEAR_TEAM_ID || process.env.INPUT_LINEAR_TEAM_ID,
+				},
+			};
+
+			// Check core configuration validity
+			const missingCoreConfig = Object.entries(coreConfig)
+				.filter(([, value]) => !value || value.trim() === "")
+				.map(([key]) => key);
+
+			// Check platform-specific configuration
+			const platformIssues: string[] = [];
+			const platformWarnings: string[] = [];
+
 			if (platform === "github" || platform === "both") {
-				extendedEnvConfig.GTHB_TOKEN = process.env.GTHB_TOKEN;
+				const missingGitHub = Object.entries(platformConfig.github)
+					.filter(([, value]) => !value || value.trim() === "")
+					.map(([key]) => key);
+				
+				if (missingGitHub.length > 0) {
+					if (platform === "github") {
+						platformIssues.push(...missingGitHub.map(key => `Missing required GitHub config: ${key}`));
+					} else {
+						platformWarnings.push(...missingGitHub.map(key => `Missing GitHub config: ${key} (GitHub integration will be disabled)`));
+					}
+				}
 			}
+
 			if (platform === "linear" || platform === "both") {
-				extendedEnvConfig.LINEAR_API_TOKEN = process.env.LINEAR_API_TOKEN;
+				const missingLinear = Object.entries(platformConfig.linear)
+					.filter(([, value]) => !value || value.trim() === "")
+					.map(([key]) => key);
+				
+				if (missingLinear.length > 0) {
+					if (platform === "linear") {
+						platformIssues.push(...missingLinear.map(key => `Missing required Linear config: ${key}`));
+					} else {
+						platformWarnings.push(...missingLinear.map(key => `Missing Linear config: ${key} (Linear integration will be disabled)`));
+					}
+				}
 			}
 
-			const validation = Validation.environment(extendedEnvConfig);
-
-			// Check API secrets only for configured platforms
-			const secrets: Record<string, string> = {};
-			if ((platform === "github" || platform === "both") && process.env.GTHB_TOKEN) {
-				secrets.GTHB_TOKEN = process.env.GTHB_TOKEN;
-			}
-			if ((platform === "linear" || platform === "both") && process.env.LINEAR_API_TOKEN) {
-				secrets.LINEAR_API_TOKEN = process.env.LINEAR_API_TOKEN;
-			}
-
-			// Only validate secrets if we have any configured
-			let secretValidation: { valid: boolean; errors: string[]; warnings: string[]; securityRisk: "low" | "medium" | "high"; recommendations: string[] } = {
-				valid: true,
-				errors: [],
-				warnings: [],
-				securityRisk: "low",
-				recommendations: []
-			};
-			if (Object.keys(secrets).length > 0) {
-				secretValidation = Validation.apiSecrets(secrets);
-			}
-
-			// More lenient status calculation - prioritize core functionality
+			// Determine overall status
 			let status: "healthy" | "degraded" | "unhealthy";
-			const coreConfigValid = envConfig.APP_STORE_CONNECT_ISSUER_ID &&
-				envConfig.APP_STORE_CONNECT_KEY_ID &&
-				envConfig.APP_STORE_CONNECT_PRIVATE_KEY;
-
-			if (!coreConfigValid) {
-				status = "unhealthy";
-			} else if (!validation.valid || !secretValidation.valid) {
-				// Secondary validation failures are degraded, not unhealthy
-				status = "degraded";
-			} else if (validation.warnings.length > 0 || secretValidation.warnings.length > 0) {
-				status = "degraded";
+			if (missingCoreConfig.length > 0) {
+				status = "unhealthy"; // Core config missing = unhealthy
+			} else if (platformIssues.length > 0) {
+				status = "unhealthy"; // Required platform config missing = unhealthy
+			} else if (platformWarnings.length > 0) {
+				status = "degraded"; // Optional platform config missing = degraded
 			} else {
 				status = "healthy";
+			}
+
+			// Build recommendations
+			const recommendations: string[] = [];
+			if (missingCoreConfig.length > 0) {
+				recommendations.push("Configure required TestFlight/App Store Connect credentials:");
+				missingCoreConfig.forEach(key => {
+					const inputName = key.replace('APP_STORE_CONNECT_', '').toLowerCase();
+					recommendations.push(`  - Set ${key} or use GitHub Action input: testflight_${inputName}`);
+				});
+			}
+
+			if (platformIssues.length > 0) {
+				recommendations.push("Configure required platform credentials:");
+				platformIssues.forEach(issue => recommendations.push(`  - ${issue}`));
+			}
+
+			if (platformWarnings.length > 0) {
+				recommendations.push("Optional platform configurations (can be added later):");
+				platformWarnings.forEach(warning => recommendations.push(`  - ${warning}`));
+			}
+
+			if (status === "healthy") {
+				recommendations.push("All required configuration is present and valid");
 			}
 
 			return {
@@ -534,28 +658,46 @@ export class SystemHealthMonitor {
 				status,
 				responseTime: Date.now() - startTime,
 				details: {
-					environment: envConfig.NODE_ENV,
+					environment: process.env.NODE_ENV || "production",
 					platform,
-					coreConfigValid,
-					validationErrors: validation.errors,
-					validationWarnings: validation.warnings,
-					securityRisk: secretValidation.securityRisk,
+					coreConfigComplete: missingCoreConfig.length === 0,
+					missingCoreConfig,
+					platformIssues,
+					platformWarnings,
+					detectedInputs: {
+						core: Object.fromEntries(
+							Object.entries(coreConfig).map(([key, value]) => [key, !!value])
+						),
+						platform: platform === "github" || platform === "both" ? {
+							github: Object.fromEntries(
+								Object.entries(platformConfig.github).map(([key, value]) => [key, !!value])
+							)
+						} : platform === "linear" || platform === "both" ? {
+							linear: Object.fromEntries(
+								Object.entries(platformConfig.linear).map(([key, value]) => [key, !!value])
+							)
+						} : {},
+					},
+					timestamp: new Date().toISOString(),
 				},
-				recommendations: [
-					...validation.errors.map((e) => `Config Error: ${e}`),
-					...validation.warnings.map((w) => `Config Warning: ${w}`),
-					...secretValidation.recommendations,
-				],
+				recommendations,
 				lastChecked: new Date().toISOString(),
 			};
 		} catch (error) {
 			return {
 				component: "Environment Configuration",
-				status: "degraded", // Changed from unhealthy to degraded for config issues
+				status: "degraded", // Configuration validation errors are degraded, not unhealthy
 				responseTime: Date.now() - startTime,
 				error: (error as Error).message,
-				details: {},
-				recommendations: ["Review environment variable configuration"],
+				details: {
+					platform: process.env.INPUT_PLATFORM || process.env.PLATFORM || "github",
+					timestamp: new Date().toISOString(),
+				},
+				recommendations: [
+					"Environment configuration validation failed",
+					"Check that all required environment variables are set",
+					"Verify GitHub Action inputs are correctly configured",
+				],
 				lastChecked: new Date().toISOString(),
 			};
 		}
@@ -690,33 +832,59 @@ export async function quickHealthCheck(): Promise<{
 		const monitor = getSystemHealthMonitor();
 		const health = await monitor.checkSystemHealth();
 
-		// If platform is explicitly GitHub-only, don't mark Linear as critical
+		// Platform-aware critical issue filtering
 		const platform = (process.env.INPUT_PLATFORM || process.env.PLATFORM || "github").toLowerCase();
 		const criticalIssues = health.components
 			.filter((c) => {
+				// Only consider truly unhealthy components as critical
 				if (c.status !== "unhealthy") {
 					return false;
 				}
+
+				// Platform-specific filtering
 				if (platform === "github" && c.component === "Linear Integration") {
+					return false; // Linear not critical for GitHub-only
+				}
+				if (platform === "linear" && c.component === "GitHub Integration") {
+					return false; // GitHub not critical for Linear-only
+				}
+
+				// LLM is always optional, never critical
+				if (c.component === "LLM Integration") {
 					return false;
 				}
+
+				// Codebase analysis is optional
+				if (c.component === "Codebase Analysis") {
+					return false;
+				}
+
+				// State management failures are degraded issues, not critical
+				if (c.component === "State Management") {
+					return false;
+				}
+
 				return true;
 			})
 			.map((c) => `${c.component}: ${c.error || "unhealthy"}`);
 
-		// Adjust overall status based on filtered critical issues
-		let adjustedStatus: "healthy" | "degraded" | "unhealthy" = health.overall;
+		// Adjusted status calculation - be more lenient
+		let adjustedStatus: "healthy" | "degraded" | "unhealthy";
 		if (criticalIssues.length === 0) {
-			adjustedStatus = "healthy";
-		} else if (adjustedStatus !== "unhealthy") {
-			adjustedStatus = health.overall; // keep degraded if any
+			// No critical issues - check if we have any degraded components
+			const hasDegraded = health.components.some(c => c.status === "degraded");
+			adjustedStatus = hasDegraded ? "degraded" : "healthy";
+		} else {
+			// We have critical issues
+			adjustedStatus = "unhealthy";
 		}
 
 		let message = "System operational";
 		if (adjustedStatus === "unhealthy") {
-			message = `System has ${criticalIssues.length} critical issues`;
+			message = `System has ${criticalIssues.length} critical issue${criticalIssues.length === 1 ? '' : 's'}`;
 		} else if (adjustedStatus === "degraded") {
-			message = `System functional with ${health.metrics.degradedComponents} warnings`;
+			const degradedCount = health.components.filter(c => c.status === "degraded").length;
+			message = `System functional with ${degradedCount} non-critical warning${degradedCount === 1 ? '' : 's'}`;
 		}
 
 		return {
