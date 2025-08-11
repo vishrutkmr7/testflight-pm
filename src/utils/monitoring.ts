@@ -603,9 +603,9 @@ export class SystemHealthMonitor {
 				github: {
 					GTHB_TOKEN: process.env.GTHB_TOKEN || process.env.INPUT_GTHB_TOKEN,
 					// Auto-populate GitHub owner/repo from GitHub Actions context when available
-					GITHUB_OWNER: process.env.GITHUB_OWNER || process.env.INPUT_GITHUB_OWNER || 
+					GITHUB_OWNER: process.env.GITHUB_OWNER || process.env.INPUT_GITHUB_OWNER ||
 						(isGitHubActions ? process.env.GITHUB_REPOSITORY_OWNER : undefined),
-					GITHUB_REPO: process.env.GITHUB_REPO || process.env.INPUT_GITHUB_REPO || 
+					GITHUB_REPO: process.env.GITHUB_REPO || process.env.INPUT_GITHUB_REPO ||
 						(isGitHubActions && process.env.GITHUB_REPOSITORY ? process.env.GITHUB_REPOSITORY.split('/')[1] : undefined),
 				},
 				linear: {
@@ -753,7 +753,7 @@ export class SystemHealthMonitor {
 							INPUT_GITHUB_OWNER: !!process.env.INPUT_GITHUB_OWNER,
 							GITHUB_REPO: !!process.env.GITHUB_REPO,
 							INPUT_GITHUB_REPO: !!process.env.INPUT_GITHUB_REPO,
-							
+
 							// GitHub Actions default environment variables
 							GITHUB_ACTIONS: !!process.env.GITHUB_ACTIONS,
 							GITHUB_REPOSITORY: !!process.env.GITHUB_REPOSITORY,
@@ -767,7 +767,7 @@ export class SystemHealthMonitor {
 							GITHUB_RUN_NUMBER: !!process.env.GITHUB_RUN_NUMBER,
 							GITHUB_EVENT_NAME: !!process.env.GITHUB_EVENT_NAME,
 							GITHUB_WORKSPACE: !!process.env.GITHUB_WORKSPACE,
-							
+
 							// Show actual values for debugging (truncated for security)
 							DEBUG_GITHUB_REPOSITORY: process.env.GITHUB_REPOSITORY || 'not set',
 							DEBUG_GITHUB_REPOSITORY_OWNER: process.env.GITHUB_REPOSITORY_OWNER || 'not set',
@@ -776,7 +776,7 @@ export class SystemHealthMonitor {
 							DEBUG_GITHUB_ACTOR: process.env.GITHUB_ACTOR || 'not set',
 							DEBUG_GITHUB_WORKFLOW: process.env.GITHUB_WORKFLOW || 'not set',
 							DEBUG_GITHUB_EVENT_NAME: process.env.GITHUB_EVENT_NAME || 'not set',
-							
+
 							// Runner information
 							RUNNER_OS: !!process.env.RUNNER_OS,
 							RUNNER_ARCH: !!process.env.RUNNER_ARCH,
