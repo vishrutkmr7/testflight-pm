@@ -283,7 +283,7 @@ export class TestFlightHealthChecker extends BaseHealthChecker {
             const { getEnvVar } = require("../../config/environment-loader.js");
             const appId = client.getConfiguredAppId();
             const bundleId = getEnvVar("TESTFLIGHT_BUNDLE_ID", "testflight_bundle_id");
-            
+
             if (!appId && !bundleId) {
                 return this.createSuccessResult(
                     "unhealthy",

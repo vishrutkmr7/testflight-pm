@@ -49794,46 +49794,6 @@ class IssueServiceFactory {
 init_state_manager();
 
 // src/utils/validation.ts
-init_config();
-function validateEnvironmentConfiguration(config) {
-  const errors = [];
-  const warnings = [];
-  const requiredFields = [
-    { primary: "TESTFLIGHT_ISSUER_ID", fallback: "INPUT_TESTFLIGHT_ISSUER_ID", name: "TestFlight Issuer ID" },
-    { primary: "TESTFLIGHT_KEY_ID", fallback: "INPUT_TESTFLIGHT_KEY_ID", name: "TestFlight Key ID" },
-    { primary: "TESTFLIGHT_PRIVATE_KEY", fallback: "INPUT_TESTFLIGHT_PRIVATE_KEY", name: "TestFlight Private Key" },
-    { primary: "TESTFLIGHT_APP_ID", fallback: "INPUT_APP_ID", name: "TestFlight App ID" }
-  ];
-  for (const field of requiredFields) {
-    if (!config[field.primary] && !config[field.fallback]) {
-      errors.push(`Missing required environment variable: ${field.name} (set ${field.primary} environment variable or GitHub Action input)`);
-    }
-  }
-  const issuerId = config.TESTFLIGHT_ISSUER_ID || config.INPUT_TESTFLIGHT_ISSUER_ID;
-  if (issuerId && typeof issuerId === "string" && !VALIDATION_PATTERNS.ISSUER_ID.test(issuerId)) {
-    errors.push("Invalid App Store Connect Issuer ID format");
-  }
-  const keyId = config.TESTFLIGHT_KEY_ID || config.INPUT_TESTFLIGHT_KEY_ID;
-  if (keyId && typeof keyId === "string" && !VALIDATION_PATTERNS.API_KEY_ID.test(keyId)) {
-    errors.push("Invalid App Store Connect Key ID format");
-  }
-  if (config.GTHB_TOKEN && typeof config.GTHB_TOKEN === "string" && !VALIDATION_PATTERNS.GTHB_TOKEN.test(config.GTHB_TOKEN)) {
-    errors.push("Invalid GitHub token format");
-  }
-  if (config.NODE_ENV === "production") {
-    if (!config.GTHB_TOKEN && !config.LINEAR_API_TOKEN) {
-      warnings.push("No issue tracking platform configured (GitHub or Linear)");
-    }
-    if (!config.WEBHOOK_SECRET) {
-      warnings.push("Webhook secret not configured - webhook security disabled");
-    }
-  }
-  return {
-    valid: errors.length === 0,
-    errors,
-    warnings
-  };
-}
 function validateApiSecrets(secrets) {
   const errors = [];
   const warnings = [];
@@ -50127,7 +50087,6 @@ class RateLimiter {
   }
 }
 var Validation = {
-  environment: validateEnvironmentConfiguration,
   apiSecrets: validateApiSecrets,
   testFlightFeedback: validateTestFlightFeedback,
   issueCreationRequest: validateIssueCreationRequest,
