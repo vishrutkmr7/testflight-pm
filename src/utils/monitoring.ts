@@ -413,9 +413,12 @@ export class SystemHealthMonitor {
 
 			// Check API secrets
 			const secrets: Record<string, string> = {};
-			if (envConfig.GTHB_TOKEN) secrets.GTHB_TOKEN = envConfig.GTHB_TOKEN;
-			if (envConfig.LINEAR_API_TOKEN)
+			if (envConfig.GTHB_TOKEN) {
+				secrets.GTHB_TOKEN = envConfig.GTHB_TOKEN;
+			}
+			if (envConfig.LINEAR_API_TOKEN) {
 				secrets.LINEAR_API_TOKEN = envConfig.LINEAR_API_TOKEN;
+			}
 
 			const secretValidation = Validation.apiSecrets(secrets);
 

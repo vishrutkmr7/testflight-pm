@@ -7066,17 +7066,17 @@ function getGitHubContext() {
 var ENV_VARS;
 var init_environment_loader = __esm(() => {
   ENV_VARS = {
-    APP_STORE_CONNECT_ISSUER_ID: "app-store-connect-issuer-id",
-    APP_STORE_CONNECT_KEY_ID: "app-store-connect-key-id",
-    APP_STORE_CONNECT_PRIVATE_KEY: "app-store-connect-private-key",
+    APP_STORE_CONNECT_ISSUER_ID: "testflight-issuer-id",
+    APP_STORE_CONNECT_KEY_ID: "testflight-key-id",
+    APP_STORE_CONNECT_PRIVATE_KEY: "testflight-private-key",
     APP_STORE_CONNECT_PRIVATE_KEY_PATH: undefined,
-    TESTFLIGHT_APP_ID: "testflight-app-id",
+    TESTFLIGHT_APP_ID: "app-id",
     TESTFLIGHT_BUNDLE_ID: "testflight-bundle-id",
-    GITHUB_TOKEN: "gthb-token",
-    GITHUB_OWNER: "github-owner",
-    GITHUB_REPO: "github-repo",
-    LINEAR_API_TOKEN: "linear-api-token",
-    LINEAR_TEAM_ID: "linear-team-id",
+    GITHUB_TOKEN: "gthb_token",
+    GITHUB_OWNER: "github_owner",
+    GITHUB_REPO: "github_repo",
+    LINEAR_API_TOKEN: "linear_api_token",
+    LINEAR_TEAM_ID: "linear_team_id",
     WEBHOOK_SECRET: undefined,
     WEBHOOK_PORT: undefined,
     ENABLE_LLM_ENHANCEMENT: "enable_llm_enhancement",
@@ -29590,10 +29590,12 @@ class SystemHealthMonitor {
       };
       const validation = Validation.environment(envConfig);
       const secrets = {};
-      if (envConfig.GTHB_TOKEN)
+      if (envConfig.GTHB_TOKEN) {
         secrets.GTHB_TOKEN = envConfig.GTHB_TOKEN;
-      if (envConfig.LINEAR_API_TOKEN)
+      }
+      if (envConfig.LINEAR_API_TOKEN) {
         secrets.LINEAR_API_TOKEN = envConfig.LINEAR_API_TOKEN;
+      }
       const secretValidation = Validation.apiSecrets(secrets);
       const status = !validation.valid || !secretValidation.valid ? "unhealthy" : validation.warnings.length > 0 || secretValidation.warnings.length > 0 ? "degraded" : "healthy";
       return {

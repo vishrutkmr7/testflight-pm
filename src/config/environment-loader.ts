@@ -138,22 +138,22 @@ export function getListEnvVar(
  * Environment variable definitions for type safety
  */
 export const ENV_VARS = {
-    // Core App Store Connect
-    APP_STORE_CONNECT_ISSUER_ID: "app-store-connect-issuer-id",
-    APP_STORE_CONNECT_KEY_ID: "app-store-connect-key-id",
-    APP_STORE_CONNECT_PRIVATE_KEY: "app-store-connect-private-key",
+    // Core App Store Connect - FIXED to match action.yml inputs
+    APP_STORE_CONNECT_ISSUER_ID: "testflight-issuer-id",
+    APP_STORE_CONNECT_KEY_ID: "testflight-key-id", 
+    APP_STORE_CONNECT_PRIVATE_KEY: "testflight-private-key",
     APP_STORE_CONNECT_PRIVATE_KEY_PATH: undefined, // No GitHub Action input
-    TESTFLIGHT_APP_ID: "testflight-app-id",
+    TESTFLIGHT_APP_ID: "app-id",
     TESTFLIGHT_BUNDLE_ID: "testflight-bundle-id",
 
-    // GitHub
-    GITHUB_TOKEN: "gthb-token",
-    GITHUB_OWNER: "github-owner",
-    GITHUB_REPO: "github-repo",
+    // GitHub - FIXED to match action.yml inputs
+    GITHUB_TOKEN: "gthb_token",
+    GITHUB_OWNER: "github_owner", 
+    GITHUB_REPO: "github_repo",
 
-    // Linear
-    LINEAR_API_TOKEN: "linear-api-token",
-    LINEAR_TEAM_ID: "linear-team-id",
+    // Linear - FIXED to match action.yml inputs  
+    LINEAR_API_TOKEN: "linear_api_token",
+    LINEAR_TEAM_ID: "linear_team_id",
 
     // Webhook (local dev only)
     WEBHOOK_SECRET: undefined,
