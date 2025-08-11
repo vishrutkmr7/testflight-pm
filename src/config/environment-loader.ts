@@ -140,7 +140,7 @@ export function getListEnvVar(
 export const ENV_VARS = {
     // Core App Store Connect - FIXED to match action.yml inputs
     APP_STORE_CONNECT_ISSUER_ID: "testflight-issuer-id",
-    APP_STORE_CONNECT_KEY_ID: "testflight-key-id", 
+    APP_STORE_CONNECT_KEY_ID: "testflight-key-id",
     APP_STORE_CONNECT_PRIVATE_KEY: "testflight-private-key",
     APP_STORE_CONNECT_PRIVATE_KEY_PATH: undefined, // No GitHub Action input
     TESTFLIGHT_APP_ID: "app-id",
@@ -148,7 +148,7 @@ export const ENV_VARS = {
 
     // GitHub - FIXED to match action.yml inputs
     GITHUB_TOKEN: "gthb_token",
-    GITHUB_OWNER: "github_owner", 
+    GITHUB_OWNER: "github_owner",
     GITHUB_REPO: "github_repo",
 
     // Linear - FIXED to match action.yml inputs  
