@@ -589,20 +589,24 @@ export class SystemHealthMonitor {
 			// Check platform to understand what's required vs optional
 			const platform = (process.env.INPUT_PLATFORM || process.env.PLATFORM || "github").toLowerCase();
 
-			// Core required configuration (TestFlight/App Store Connect)
+			// Core required configuration (TestFlight)
 			const coreConfig = {
-				APP_STORE_CONNECT_ISSUER_ID: process.env.APP_STORE_CONNECT_ISSUER_ID || process.env.INPUT_TESTFLIGHT_ISSUER_ID,
-				APP_STORE_CONNECT_KEY_ID: process.env.APP_STORE_CONNECT_KEY_ID || process.env.INPUT_TESTFLIGHT_KEY_ID,
-				APP_STORE_CONNECT_PRIVATE_KEY: process.env.APP_STORE_CONNECT_PRIVATE_KEY || process.env.INPUT_TESTFLIGHT_PRIVATE_KEY,
+				TESTFLIGHT_ISSUER_ID: process.env.TESTFLIGHT_ISSUER_ID || process.env.INPUT_TESTFLIGHT_ISSUER_ID,
+				TESTFLIGHT_KEY_ID: process.env.TESTFLIGHT_KEY_ID || process.env.INPUT_TESTFLIGHT_KEY_ID,
+				TESTFLIGHT_PRIVATE_KEY: process.env.TESTFLIGHT_PRIVATE_KEY || process.env.INPUT_TESTFLIGHT_PRIVATE_KEY,
 				TESTFLIGHT_APP_ID: process.env.TESTFLIGHT_APP_ID || process.env.INPUT_APP_ID,
 			};
 
-			// Platform-specific configuration
+			// Platform-specific configuration with auto-population from GitHub Actions context
+			const isGitHubActions = process.env.GITHUB_ACTIONS === 'true';
 			const platformConfig = {
 				github: {
 					GTHB_TOKEN: process.env.GTHB_TOKEN || process.env.INPUT_GTHB_TOKEN,
-					GITHUB_OWNER: process.env.GITHUB_OWNER || process.env.INPUT_GITHUB_OWNER,
-					GITHUB_REPO: process.env.GITHUB_REPO || process.env.INPUT_GITHUB_REPO,
+					// Auto-populate GitHub owner/repo from GitHub Actions context when available
+					GITHUB_OWNER: process.env.GITHUB_OWNER || process.env.INPUT_GITHUB_OWNER || 
+						(isGitHubActions ? process.env.GITHUB_REPOSITORY_OWNER : undefined),
+					GITHUB_REPO: process.env.GITHUB_REPO || process.env.INPUT_GITHUB_REPO || 
+						(isGitHubActions && process.env.GITHUB_REPOSITORY ? process.env.GITHUB_REPOSITORY.split('/')[1] : undefined),
 				},
 				linear: {
 					LINEAR_API_TOKEN: process.env.LINEAR_API_TOKEN || process.env.INPUT_LINEAR_API_TOKEN,
@@ -665,10 +669,11 @@ export class SystemHealthMonitor {
 			// Build recommendations
 			const recommendations: string[] = [];
 			if (missingCoreConfig.length > 0) {
-				recommendations.push("Configure required TestFlight/App Store Connect credentials:");
+				recommendations.push("Configure required TestFlight credentials:");
 				missingCoreConfig.forEach(key => {
-					const inputName = key.replace('APP_STORE_CONNECT_', '').toLowerCase();
-					recommendations.push(`  - Set ${key} or use GitHub Action input: testflight_${inputName}`);
+					const inputName = key.replace('TESTFLIGHT_', '').toLowerCase();
+					const actionInputName = inputName === 'app_id' ? 'app_id' : `testflight_${inputName}`;
+					recommendations.push(`  - Set ${key} or use GitHub Action input: ${actionInputName}`);
 				});
 			}
 
@@ -731,14 +736,28 @@ export class SystemHealthMonitor {
 					// Debug info for exact environment variable checking
 					environmentVariables: {
 						core: {
-							APP_STORE_CONNECT_ISSUER_ID: !!process.env.APP_STORE_CONNECT_ISSUER_ID,
+							TESTFLIGHT_ISSUER_ID: !!process.env.TESTFLIGHT_ISSUER_ID,
 							INPUT_TESTFLIGHT_ISSUER_ID: !!process.env.INPUT_TESTFLIGHT_ISSUER_ID,
-							APP_STORE_CONNECT_KEY_ID: !!process.env.APP_STORE_CONNECT_KEY_ID,
+							TESTFLIGHT_KEY_ID: !!process.env.TESTFLIGHT_KEY_ID,
 							INPUT_TESTFLIGHT_KEY_ID: !!process.env.INPUT_TESTFLIGHT_KEY_ID,
-							APP_STORE_CONNECT_PRIVATE_KEY: !!process.env.APP_STORE_CONNECT_PRIVATE_KEY,
+							TESTFLIGHT_PRIVATE_KEY: !!process.env.TESTFLIGHT_PRIVATE_KEY,
 							INPUT_TESTFLIGHT_PRIVATE_KEY: !!process.env.INPUT_TESTFLIGHT_PRIVATE_KEY,
 							TESTFLIGHT_APP_ID: !!process.env.TESTFLIGHT_APP_ID,
 							INPUT_APP_ID: !!process.env.INPUT_APP_ID,
+						},
+						github: {
+							GTHB_TOKEN: !!process.env.GTHB_TOKEN,
+							INPUT_GTHB_TOKEN: !!process.env.INPUT_GTHB_TOKEN,
+							GITHUB_OWNER: !!process.env.GITHUB_OWNER,
+							INPUT_GITHUB_OWNER: !!process.env.INPUT_GITHUB_OWNER,
+							GITHUB_REPOSITORY_OWNER: !!process.env.GITHUB_REPOSITORY_OWNER,
+							GITHUB_REPO: !!process.env.GITHUB_REPO,
+							INPUT_GITHUB_REPO: !!process.env.INPUT_GITHUB_REPO,
+							GITHUB_REPOSITORY: !!process.env.GITHUB_REPOSITORY,
+							GITHUB_ACTIONS: !!process.env.GITHUB_ACTIONS,
+							// Show actual values for debugging (first 20 chars for security)
+							DEBUG_GITHUB_REPOSITORY: process.env.GITHUB_REPOSITORY?.substring(0, 20) || 'not set',
+							DEBUG_GITHUB_REPOSITORY_OWNER: process.env.GITHUB_REPOSITORY_OWNER?.substring(0, 20) || 'not set',
 						}
 					},
 					timestamp: new Date().toISOString(),

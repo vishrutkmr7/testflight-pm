@@ -138,13 +138,12 @@ export function getListEnvVar(
  * Environment variable definitions for type safety
  */
 export const ENV_VARS = {
-    // Core App Store Connect - FIXED to match action.yml inputs
-    APP_STORE_CONNECT_ISSUER_ID: "testflight_issuer_id",
-    APP_STORE_CONNECT_KEY_ID: "testflight_key_id",
-    APP_STORE_CONNECT_PRIVATE_KEY: "testflight_private_key",
-    APP_STORE_CONNECT_PRIVATE_KEY_PATH: undefined, // No GitHub Action input
+    // Core TestFlight Configuration - FIXED to match action.yml inputs
+    TESTFLIGHT_ISSUER_ID: "testflight_issuer_id",
+    TESTFLIGHT_KEY_ID: "testflight_key_id",
+    TESTFLIGHT_PRIVATE_KEY: "testflight_private_key",
     TESTFLIGHT_APP_ID: "app_id",
-    TESTFLIGHT_BUNDLE_ID: "testflight-bundle-id",
+    TESTFLIGHT_BUNDLE_ID: "testflight_bundle_id",
 
     // GitHub - FIXED to match action.yml inputs
     GITHUB_TOKEN: "gthb_token",
