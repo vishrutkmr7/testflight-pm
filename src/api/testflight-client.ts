@@ -340,6 +340,22 @@ export class TestFlightClient {
 	}
 
 	/**
+	 * Gets a specific app by its ID for validation purposes
+	 */
+	public async getAppById(appId: string): Promise<TestFlightApp> {
+		const response = await this.makeApiRequest<{ data: TestFlightApp }>(
+			`/apps/${appId}`,
+			{
+				fields: {
+					apps: "bundleId,name,sku,primaryLocale"
+				}
+			}
+		);
+
+		return response.data;
+	}
+
+	/**
 	 * Gets crash submissions for a specific app
 	 */
 	public async getAppCrashSubmissions(
@@ -435,30 +451,100 @@ export class TestFlightClient {
 	}
 
 	/**
-	 * Resolves app ID from bundle ID if app ID is not provided or invalid
+	 * Resolves and validates app ID using App Store Connect API as single source of truth
+	 * Ensures consistency between provided app_id and bundle_id when both are available
 	 */
 	public async resolveAppId(bundleId?: string): Promise<string> {
-		// If we already have a valid app ID, use it
-		if (this.appId) {
-			return this.appId;
+		const providedAppId = this.appId;
+		const providedBundleId = bundleId;
+
+		// Case 1: Both app_id and bundle_id provided - validate consistency
+		if (providedAppId && providedBundleId) {
+			console.log(`🔍 Validating consistency between app_id: ${providedAppId} and bundle_id: ${providedBundleId}`);
+			
+			try {
+				// Use API as single source of truth - fetch app by bundle ID
+				const appFromBundleId = await this.findAppByBundleId(providedBundleId);
+				
+				if (!appFromBundleId) {
+					throw new Error(
+						`Bundle ID '${providedBundleId}' not found in App Store Connect. Please verify the bundle ID is correct and exists.`
+					);
+				}
+
+				// Validate that the provided app_id matches the API response
+				if (appFromBundleId.id !== providedAppId) {
+					console.warn(`⚠️ Inconsistency detected! Provided app_id: ${providedAppId} does not match API app_id: ${appFromBundleId.id} for bundle_id: ${providedBundleId}`);
+					console.warn(`📋 App Store Connect API shows: ${appFromBundleId.attributes.name} (${appFromBundleId.attributes.bundleId})`);
+					console.warn(`🔧 Using App Store Connect API as authoritative source: ${appFromBundleId.id}`);
+					
+					// Use API response as authoritative (single source of truth)
+					return appFromBundleId.id;
+				}
+
+				console.log(`✅ Validated consistency: app_id ${providedAppId} matches bundle_id ${providedBundleId}`);
+				return providedAppId;
+
+			} catch (error) {
+				// If bundle ID validation fails, try to validate the app_id directly
+				console.warn(`⚠️ Bundle ID validation failed: ${error}`);
+				console.log(`🔍 Attempting to validate app_id: ${providedAppId} directly`);
+				
+				try {
+					// Fetch app by app_id to validate it exists and get its bundle_id
+					const appFromAppId = await this.getAppById(providedAppId);
+					
+					if (appFromAppId.attributes.bundleId !== providedBundleId) {
+						throw new Error(
+							`Inconsistent data: app_id '${providedAppId}' has bundle_id '${appFromAppId.attributes.bundleId}' but you provided bundle_id '${providedBundleId}'. Please check your configuration.`
+						);
+					}
+
+					console.log(`✅ Validated app_id ${providedAppId} exists and matches expected bundle_id`);
+					return providedAppId;
+
+				} catch (appIdError) {
+					throw new Error(
+						`Data validation failed. Neither app_id '${providedAppId}' nor bundle_id '${providedBundleId}' could be validated against App Store Connect API. Please verify your credentials and app information. Details: ${appIdError}`
+					);
+				}
+			}
 		}
 
-		// If no bundle ID provided, throw error
-		if (!bundleId) {
-			throw new Error(
-				"Either app_id or testflight_bundle_id must be provided. Please set TESTFLIGHT_APP_ID or TESTFLIGHT_BUNDLE_ID environment variables, or provide app_id or testflight_bundle_id inputs.",
-			);
+		// Case 2: Only app_id provided - validate it exists
+		if (providedAppId && !providedBundleId) {
+			console.log(`🔍 Validating app_id: ${providedAppId}`);
+			
+			try {
+				const app = await this.getAppById(providedAppId);
+				console.log(`✅ Validated app_id ${providedAppId} - ${app.attributes.name} (${app.attributes.bundleId})`);
+				return providedAppId;
+			} catch (error) {
+				throw new Error(
+					`App ID '${providedAppId}' not found in App Store Connect. Please verify the app ID is correct and your API key has access to this app. Details: ${error}`
+				);
+			}
 		}
 
-		// Try to find app by bundle ID
-		const app = await this.findAppByBundleId(bundleId);
-		if (!app) {
-			throw new Error(
-				`No app found with bundle ID '${bundleId}'. Please verify the bundle ID is correct and the app exists in App Store Connect.`,
-			);
+		// Case 3: Only bundle_id provided - resolve app_id
+		if (!providedAppId && providedBundleId) {
+			console.log(`🔍 Resolving app_id from bundle_id: ${providedBundleId}`);
+			
+			const app = await this.findAppByBundleId(providedBundleId);
+			if (!app) {
+				throw new Error(
+					`No app found with bundle ID '${providedBundleId}'. Please verify the bundle ID is correct and exists in App Store Connect.`
+				);
+			}
+
+			console.log(`✅ Resolved app_id ${app.id} from bundle_id ${providedBundleId} - ${app.attributes.name}`);
+			return app.id;
 		}
 
-		return app.id;
+		// Case 4: Neither provided
+		throw new Error(
+			"Either app_id or testflight_bundle_id must be provided. Please set TESTFLIGHT_APP_ID or TESTFLIGHT_BUNDLE_ID environment variables, or provide app_id or testflight_bundle_id inputs."
+		);
 	}
 
 	/**
