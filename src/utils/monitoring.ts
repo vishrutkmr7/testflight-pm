@@ -167,14 +167,25 @@ export class SystemHealthMonitor {
 		const startTime = Date.now();
 
 		try {
+			const platform = (process.env.INPUT_PLATFORM || process.env.PLATFORM || "github").toLowerCase();
 			const client = getGitHubClient();
 			const health = await client.healthCheck();
 
+			// For multi-platform setup, GitHub issues should be degraded not unhealthy
+			let adjustedStatus: "healthy" | "degraded" | "unhealthy" = health.status;
+			if (platform === "both" && health.status === "unhealthy") {
+				adjustedStatus = "degraded"; // Don't fail entire system for GitHub issues in multi-platform
+			}
+
 			return {
 				component: "GitHub Integration",
-				status: health.status,
+				status: adjustedStatus,
 				responseTime: Date.now() - startTime,
-				details: health.details,
+				details: {
+					...health.details,
+					platform,
+					originalStatus: health.status,
+				},
 				recommendations:
 					health.details.rateLimit &&
 						typeof health.details.rateLimit === 'object' &&
@@ -183,20 +194,34 @@ export class SystemHealthMonitor {
 						? [
 							"GitHub rate limit running low - consider reducing request frequency",
 						]
+						: health.status === "unhealthy" && platform === "both"
+						? [
+							"Check GitHub token configuration",
+							"Verify GitHub API connectivity", 
+							"Linear integration will continue to work regardless of GitHub issues",
+						]
 						: [],
 				lastChecked: new Date().toISOString(),
 			};
 		} catch (error) {
+			const platform = (process.env.INPUT_PLATFORM || process.env.PLATFORM || "github").toLowerCase();
+			
+			// For multi-platform, GitHub failures should be degraded not unhealthy
+			const status = platform === "both" ? "degraded" : "unhealthy";
+
 			return {
 				component: "GitHub Integration",
-				status: "unhealthy",
+				status,
 				responseTime: Date.now() - startTime,
 				error: (error as Error).message,
-				details: {},
+				details: {
+					platform,
+				},
 				recommendations: [
 					"Check GitHub token configuration",
 					"Verify GitHub API connectivity",
-				],
+					platform === "both" ? "Linear integration will continue to work regardless of GitHub issues" : "",
+				].filter(Boolean),
 				lastChecked: new Date().toISOString(),
 			};
 		}
@@ -238,7 +263,7 @@ export class SystemHealthMonitor {
 			if (!linearToken) {
 				return {
 					component: "Linear Integration",
-					status: platform === "linear" ? "unhealthy" : "healthy", // healthy for "both" when not configured
+					status: platform === "linear" ? "degraded" : "healthy", // degraded for linear-only, healthy for "both" when not configured
 					responseTime: Date.now() - startTime,
 					details: {
 						configured: false,
@@ -277,21 +302,25 @@ export class SystemHealthMonitor {
 			const client = getLinearClient();
 			const health = await client.healthCheck();
 
-			// For Linear health, keep the original status from the Linear client
-			const { status } = health;
+			// For multi-platform setup, Linear issues should be degraded not unhealthy
+			let adjustedStatus: "healthy" | "degraded" | "unhealthy" = health.status;
+			if (platform === "both" && health.status === "unhealthy") {
+				adjustedStatus = "degraded"; // Don't fail entire system for Linear issues in multi-platform
+			}
 
 			return {
 				component: "Linear Integration",
-				status,
+				status: adjustedStatus,
 				responseTime: Date.now() - startTime,
 				details: {
 					...health.details,
 					platform,
 					configured: true,
+					originalStatus: health.status,
 				},
 				recommendations:
 					health.status === "unhealthy"
-						? ["Check Linear API token configuration", "Verify Linear team ID"]
+						? ["Check Linear API token configuration", "Verify Linear team ID", "Linear issues won't prevent GitHub integration from working"]
 						: [],
 				lastChecked: new Date().toISOString(),
 			};
@@ -299,8 +328,8 @@ export class SystemHealthMonitor {
 			const platform = (process.env.INPUT_PLATFORM || process.env.PLATFORM || "github").toLowerCase();
 
 			// If Linear is not expected (github-only platform), don't treat this as critical
-			const status = platform === "github" ? "healthy" :
-				platform === "both" ? "degraded" : "unhealthy";
+			// For multi-platform, Linear failures should be degraded not unhealthy
+			const status = platform === "github" ? "healthy" : "degraded";
 
 			return {
 				component: "Linear Integration",
@@ -314,7 +343,8 @@ export class SystemHealthMonitor {
 				recommendations: [
 					"Check Linear API token configuration",
 					"Verify Linear API connectivity",
-				],
+					platform === "both" ? "GitHub integration will continue to work regardless of Linear issues" : "",
+				].filter(Boolean),
 				lastChecked: new Date().toISOString(),
 			};
 		}
@@ -617,12 +647,15 @@ export class SystemHealthMonitor {
 				}
 			}
 
-			// Determine overall status
+			// Determine overall status - be more lenient for multi-platform setups
 			let status: "healthy" | "degraded" | "unhealthy";
 			if (missingCoreConfig.length > 0) {
 				status = "unhealthy"; // Core config missing = unhealthy
+			} else if (platform === "both" && platformIssues.length > 0) {
+				// For multi-platform, missing one platform's config is degraded not unhealthy
+				status = "degraded"; 
 			} else if (platformIssues.length > 0) {
-				status = "unhealthy"; // Required platform config missing = unhealthy
+				status = "unhealthy"; // Required platform config missing = unhealthy (for single platform)
 			} else if (platformWarnings.length > 0) {
 				status = "degraded"; // Optional platform config missing = degraded
 			} else {
@@ -640,7 +673,11 @@ export class SystemHealthMonitor {
 			}
 
 			if (platformIssues.length > 0) {
-				recommendations.push("Configure required platform credentials:");
+				if (platform === "both") {
+					recommendations.push("Some platform configurations are missing (system will continue with available platforms):");
+				} else {
+					recommendations.push("Configure required platform credentials:");
+				}
 				platformIssues.forEach(issue => recommendations.push(`  - ${issue}`));
 			}
 
@@ -847,6 +884,10 @@ export async function quickHealthCheck(): Promise<{
 				}
 				if (platform === "linear" && c.component === "GitHub Integration") {
 					return false; // GitHub not critical for Linear-only
+				}
+				// For "both" platform, individual platform failures are not critical
+				if (platform === "both" && (c.component === "Linear Integration" || c.component === "GitHub Integration")) {
+					return false; // Individual platform failures not critical in multi-platform mode
 				}
 
 				// LLM is always optional, never critical

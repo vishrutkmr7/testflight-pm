@@ -52,7 +52,7 @@ async function run(): Promise<void> {
 	try {
 		// Initialize and validate system
 		core.info("🚀 Starting TestFlight PM Enhanced Processing");
-		
+
 		// Get debug mode early for enhanced logging
 		const isDebugMode = core.getBooleanInput("debug");
 
@@ -79,7 +79,7 @@ async function run(): Promise<void> {
 		if (healthCheck.status === "unhealthy") {
 			core.error("❌ System health check failed - detailed analysis:");
 			healthCheck.criticalIssues.forEach(issue => core.error(`  • ${issue}`));
-			
+
 			if (isDebugMode) {
 				core.error("🐛 Debug info - All health check components:");
 				const monitor = getSystemHealthMonitor();
@@ -88,7 +88,7 @@ async function run(): Promise<void> {
 					core.error(`  ${c.component}: ${c.status} - ${c.error || 'No error'}`);
 				});
 			}
-			
+
 			core.setFailed(`System health check failed: ${healthCheck.message}`);
 			return;
 		}
@@ -322,8 +322,8 @@ async function run(): Promise<void> {
 			const detailedHealth = await monitor.checkSystemHealth();
 			core.error("🔍 Detailed component status at failure:");
 			detailedHealth.components.forEach(component => {
-				const status = component.status === "healthy" ? "✅" : 
-							  component.status === "degraded" ? "⚠️" : "❌";
+				const status = component.status === "healthy" ? "✅" :
+					component.status === "degraded" ? "⚠️" : "❌";
 				core.error(`  ${status} ${component.component}: ${component.status}`);
 				if (component.error) {
 					core.error(`    📋 Error: ${component.error}`);
@@ -336,7 +336,7 @@ async function run(): Promise<void> {
 					});
 				}
 			});
-			
+
 		} catch (healthError) {
 			core.error(
 				`Could not perform health check after failure: ${healthError}`,
@@ -354,7 +354,7 @@ async function run(): Promise<void> {
 			`  Memory usage: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`,
 		);
 		core.error(`  Uptime: ${Math.round(process.uptime())}s`);
-		
+
 		// Debug environment variables that might be relevant
 		const relevantEnvVars = [
 			'INPUT_TESTFLIGHT_ISSUER_ID', 'INPUT_TESTFLIGHT_KEY_ID', 'INPUT_APP_ID',
@@ -464,10 +464,9 @@ async function processFeedbackItem(
 			if ("success" in issueResult && issueResult.success) {
 				issueCreated = true;
 				core.info(
-					`✅ Enhanced issue created: ${
-						issueResult.github?.issue?.url ||
-						issueResult.linear?.issue?.url ||
-						"URL not available"
+					`✅ Enhanced issue created: ${issueResult.github?.issue?.url ||
+					issueResult.linear?.issue?.url ||
+					"URL not available"
 					}`,
 				);
 			}

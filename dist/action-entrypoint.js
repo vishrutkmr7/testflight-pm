@@ -47891,29 +47891,47 @@ class SystemHealthMonitor {
   async checkGitHubIntegration() {
     const startTime = Date.now();
     try {
+      const platform = (process.env.INPUT_PLATFORM || process.env.PLATFORM || "github").toLowerCase();
       const client = getGitHubClient();
       const health = await client.healthCheck();
+      let adjustedStatus = health.status;
+      if (platform === "both" && health.status === "unhealthy") {
+        adjustedStatus = "degraded";
+      }
       return {
         component: "GitHub Integration",
-        status: health.status,
+        status: adjustedStatus,
         responseTime: Date.now() - startTime,
-        details: health.details,
+        details: {
+          ...health.details,
+          platform,
+          originalStatus: health.status
+        },
         recommendations: health.details.rateLimit && typeof health.details.rateLimit === "object" && "remaining" in health.details.rateLimit && health.details.rateLimit.remaining < 100 ? [
           "GitHub rate limit running low - consider reducing request frequency"
+        ] : health.status === "unhealthy" && platform === "both" ? [
+          "Check GitHub token configuration",
+          "Verify GitHub API connectivity",
+          "Linear integration will continue to work regardless of GitHub issues"
         ] : [],
         lastChecked: new Date().toISOString()
       };
     } catch (error) {
+      const platform = (process.env.INPUT_PLATFORM || process.env.PLATFORM || "github").toLowerCase();
+      const status = platform === "both" ? "degraded" : "unhealthy";
       return {
         component: "GitHub Integration",
-        status: "unhealthy",
+        status,
         responseTime: Date.now() - startTime,
         error: error.message,
-        details: {},
+        details: {
+          platform
+        },
         recommendations: [
           "Check GitHub token configuration",
-          "Verify GitHub API connectivity"
-        ],
+          "Verify GitHub API connectivity",
+          platform === "both" ? "Linear integration will continue to work regardless of GitHub issues" : ""
+        ].filter(Boolean),
         lastChecked: new Date().toISOString()
       };
     }
@@ -47943,7 +47961,7 @@ class SystemHealthMonitor {
       if (!linearToken) {
         return {
           component: "Linear Integration",
-          status: platform === "linear" ? "unhealthy" : "healthy",
+          status: platform === "linear" ? "degraded" : "healthy",
           responseTime: Date.now() - startTime,
           details: {
             configured: false,
@@ -47977,22 +47995,26 @@ class SystemHealthMonitor {
       }
       const client = getLinearClient();
       const health = await client.healthCheck();
-      const { status } = health;
+      let adjustedStatus = health.status;
+      if (platform === "both" && health.status === "unhealthy") {
+        adjustedStatus = "degraded";
+      }
       return {
         component: "Linear Integration",
-        status,
+        status: adjustedStatus,
         responseTime: Date.now() - startTime,
         details: {
           ...health.details,
           platform,
-          configured: true
+          configured: true,
+          originalStatus: health.status
         },
-        recommendations: health.status === "unhealthy" ? ["Check Linear API token configuration", "Verify Linear team ID"] : [],
+        recommendations: health.status === "unhealthy" ? ["Check Linear API token configuration", "Verify Linear team ID", "Linear issues won't prevent GitHub integration from working"] : [],
         lastChecked: new Date().toISOString()
       };
     } catch (error) {
       const platform = (process.env.INPUT_PLATFORM || process.env.PLATFORM || "github").toLowerCase();
-      const status = platform === "github" ? "healthy" : platform === "both" ? "degraded" : "unhealthy";
+      const status = platform === "github" ? "healthy" : "degraded";
       return {
         component: "Linear Integration",
         status,
@@ -48004,8 +48026,9 @@ class SystemHealthMonitor {
         },
         recommendations: [
           "Check Linear API token configuration",
-          "Verify Linear API connectivity"
-        ],
+          "Verify Linear API connectivity",
+          platform === "both" ? "GitHub integration will continue to work regardless of Linear issues" : ""
+        ].filter(Boolean),
         lastChecked: new Date().toISOString()
       };
     }
@@ -48236,6 +48259,8 @@ class SystemHealthMonitor {
       let status;
       if (missingCoreConfig.length > 0) {
         status = "unhealthy";
+      } else if (platform === "both" && platformIssues.length > 0) {
+        status = "degraded";
       } else if (platformIssues.length > 0) {
         status = "unhealthy";
       } else if (platformWarnings.length > 0) {
@@ -48252,7 +48277,11 @@ class SystemHealthMonitor {
         });
       }
       if (platformIssues.length > 0) {
-        recommendations.push("Configure required platform credentials:");
+        if (platform === "both") {
+          recommendations.push("Some platform configurations are missing (system will continue with available platforms):");
+        } else {
+          recommendations.push("Configure required platform credentials:");
+        }
         platformIssues.forEach((issue) => recommendations.push(`  - ${issue}`));
       }
       if (platformWarnings.length > 0) {
@@ -48381,6 +48410,9 @@ async function quickHealthCheck() {
         return false;
       }
       if (platform === "linear" && c.component === "GitHub Integration") {
+        return false;
+      }
+      if (platform === "both" && (c.component === "Linear Integration" || c.component === "GitHub Integration")) {
         return false;
       }
       if (c.component === "LLM Integration") {
