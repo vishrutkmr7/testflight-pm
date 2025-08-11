@@ -195,17 +195,17 @@ export class SystemHealthMonitor {
 							"GitHub rate limit running low - consider reducing request frequency",
 						]
 						: health.status === "unhealthy" && platform === "both"
-						? [
-							"Check GitHub token configuration",
-							"Verify GitHub API connectivity", 
-							"Linear integration will continue to work regardless of GitHub issues",
-						]
-						: [],
+							? [
+								"Check GitHub token configuration",
+								"Verify GitHub API connectivity",
+								"Linear integration will continue to work regardless of GitHub issues",
+							]
+							: [],
 				lastChecked: new Date().toISOString(),
 			};
 		} catch (error) {
 			const platform = (process.env.INPUT_PLATFORM || process.env.PLATFORM || "github").toLowerCase();
-			
+
 			// For multi-platform, GitHub failures should be degraded not unhealthy
 			const status = platform === "both" ? "degraded" : "unhealthy";
 
@@ -653,7 +653,7 @@ export class SystemHealthMonitor {
 				status = "unhealthy"; // Core config missing = unhealthy
 			} else if (platform === "both" && platformIssues.length > 0) {
 				// For multi-platform, missing one platform's config is degraded not unhealthy
-				status = "degraded"; 
+				status = "degraded";
 			} else if (platformIssues.length > 0) {
 				status = "unhealthy"; // Required platform config missing = unhealthy (for single platform)
 			} else if (platformWarnings.length > 0) {

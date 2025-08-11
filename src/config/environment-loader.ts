@@ -143,7 +143,7 @@ export const ENV_VARS = {
     APP_STORE_CONNECT_KEY_ID: "testflight-key-id",
     APP_STORE_CONNECT_PRIVATE_KEY: "testflight-private-key",
     APP_STORE_CONNECT_PRIVATE_KEY_PATH: undefined, // No GitHub Action input
-    TESTFLIGHT_APP_ID: "app-id",
+    TESTFLIGHT_APP_ID: "app_id",
     TESTFLIGHT_BUNDLE_ID: "testflight-bundle-id",
 
     // GitHub - FIXED to match action.yml inputs

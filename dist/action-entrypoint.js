@@ -25832,7 +25832,7 @@ var init_environment_loader = __esm(() => {
     APP_STORE_CONNECT_KEY_ID: "testflight-key-id",
     APP_STORE_CONNECT_PRIVATE_KEY: "testflight-private-key",
     APP_STORE_CONNECT_PRIVATE_KEY_PATH: undefined,
-    TESTFLIGHT_APP_ID: "app-id",
+    TESTFLIGHT_APP_ID: "app_id",
     TESTFLIGHT_BUNDLE_ID: "testflight-bundle-id",
     GITHUB_TOKEN: "gthb_token",
     GITHUB_OWNER: "github_owner",
