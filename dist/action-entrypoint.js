@@ -3,6 +3,7 @@ var __create = Object.create;
 var __getProtoOf = Object.getPrototypeOf;
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __toESM = (mod, isNodeMode, target) => {
   target = mod != null ? __create(__getProtoOf(mod)) : {};
@@ -14,6 +15,20 @@ var __toESM = (mod, isNodeMode, target) => {
         enumerable: true
       });
   return to;
+};
+var __moduleCache = /* @__PURE__ */ new WeakMap;
+var __toCommonJS = (from) => {
+  var entry = __moduleCache.get(from), desc;
+  if (entry)
+    return entry;
+  entry = __defProp({}, "__esModule", { value: true });
+  if (from && typeof from === "object" || typeof from === "function")
+    __getOwnPropNames(from).map((key) => !__hasOwnProp.call(entry, key) && __defProp(entry, key, {
+      get: () => from[key],
+      enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable
+    }));
+  __moduleCache.set(from, entry);
+  return entry;
 };
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
 var __export = (target, all) => {
@@ -25753,6 +25768,18 @@ var init_dist = __esm(() => {
 });
 
 // src/config/environment-loader.ts
+var exports_environment_loader = {};
+__export(exports_environment_loader, {
+  isGitHubActionEnvironment: () => isGitHubActionEnvironment,
+  getRequiredEnvVar: () => getRequiredEnvVar,
+  getNumericEnvVar: () => getNumericEnvVar,
+  getListEnvVar: () => getListEnvVar,
+  getGitHubContext: () => getGitHubContext,
+  getFloatEnvVar: () => getFloatEnvVar,
+  getEnvVar: () => getEnvVar,
+  getBooleanEnvVar: () => getBooleanEnvVar,
+  ENV_VARS: () => ENV_VARS
+});
 function isGitHubActionEnvironment() {
   return process.env.GITHUB_ACTIONS === "true" || !!process.env.GITHUB_ACTION;
 }
@@ -48125,7 +48152,7 @@ class GitHubHealthChecker extends BasePlatformAwareHealthChecker {
     };
   }
   generateRecommendations(health, platform) {
-    if (health.details.rateLimit?.remaining < 100) {
+    if (health.details.rateLimit?.remaining !== undefined && health.details.rateLimit.remaining < 100) {
       return ["GitHub rate limit running low - consider reducing request frequency"];
     }
     if (health.status === "unhealthy" && platform === "both") {
@@ -48398,7 +48425,8 @@ class EnvironmentConfigurationHealthChecker extends BaseHealthChecker {
       platformIssues: validation.platformIssues,
       platformWarnings: validation.platformWarnings,
       detectedInputs: configValues,
-      environmentVariables: this.getEnvironmentDebugInfo()
+      environmentVariables: this.getEnvironmentDebugInfo(),
+      configurationStatus: this.getDetailedConfigurationStatus()
     }, validation.recommendations);
   }
   createErrorResult(error) {
@@ -48421,17 +48449,26 @@ class EnvironmentConfigurationHealthChecker extends BaseHealthChecker {
     };
   }
   getEnvironmentDebugInfo() {
+    const { getEnvVar: getEnvVar2 } = (init_environment_loader(), __toCommonJS(exports_environment_loader));
     return {
       core: {
-        TESTFLIGHT_ISSUER_ID: !!process.env.TESTFLIGHT_ISSUER_ID,
-        TESTFLIGHT_KEY_ID: !!process.env.TESTFLIGHT_KEY_ID,
-        TESTFLIGHT_PRIVATE_KEY: !!process.env.TESTFLIGHT_PRIVATE_KEY,
-        TESTFLIGHT_APP_ID: !!process.env.TESTFLIGHT_APP_ID
+        TESTFLIGHT_ISSUER_ID: !!getEnvVar2("TESTFLIGHT_ISSUER_ID", "testflight_issuer_id"),
+        TESTFLIGHT_KEY_ID: !!getEnvVar2("TESTFLIGHT_KEY_ID", "testflight_key_id"),
+        TESTFLIGHT_PRIVATE_KEY: !!getEnvVar2("TESTFLIGHT_PRIVATE_KEY", "testflight_private_key"),
+        TESTFLIGHT_APP_ID: !!getEnvVar2("TESTFLIGHT_APP_ID", "app_id"),
+        "TESTFLIGHT_ISSUER_ID (env)": process.env.TESTFLIGHT_ISSUER_ID ? "present" : "missing",
+        INPUT_TESTFLIGHT_ISSUER_ID: process.env.INPUT_TESTFLIGHT_ISSUER_ID ? "present" : "missing",
+        "TESTFLIGHT_KEY_ID (env)": process.env.TESTFLIGHT_KEY_ID ? "present" : "missing",
+        INPUT_TESTFLIGHT_KEY_ID: process.env.INPUT_TESTFLIGHT_KEY_ID ? "present" : "missing",
+        "TESTFLIGHT_PRIVATE_KEY (env)": process.env.TESTFLIGHT_PRIVATE_KEY ? "present" : "missing",
+        INPUT_TESTFLIGHT_PRIVATE_KEY: process.env.INPUT_TESTFLIGHT_PRIVATE_KEY ? "present" : "missing",
+        "TESTFLIGHT_APP_ID (env)": process.env.TESTFLIGHT_APP_ID ? "present" : "missing",
+        INPUT_APP_ID: process.env.INPUT_APP_ID ? "present" : "missing"
       },
       github: {
-        GTHB_TOKEN: !!process.env.GTHB_TOKEN,
-        GITHUB_OWNER: !!process.env.GITHUB_OWNER,
-        GITHUB_REPO: !!process.env.GITHUB_REPO,
+        GTHB_TOKEN: !!getEnvVar2("GTHB_TOKEN", "gthb_token"),
+        GITHUB_OWNER: !!getEnvVar2("GITHUB_OWNER", "github_owner"),
+        GITHUB_REPO: !!getEnvVar2("GITHUB_REPO", "github_repo"),
         GITHUB_ACTIONS: !!process.env.GITHUB_ACTIONS,
         GITHUB_REPOSITORY: !!process.env.GITHUB_REPOSITORY,
         GITHUB_REPOSITORY_OWNER: !!process.env.GITHUB_REPOSITORY_OWNER,
@@ -48440,6 +48477,29 @@ class EnvironmentConfigurationHealthChecker extends BaseHealthChecker {
         DEBUG_RUNNER_OS: process.env.RUNNER_OS || "not set"
       }
     };
+  }
+  getDetailedConfigurationStatus() {
+    const { getEnvVar: getEnvVar2 } = (init_environment_loader(), __toCommonJS(exports_environment_loader));
+    const coreConfigs = [
+      { name: "TESTFLIGHT_ISSUER_ID", inputName: "testflight_issuer_id" },
+      { name: "TESTFLIGHT_KEY_ID", inputName: "testflight_key_id" },
+      { name: "TESTFLIGHT_PRIVATE_KEY", inputName: "testflight_private_key" },
+      { name: "TESTFLIGHT_APP_ID", inputName: "app_id" }
+    ];
+    const status = {};
+    for (const config of coreConfigs) {
+      const value = getEnvVar2(config.name, config.inputName);
+      const directEnv = process.env[config.name];
+      const inputEnv = process.env[`INPUT_${config.inputName.toUpperCase().replace(/-/g, "_")}`];
+      if (value) {
+        status[`✅ ${config.name}`] = directEnv ? "present (direct)" : "present (from input)";
+      } else {
+        status[`❌ ${config.name}`] = "missing";
+        status[`    ❌ ${config.name} (env)`] = directEnv ? "present" : "missing";
+        status[`    ${inputEnv ? "✅" : "❌"} INPUT_${config.inputName.toUpperCase().replace(/-/g, "_")}`] = inputEnv ? "present" : "missing";
+      }
+    }
+    return status;
   }
 }
 

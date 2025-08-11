@@ -90,8 +90,8 @@ export class GitHubHealthChecker extends BasePlatformAwareHealthChecker {
         };
     }
 
-    private generateRecommendations(health: any, platform: string): string[] {
-        if (health.details.rateLimit?.remaining < 100) {
+    private generateRecommendations(health: { status: string; details: { rateLimit?: { remaining: number } } }, platform: string): string[] {
+        if (health.details.rateLimit?.remaining !== undefined && health.details.rateLimit.remaining < 100) {
             return ["GitHub rate limit running low - consider reducing request frequency"];
         }
 
@@ -486,6 +486,8 @@ export class EnvironmentConfigurationHealthChecker extends BaseHealthChecker {
                 detectedInputs: configValues,
                 // Debug info for environment variables
                 environmentVariables: this.getEnvironmentDebugInfo(),
+                // Enhanced status for troubleshooting
+                configurationStatus: this.getDetailedConfigurationStatus(),
             },
             validation.recommendations
         );
@@ -513,17 +515,31 @@ export class EnvironmentConfigurationHealthChecker extends BaseHealthChecker {
     }
 
     private getEnvironmentDebugInfo(): Record<string, unknown> {
+        // Import getEnvVar dynamically to avoid circular imports
+        const { getEnvVar } = require("../../config/environment-loader.js");
+
         return {
             core: {
-                TESTFLIGHT_ISSUER_ID: !!process.env.TESTFLIGHT_ISSUER_ID,
-                TESTFLIGHT_KEY_ID: !!process.env.TESTFLIGHT_KEY_ID,
-                TESTFLIGHT_PRIVATE_KEY: !!process.env.TESTFLIGHT_PRIVATE_KEY,
-                TESTFLIGHT_APP_ID: !!process.env.TESTFLIGHT_APP_ID,
+                // Check both direct env vars and GitHub Action inputs
+                TESTFLIGHT_ISSUER_ID: !!getEnvVar("TESTFLIGHT_ISSUER_ID", "testflight_issuer_id"),
+                TESTFLIGHT_KEY_ID: !!getEnvVar("TESTFLIGHT_KEY_ID", "testflight_key_id"),
+                TESTFLIGHT_PRIVATE_KEY: !!getEnvVar("TESTFLIGHT_PRIVATE_KEY", "testflight_private_key"),
+                TESTFLIGHT_APP_ID: !!getEnvVar("TESTFLIGHT_APP_ID", "app_id"),
+
+                // Show detailed status for debugging
+                "TESTFLIGHT_ISSUER_ID (env)": process.env.TESTFLIGHT_ISSUER_ID ? "present" : "missing",
+                "INPUT_TESTFLIGHT_ISSUER_ID": process.env.INPUT_TESTFLIGHT_ISSUER_ID ? "present" : "missing",
+                "TESTFLIGHT_KEY_ID (env)": process.env.TESTFLIGHT_KEY_ID ? "present" : "missing",
+                "INPUT_TESTFLIGHT_KEY_ID": process.env.INPUT_TESTFLIGHT_KEY_ID ? "present" : "missing",
+                "TESTFLIGHT_PRIVATE_KEY (env)": process.env.TESTFLIGHT_PRIVATE_KEY ? "present" : "missing",
+                "INPUT_TESTFLIGHT_PRIVATE_KEY": process.env.INPUT_TESTFLIGHT_PRIVATE_KEY ? "present" : "missing",
+                "TESTFLIGHT_APP_ID (env)": process.env.TESTFLIGHT_APP_ID ? "present" : "missing",
+                "INPUT_APP_ID": process.env.INPUT_APP_ID ? "present" : "missing",
             },
             github: {
-                GTHB_TOKEN: !!process.env.GTHB_TOKEN,
-                GITHUB_OWNER: !!process.env.GITHUB_OWNER,
-                GITHUB_REPO: !!process.env.GITHUB_REPO,
+                GTHB_TOKEN: !!getEnvVar("GTHB_TOKEN", "gthb_token"),
+                GITHUB_OWNER: !!getEnvVar("GITHUB_OWNER", "github_owner"),
+                GITHUB_REPO: !!getEnvVar("GITHUB_REPO", "github_repo"),
                 GITHUB_ACTIONS: !!process.env.GITHUB_ACTIONS,
                 GITHUB_REPOSITORY: !!process.env.GITHUB_REPOSITORY,
                 GITHUB_REPOSITORY_OWNER: !!process.env.GITHUB_REPOSITORY_OWNER,
@@ -533,5 +549,34 @@ export class EnvironmentConfigurationHealthChecker extends BaseHealthChecker {
                 DEBUG_RUNNER_OS: process.env.RUNNER_OS || 'not set',
             }
         };
+    }
+
+    private getDetailedConfigurationStatus(): Record<string, string> {
+        const { getEnvVar } = require("../../config/environment-loader.js");
+
+        const coreConfigs = [
+            { name: "TESTFLIGHT_ISSUER_ID", inputName: "testflight_issuer_id" },
+            { name: "TESTFLIGHT_KEY_ID", inputName: "testflight_key_id" },
+            { name: "TESTFLIGHT_PRIVATE_KEY", inputName: "testflight_private_key" },
+            { name: "TESTFLIGHT_APP_ID", inputName: "app_id" }
+        ];
+
+        const status: Record<string, string> = {};
+
+        for (const config of coreConfigs) {
+            const value = getEnvVar(config.name, config.inputName);
+            const directEnv = process.env[config.name];
+            const inputEnv = process.env[`INPUT_${config.inputName.toUpperCase().replace(/-/g, "_")}`];
+
+            if (value) {
+                status[`✅ ${config.name}`] = directEnv ? "present (direct)" : "present (from input)";
+            } else {
+                status[`❌ ${config.name}`] = "missing";
+                status[`    ❌ ${config.name} (env)`] = directEnv ? "present" : "missing";
+                status[`    ${inputEnv ? "✅" : "❌"} INPUT_${config.inputName.toUpperCase().replace(/-/g, "_")}`] = inputEnv ? "present" : "missing";
+            }
+        }
+
+        return status;
     }
 }
