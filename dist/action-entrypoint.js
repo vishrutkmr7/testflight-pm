@@ -48291,10 +48291,21 @@ class SystemHealthMonitor {
       if (status === "healthy") {
         recommendations.push("All required configuration is present and valid");
       }
+      let errorMessage = "";
+      if (missingCoreConfig.length > 0) {
+        errorMessage += `Missing core config: ${missingCoreConfig.join(", ")}. `;
+      }
+      if (platformIssues.length > 0) {
+        errorMessage += `Platform issues: ${platformIssues.join(", ")}. `;
+      }
+      if (platformWarnings.length > 0) {
+        errorMessage += `Platform warnings: ${platformWarnings.join(", ")}. `;
+      }
       return {
         component: "Environment Configuration",
         status,
         responseTime: Date.now() - startTime,
+        error: status !== "healthy" ? errorMessage.trim() || "Configuration validation failed" : undefined,
         details: {
           environment: "development",
           platform,
@@ -48309,6 +48320,18 @@ class SystemHealthMonitor {
             } : platform === "linear" || platform === "both" ? {
               linear: Object.fromEntries(Object.entries(platformConfig.linear).map(([key, value]) => [key, !!value]))
             } : {}
+          },
+          environmentVariables: {
+            core: {
+              APP_STORE_CONNECT_ISSUER_ID: !!process.env.APP_STORE_CONNECT_ISSUER_ID,
+              INPUT_TESTFLIGHT_ISSUER_ID: !!process.env.INPUT_TESTFLIGHT_ISSUER_ID,
+              APP_STORE_CONNECT_KEY_ID: !!process.env.APP_STORE_CONNECT_KEY_ID,
+              INPUT_TESTFLIGHT_KEY_ID: !!process.env.INPUT_TESTFLIGHT_KEY_ID,
+              APP_STORE_CONNECT_PRIVATE_KEY: !!process.env.APP_STORE_CONNECT_PRIVATE_KEY,
+              INPUT_TESTFLIGHT_PRIVATE_KEY: !!process.env.INPUT_TESTFLIGHT_PRIVATE_KEY,
+              TESTFLIGHT_APP_ID: !!process.env.TESTFLIGHT_APP_ID,
+              INPUT_APP_ID: !!process.env.INPUT_APP_ID
+            }
           },
           timestamp: new Date().toISOString()
         },
@@ -49007,19 +49030,45 @@ async function run() {
         if (component.recommendations && component.recommendations.length > 0) {
           core2.debug(`    Recommendations: ${component.recommendations.join(", ")}`);
         }
+        if (component.component === "Environment Configuration" && component.details?.environmentVariables) {
+          const envVars = component.details.environmentVariables;
+          if (envVars?.core) {
+            core2.debug(`    Environment variables:`);
+            Object.entries(envVars.core).forEach(([key, value]) => {
+              core2.debug(`      ${key}: ${value ? "present" : "missing"}`);
+            });
+          }
+        }
       });
     }
     if (healthCheck.status === "unhealthy") {
       core2.error("❌ System health check failed - detailed analysis:");
       healthCheck.criticalIssues.forEach((issue) => core2.error(`  • ${issue}`));
-      if (isDebugMode) {
-        core2.error("\uD83D\uDC1B Debug info - All health check components:");
-        const monitor = getSystemHealthMonitor();
-        const detailedHealth = await monitor.checkSystemHealth();
-        detailedHealth.components.forEach((c) => {
-          core2.error(`  ${c.component}: ${c.status} - ${c.error || "No error"}`);
-        });
-      }
+      core2.error("\uD83D\uDC1B Debug info - All health check components:");
+      const monitor = getSystemHealthMonitor();
+      const detailedHealth = await monitor.checkSystemHealth();
+      detailedHealth.components.forEach((c) => {
+        const status = c.status === "healthy" ? "✅" : c.status === "degraded" ? "⚠️" : "❌";
+        core2.error(`  ${status} ${c.component}: ${c.status} - ${c.error || "No error"}`);
+        if (c.component === "Environment Configuration" && c.status !== "healthy") {
+          if (c.details?.missingCoreConfig && Array.isArray(c.details.missingCoreConfig) && c.details.missingCoreConfig.length > 0) {
+            core2.error(`    ❌ Missing core config: ${c.details.missingCoreConfig.join(", ")}`);
+          }
+          if (c.details?.platformIssues && Array.isArray(c.details.platformIssues) && c.details.platformIssues.length > 0) {
+            core2.error(`    ⚠️ Platform issues: ${c.details.platformIssues.join(", ")}`);
+          }
+          if (c.details?.environmentVariables) {
+            const envVars = c.details.environmentVariables;
+            if (envVars?.core) {
+              core2.error(`    \uD83D\uDD27 Environment variables status:`);
+              Object.entries(envVars.core).forEach(([key, value]) => {
+                const icon = value ? "✅" : "❌";
+                core2.error(`      ${icon} ${key}: ${value ? "present" : "missing"}`);
+              });
+            }
+          }
+        }
+      });
       core2.setFailed(`System health check failed: ${healthCheck.message}`);
       return;
     }
@@ -49176,11 +49225,30 @@ async function run() {
           core2.error(`    \uD83D\uDCCB Error: ${component.error}`);
         }
         if (component.details && typeof component.details === "object") {
-          Object.entries(component.details).forEach(([key, value]) => {
-            if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-              core2.error(`    \uD83D\uDCCA ${key}: ${value}`);
+          if (component.component === "Environment Configuration") {
+            if (component.details.missingCoreConfig && Array.isArray(component.details.missingCoreConfig)) {
+              core2.error(`    ❌ Missing core config: ${component.details.missingCoreConfig.join(", ")}`);
             }
-          });
+            if (component.details.platformIssues && Array.isArray(component.details.platformIssues)) {
+              core2.error(`    ⚠️ Platform issues: ${component.details.platformIssues.join(", ")}`);
+            }
+            if (component.details.environmentVariables && typeof component.details.environmentVariables === "object") {
+              core2.error(`    \uD83D\uDD27 Environment variables status:`);
+              const envVars = component.details.environmentVariables;
+              if (envVars.core) {
+                Object.entries(envVars.core).forEach(([key, value]) => {
+                  const icon = value ? "✅" : "❌";
+                  core2.error(`      ${icon} ${key}: ${value ? "present" : "missing"}`);
+                });
+              }
+            }
+          } else {
+            Object.entries(component.details).forEach(([key, value]) => {
+              if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+                core2.error(`    \uD83D\uDCCA ${key}: ${value}`);
+              }
+            });
+          }
         }
       });
     } catch (healthError) {

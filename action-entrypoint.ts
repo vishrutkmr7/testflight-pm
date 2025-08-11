@@ -73,6 +73,16 @@ async function run(): Promise<void> {
 				if (component.recommendations && component.recommendations.length > 0) {
 					core.debug(`    Recommendations: ${component.recommendations.join(', ')}`);
 				}
+				// Show environment variable status for Environment Configuration in debug mode
+				if (component.component === 'Environment Configuration' && component.details?.environmentVariables) {
+					const envVars = component.details.environmentVariables as Record<string, Record<string, boolean>>;
+					if (envVars?.core) {
+						core.debug(`    Environment variables:`);
+						Object.entries(envVars.core).forEach(([key, value]) => {
+							core.debug(`      ${key}: ${value ? 'present' : 'missing'}`);
+						});
+					}
+				}
 			});
 		}
 
@@ -80,14 +90,34 @@ async function run(): Promise<void> {
 			core.error("❌ System health check failed - detailed analysis:");
 			healthCheck.criticalIssues.forEach(issue => core.error(`  • ${issue}`));
 
-			if (isDebugMode) {
-				core.error("🐛 Debug info - All health check components:");
-				const monitor = getSystemHealthMonitor();
-				const detailedHealth = await monitor.checkSystemHealth();
-				detailedHealth.components.forEach(c => {
-					core.error(`  ${c.component}: ${c.status} - ${c.error || 'No error'}`);
-				});
-			}
+			// Always show detailed health info for unhealthy status, not just in debug mode
+			core.error("🐛 Debug info - All health check components:");
+			const monitor = getSystemHealthMonitor();
+			const detailedHealth = await monitor.checkSystemHealth();
+			detailedHealth.components.forEach(c => {
+				const status = c.status === "healthy" ? "✅" : c.status === "degraded" ? "⚠️" : "❌";
+				core.error(`  ${status} ${c.component}: ${c.status} - ${c.error || 'No error'}`);
+				
+				// Show detailed environment configuration errors
+				if (c.component === 'Environment Configuration' && c.status !== "healthy") {
+					if (c.details?.missingCoreConfig && Array.isArray(c.details.missingCoreConfig) && c.details.missingCoreConfig.length > 0) {
+						core.error(`    ❌ Missing core config: ${c.details.missingCoreConfig.join(', ')}`);
+					}
+					if (c.details?.platformIssues && Array.isArray(c.details.platformIssues) && c.details.platformIssues.length > 0) {
+						core.error(`    ⚠️ Platform issues: ${c.details.platformIssues.join(', ')}`);
+					}
+					if (c.details?.environmentVariables) {
+						const envVars = c.details.environmentVariables as Record<string, Record<string, boolean>>;
+						if (envVars?.core) {
+							core.error(`    🔧 Environment variables status:`);
+							Object.entries(envVars.core).forEach(([key, value]) => {
+								const icon = value ? "✅" : "❌";
+								core.error(`      ${icon} ${key}: ${value ? 'present' : 'missing'}`);
+							});
+						}
+					}
+				}
+			});
 
 			core.setFailed(`System health check failed: ${healthCheck.message}`);
 			return;
@@ -329,11 +359,32 @@ async function run(): Promise<void> {
 					core.error(`    📋 Error: ${component.error}`);
 				}
 				if (component.details && typeof component.details === 'object') {
-					Object.entries(component.details).forEach(([key, value]) => {
-						if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-							core.error(`    📊 ${key}: ${value}`);
+					// Special handling for Environment Configuration to show missing variables
+					if (component.component === 'Environment Configuration') {
+						if (component.details.missingCoreConfig && Array.isArray(component.details.missingCoreConfig)) {
+							core.error(`    ❌ Missing core config: ${component.details.missingCoreConfig.join(', ')}`);
 						}
-					});
+						if (component.details.platformIssues && Array.isArray(component.details.platformIssues)) {
+							core.error(`    ⚠️ Platform issues: ${component.details.platformIssues.join(', ')}`);
+						}
+						if (component.details.environmentVariables && typeof component.details.environmentVariables === 'object') {
+							core.error(`    🔧 Environment variables status:`);
+							const envVars = component.details.environmentVariables as Record<string, Record<string, boolean>>;
+							if (envVars.core) {
+								Object.entries(envVars.core).forEach(([key, value]) => {
+									const icon = value ? "✅" : "❌";
+									core.error(`      ${icon} ${key}: ${value ? 'present' : 'missing'}`);
+								});
+							}
+						}
+					} else {
+						// General details for other components
+						Object.entries(component.details).forEach(([key, value]) => {
+							if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+								core.error(`    📊 ${key}: ${value}`);
+							}
+						});
+					}
 				}
 			});
 

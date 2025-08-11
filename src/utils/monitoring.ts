@@ -690,10 +690,23 @@ export class SystemHealthMonitor {
 				recommendations.push("All required configuration is present and valid");
 			}
 
+			// Build detailed error message for debugging
+			let errorMessage = "";
+			if (missingCoreConfig.length > 0) {
+				errorMessage += `Missing core config: ${missingCoreConfig.join(", ")}. `;
+			}
+			if (platformIssues.length > 0) {
+				errorMessage += `Platform issues: ${platformIssues.join(", ")}. `;
+			}
+			if (platformWarnings.length > 0) {
+				errorMessage += `Platform warnings: ${platformWarnings.join(", ")}. `;
+			}
+
 			return {
 				component: "Environment Configuration",
 				status,
 				responseTime: Date.now() - startTime,
+				error: status !== "healthy" ? errorMessage.trim() || "Configuration validation failed" : undefined,
 				details: {
 					environment: process.env.NODE_ENV || "production",
 					platform,
@@ -714,6 +727,19 @@ export class SystemHealthMonitor {
 								Object.entries(platformConfig.linear).map(([key, value]) => [key, !!value])
 							)
 						} : {},
+					},
+					// Debug info for exact environment variable checking
+					environmentVariables: {
+						core: {
+							APP_STORE_CONNECT_ISSUER_ID: !!process.env.APP_STORE_CONNECT_ISSUER_ID,
+							INPUT_TESTFLIGHT_ISSUER_ID: !!process.env.INPUT_TESTFLIGHT_ISSUER_ID,
+							APP_STORE_CONNECT_KEY_ID: !!process.env.APP_STORE_CONNECT_KEY_ID,
+							INPUT_TESTFLIGHT_KEY_ID: !!process.env.INPUT_TESTFLIGHT_KEY_ID,
+							APP_STORE_CONNECT_PRIVATE_KEY: !!process.env.APP_STORE_CONNECT_PRIVATE_KEY,
+							INPUT_TESTFLIGHT_PRIVATE_KEY: !!process.env.INPUT_TESTFLIGHT_PRIVATE_KEY,
+							TESTFLIGHT_APP_ID: !!process.env.TESTFLIGHT_APP_ID,
+							INPUT_APP_ID: !!process.env.INPUT_APP_ID,
+						}
 					},
 					timestamp: new Date().toISOString(),
 				},
