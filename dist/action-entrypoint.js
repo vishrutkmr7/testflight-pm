@@ -27181,18 +27181,20 @@ ${request.codebaseContext.length} relevant file(s) identified for analysis.` : "
         month: this.config.costControls.maxCostPerMonth - this.usageStats.monthlyUsage.cost
       }
     };
-    const providerChecks = await Promise.allSettled([
-      this.testProvider("openai"),
-      this.testProvider("anthropic"),
-      this.testProvider("google")
-    ]);
+    const selectedProviders = [
+      this.config.primaryProvider,
+      ...this.config.fallbackProviders
+    ].filter((provider, index, array) => {
+      return array.indexOf(provider) === index && this.config.providers[provider]?.apiKey?.trim();
+    });
+    const providerChecks = await Promise.allSettled(selectedProviders.map((provider) => this.testProvider(provider)));
     const providers = {
       openai: { available: false, authenticated: false },
       anthropic: { available: false, authenticated: false },
       google: { available: false, authenticated: false }
     };
     providerChecks.forEach((result, index) => {
-      const providerName = ["openai", "anthropic", "google"][index];
+      const providerName = selectedProviders[index];
       if (result.status === "fulfilled") {
         providers[providerName] = result.value;
       } else {
@@ -27216,14 +27218,34 @@ ${request.codebaseContext.length} relevant file(s) identified for analysis.` : "
   async testProvider(provider) {
     try {
       const startTime = Date.now();
-      await this.makeRequest({
-        messages: [{ role: "user", content: "Hello" }],
-        max_tokens: 1
-      }, {
-        provider,
-        skipCostCheck: true,
-        enableFallback: false
-      });
+      const providerConfig = this.config.providers[provider];
+      if (!providerConfig) {
+        throw new Error(`Provider ${provider} not configured`);
+      }
+      if (!providerConfig.apiKey || providerConfig.apiKey.trim().length === 0) {
+        throw new Error(`API key missing for provider ${provider}`);
+      }
+      const apiKey = providerConfig.apiKey.trim();
+      let isValidFormat = false;
+      switch (provider) {
+        case "openai":
+          isValidFormat = apiKey.startsWith("sk-") && apiKey.length > 10;
+          break;
+        case "anthropic":
+          isValidFormat = apiKey.startsWith("sk-ant-") && apiKey.length > 15;
+          break;
+        case "google":
+          isValidFormat = apiKey.length >= 30 && !apiKey.includes(" ");
+          break;
+        default:
+          isValidFormat = apiKey.length > 5;
+      }
+      if (!isValidFormat) {
+        throw new Error(`Invalid API key format for provider ${provider}`);
+      }
+      if (!providerConfig.model) {
+        throw new Error(`Model not configured for provider ${provider}`);
+      }
       return {
         available: true,
         authenticated: true,

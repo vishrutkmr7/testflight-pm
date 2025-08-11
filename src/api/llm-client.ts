@@ -1038,12 +1038,19 @@ ${request.codebaseContext.length} relevant file(s) identified for analysis.`
 			},
 		};
 
-		// Test provider connectivity
-		const providerChecks = await Promise.allSettled([
-			this.testProvider("openai"),
-			this.testProvider("anthropic"),
-			this.testProvider("google"),
-		]);
+		// Test provider connectivity only for selected providers with API keys
+		const selectedProviders = [
+			this.config.primaryProvider,
+			...this.config.fallbackProviders
+		].filter((provider, index, array) => {
+			// Remove duplicates and only include providers with API keys
+			return array.indexOf(provider) === index && 
+				   this.config.providers[provider]?.apiKey?.trim();
+		});
+
+		const providerChecks = await Promise.allSettled(
+			selectedProviders.map(provider => this.testProvider(provider))
+		);
 
 		const providers: LLMHealthCheck["providers"] = {
 			openai: { available: false, authenticated: false },
@@ -1052,9 +1059,7 @@ ${request.codebaseContext.length} relevant file(s) identified for analysis.`
 		};
 
 		providerChecks.forEach((result, index) => {
-			const providerName = ["openai", "anthropic", "google"][
-				index
-			] as LLMProvider;
+			const providerName = selectedProviders[index];
 			if (result.status === "fulfilled") {
 				providers[providerName] = result.value;
 			} else {
@@ -1086,7 +1091,7 @@ ${request.codebaseContext.length} relevant file(s) identified for analysis.`
 	}
 
 	/**
-	 * Test individual provider connectivity
+	 * Test individual provider configuration (without making API calls)
 	 */
 	private async testProvider(provider: LLMProvider): Promise<{
 		available: boolean;
@@ -1097,18 +1102,46 @@ ${request.codebaseContext.length} relevant file(s) identified for analysis.`
 		try {
 			const startTime = Date.now();
 
-			// Simple test request
-			await this.makeRequest(
-				{
-					messages: [{ role: "user", content: "Hello" }],
-					max_tokens: 1,
-				},
-				{
-					provider,
-					skipCostCheck: true,
-					enableFallback: false,
-				},
-			);
+			// Get provider configuration
+			const providerConfig = this.config.providers[provider];
+			if (!providerConfig) {
+				throw new Error(`Provider ${provider} not configured`);
+			}
+
+			// Check if API key is present and has reasonable format
+			if (!providerConfig.apiKey || providerConfig.apiKey.trim().length === 0) {
+				throw new Error(`API key missing for provider ${provider}`);
+			}
+
+			// Basic API key format validation
+			const apiKey = providerConfig.apiKey.trim();
+			let isValidFormat = false;
+
+			switch (provider) {
+				case "openai":
+					// OpenAI keys typically start with "sk-"
+					isValidFormat = apiKey.startsWith("sk-") && apiKey.length > 10;
+					break;
+				case "anthropic":
+					// Anthropic keys typically start with "sk-ant-"
+					isValidFormat = apiKey.startsWith("sk-ant-") && apiKey.length > 15;
+					break;
+				case "google":
+					// Google API keys are typically 39 characters
+					isValidFormat = apiKey.length >= 30 && !apiKey.includes(" ");
+					break;
+				default:
+					isValidFormat = apiKey.length > 5; // Basic validation
+			}
+
+			if (!isValidFormat) {
+				throw new Error(`Invalid API key format for provider ${provider}`);
+			}
+
+			// Validate model configuration
+			if (!providerConfig.model) {
+				throw new Error(`Model not configured for provider ${provider}`);
+			}
 
 			return {
 				available: true,
