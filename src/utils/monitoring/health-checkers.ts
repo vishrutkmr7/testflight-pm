@@ -553,7 +553,7 @@ export class EnvironmentConfigurationHealthChecker extends BaseHealthChecker {
 
     private getDetailedConfigurationStatus(): Record<string, string> {
         const { getEnvVar } = require("../../config/environment-loader.js");
-
+        
         const coreConfigs = [
             { name: "TESTFLIGHT_ISSUER_ID", inputName: "testflight_issuer_id" },
             { name: "TESTFLIGHT_KEY_ID", inputName: "testflight_key_id" },
@@ -562,21 +562,26 @@ export class EnvironmentConfigurationHealthChecker extends BaseHealthChecker {
         ];
 
         const status: Record<string, string> = {};
-
+        
         for (const config of coreConfigs) {
             const value = getEnvVar(config.name, config.inputName);
             const directEnv = process.env[config.name];
             const inputEnv = process.env[`INPUT_${config.inputName.toUpperCase().replace(/-/g, "_")}`];
-
-            if (value) {
+            
+            // Enhanced debugging to show actual values and validation logic
+            const actualValue = value ? (value.trim() || "EMPTY_STRING") : "UNDEFINED";
+            const isValid = value && value.trim() !== "";
+            
+            if (isValid) {
                 status[`✅ ${config.name}`] = directEnv ? "present (direct)" : "present (from input)";
             } else {
-                status[`❌ ${config.name}`] = "missing";
-                status[`    ❌ ${config.name} (env)`] = directEnv ? "present" : "missing";
-                status[`    ${inputEnv ? "✅" : "❌"} INPUT_${config.inputName.toUpperCase().replace(/-/g, "_")}`] = inputEnv ? "present" : "missing";
+                status[`❌ ${config.name}`] = `missing (actual value: "${actualValue}")`;
+                status[`    env ${config.name}`] = directEnv ? `"${directEnv.substring(0, 10)}..."` : "missing";
+                status[`    input INPUT_${config.inputName.toUpperCase().replace(/-/g, "_")}`] = inputEnv ? `"${inputEnv.substring(0, 10)}..."` : "missing";
+                status[`    getEnvVar result`] = `"${actualValue}"`;
             }
         }
-
+        
         return status;
     }
 }

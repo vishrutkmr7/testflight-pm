@@ -128,6 +128,11 @@ export class EnvironmentValidator {
 				}
 			}
 
+			// Ensure we trim any whitespace that might cause validation issues
+			if (value) {
+				value = value.trim();
+			}
+
 			config[variable.key] = value;
 		}
 
