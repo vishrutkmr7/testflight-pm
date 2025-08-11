@@ -48,39 +48,38 @@ GOOGLE_API_KEY             # Google API key
 Create `.github/workflows/testflight-pm.yml`:
 
 ```yaml
-name: TestFlight Issue Management
+name: TestFlight Feedback Processing
 
 on:
   schedule:
-    - cron: '0 */6 * * *'  # Run every 6 hours
-  workflow_dispatch:        # Allow manual triggers
+    - cron: '0 * * * *'  # Every hour
+  workflow_dispatch:
 
 jobs:
-  process-testflight-feedback:
+  testflight-pm:
     runs-on: ubuntu-latest
     steps:
-      - name: Process TestFlight Feedback
-        uses: vishrutkmr7/testflight-pm@latest
+      - uses: vishrutkmr7/testflight-pm@latest
         with:
-          # TestFlight Configuration
+          # Required TestFlight Configuration
           testflight_issuer_id: ${{ secrets.TESTFLIGHT_ISSUER_ID }}
           testflight_key_id: ${{ secrets.TESTFLIGHT_KEY_ID }}
           testflight_private_key: ${{ secrets.TESTFLIGHT_PRIVATE_KEY }}
           app_id: ${{ secrets.TESTFLIGHT_APP_ID }}
           
-          # Platform (choose 'github', 'linear', or 'both')
+          # Platform Configuration
           platform: 'github'
           gthb_token: ${{ secrets.GTHB_TOKEN }}
           
-          # AI Enhancement
+          # Enhancement Features
           enable_llm_enhancement: 'true'
-          openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
 ### 3. Run Your First Workflow
 
 - Go to **Actions** tab in your repository
-- Click on **TestFlight Issue Management**
+- Click on **TestFlight Feedback Processing**
 - Click **Run workflow** → **Run workflow**
 
 That's it! The action will process your TestFlight feedback and create enhanced issues.
@@ -154,28 +153,37 @@ Critical authentication flow crash when user attempts login, likely due to null 
 ```yaml
 - uses: vishrutkmr7/testflight-pm@latest
   with:
+    # Required TestFlight Configuration
     testflight_issuer_id: ${{ secrets.TESTFLIGHT_ISSUER_ID }}
     testflight_key_id: ${{ secrets.TESTFLIGHT_KEY_ID }}
     testflight_private_key: ${{ secrets.TESTFLIGHT_PRIVATE_KEY }}
     app_id: ${{ secrets.TESTFLIGHT_APP_ID }}
     
-    # Create issues in both GitHub and Linear
+    # Platform Configuration (both GitHub and Linear)
     platform: 'both'
     gthb_token: ${{ secrets.GTHB_TOKEN }}
     linear_api_token: ${{ secrets.LINEAR_API_TOKEN }}
     linear_team_id: ${{ secrets.LINEAR_TEAM_ID }}
     
-    # Enable AI enhancement
+    # Enhancement Features
     enable_llm_enhancement: 'true'
-    openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+    enable_codebase_analysis: 'true'
+    enable_duplicate_detection: 'true'
+    
+    # LLM Provider Configuration
+    llm_provider: 'anthropic'
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
 ### High-Frequency Processing
 
 ```yaml
+name: TestFlight Feedback Processing
+
 on:
   schedule:
     - cron: '0 * * * *'  # Every hour
+  workflow_dispatch:
 
 jobs:
   testflight-pm:
@@ -183,18 +191,23 @@ jobs:
     steps:
       - uses: vishrutkmr7/testflight-pm@latest
         with:
+          # Required TestFlight Configuration
           testflight_issuer_id: ${{ secrets.TESTFLIGHT_ISSUER_ID }}
           testflight_key_id: ${{ secrets.TESTFLIGHT_KEY_ID }}
           testflight_private_key: ${{ secrets.TESTFLIGHT_PRIVATE_KEY }}
           app_id: ${{ secrets.TESTFLIGHT_APP_ID }}
           
+          # Platform Configuration
           platform: 'github'
           gthb_token: ${{ secrets.GTHB_TOKEN }}
           
-          # Process only last 2 hours to avoid duplicates
+          # Processing Configuration (process only last 2 hours to avoid duplicates)
           processing_window_hours: '2'
+          
+          # Enhancement Features
           enable_llm_enhancement: 'true'
-          openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+          llm_provider: 'anthropic'
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
 ## 🧪 Testing
@@ -213,7 +226,15 @@ Or test in GitHub Actions with dry run mode:
 ```yaml
 - uses: vishrutkmr7/testflight-pm@latest
   with:
-    # ... your configuration
+    testflight_issuer_id: ${{ secrets.TESTFLIGHT_ISSUER_ID }}
+    testflight_key_id: ${{ secrets.TESTFLIGHT_KEY_ID }}
+    testflight_private_key: ${{ secrets.TESTFLIGHT_PRIVATE_KEY }}
+    app_id: ${{ secrets.TESTFLIGHT_APP_ID }}
+    platform: 'github'
+    gthb_token: ${{ secrets.GTHB_TOKEN }}
+    enable_llm_enhancement: 'true'
+    llm_provider: 'anthropic'
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     dry_run: 'true'  # Won't create actual issues
     debug: 'true'    # Verbose logging
 ```

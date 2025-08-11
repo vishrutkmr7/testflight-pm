@@ -25828,9 +25828,9 @@ var core, ENV_VARS;
 var init_environment_loader = __esm(() => {
   core = __toESM(require_core(), 1);
   ENV_VARS = {
-    APP_STORE_CONNECT_ISSUER_ID: "testflight-issuer-id",
-    APP_STORE_CONNECT_KEY_ID: "testflight-key-id",
-    APP_STORE_CONNECT_PRIVATE_KEY: "testflight-private-key",
+    APP_STORE_CONNECT_ISSUER_ID: "testflight_issuer_id",
+    APP_STORE_CONNECT_KEY_ID: "testflight_key_id",
+    APP_STORE_CONNECT_PRIVATE_KEY: "testflight_private_key",
     APP_STORE_CONNECT_PRIVATE_KEY_PATH: undefined,
     TESTFLIGHT_APP_ID: "app_id",
     TESTFLIGHT_BUNDLE_ID: "testflight-bundle-id",

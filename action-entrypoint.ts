@@ -97,7 +97,7 @@ async function run(): Promise<void> {
 			detailedHealth.components.forEach(c => {
 				const status = c.status === "healthy" ? "✅" : c.status === "degraded" ? "⚠️" : "❌";
 				core.error(`  ${status} ${c.component}: ${c.status} - ${c.error || 'No error'}`);
-				
+
 				// Show detailed environment configuration errors
 				if (c.component === 'Environment Configuration' && c.status !== "healthy") {
 					if (c.details?.missingCoreConfig && Array.isArray(c.details.missingCoreConfig) && c.details.missingCoreConfig.length > 0) {
