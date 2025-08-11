@@ -47,7 +47,7 @@ export class TestFlightClient {
 		const { getConfiguration } = require("../config/index.js");
 		const config = getConfiguration();
 		this.appId = config.appStoreConnect.appId;
-		
+
 		if (!this.appId) {
 			throw new Error("TestFlight App ID is required but not configured. Please set TESTFLIGHT_APP_ID or app_id input.");
 		}

@@ -4,7 +4,7 @@
  * Single Responsibility: Coordinates health checks and aggregates results
  */
 
-import type { HealthCheckResult, HealthChecker, HealthCheckConfig } from "./health-check-base.js";
+import type { HealthCheckResult, HealthChecker } from "./health-check-base.js";
 import { getHealthCheckerFactory } from "./health-checker-factory.js";
 import { getPlatformDetector } from "./platform-detector.js";
 
@@ -80,7 +80,10 @@ export class SystemHealthMonitor {
 			if (result.status === "fulfilled") {
 				checks.push(result.value);
 			} else {
-				checks.push(this.createTimeoutResult(this.healthCheckers[index], result.reason));
+				const checker = this.healthCheckers[index];
+				if (checker) {
+					checks.push(this.createTimeoutResult(checker, result.reason));
+				}
 			}
 		});
 
@@ -123,15 +126,69 @@ export class SystemHealthMonitor {
 	}
 
 	/**
-	 * Calculate overall system status
+	 * Calculate overall system status with platform-aware logic
 	 */
 	private calculateOverallStatus(checks: HealthCheckResult[]): "healthy" | "degraded" | "unhealthy" {
-		const unhealthyCount = checks.filter(c => c.status === "unhealthy").length;
-		const degradedCount = checks.filter(c => c.status === "degraded").length;
+		const platformConfig = getPlatformDetector().getPlatformConfig();
 
-		if (unhealthyCount > 0) {
+		// Check for critical unhealthy components
+		const criticalUnhealthy = checks.filter(c => {
+			if (c.status !== "unhealthy") {
+				return false;
+			}
+
+			// Core components are always critical
+			if (c.component === "TestFlight Integration") {
+				return true;
+			}
+
+			// Platform-specific components are critical only if required
+			if (c.component === "GitHub Integration" && platformConfig.requiresGitHub) {
+				return true;
+			}
+			if (c.component === "Linear Integration" && platformConfig.requiresLinear) {
+				return true;
+			}
+			if (c.component === "Environment Configuration") {
+				return true;
+			}
+
+			// Optional components are never critical for overall status
+			return false;
+		});
+
+		// Check for degraded components that matter
+		const criticalDegraded = checks.filter(c => {
+			if (c.status !== "degraded") {
+				return false;
+			}
+
+			// Core components being degraded is concerning
+			if (c.component === "TestFlight Integration") {
+				return true;
+			}
+			if (c.component === "Environment Configuration") {
+				// Environment config degraded only matters if core config is missing
+				return c.details?.missingCoreConfig && Array.isArray(c.details.missingCoreConfig) && c.details.missingCoreConfig.length > 0;
+			}
+
+			// Platform-specific degraded components matter in single-platform mode
+			if (!platformConfig.isMultiPlatform) {
+				if (c.component === "GitHub Integration" && platformConfig.requiresGitHub) {
+					return true;
+				}
+				if (c.component === "Linear Integration" && platformConfig.requiresLinear) {
+					return true;
+				}
+			}
+
+			// Optional components degraded don't affect overall status
+			return false;
+		});
+
+		if (criticalUnhealthy.length > 0) {
 			return "unhealthy";
-		} else if (degradedCount > 0) {
+		} else if (criticalDegraded.length > 0) {
 			return "degraded";
 		} else {
 			return "healthy";
@@ -212,11 +269,11 @@ export class SystemHealthMonitor {
 	/**
 	 * Create a timeout result for failed health checks
 	 */
-	private createTimeoutResult(checker: HealthChecker, reason: any): HealthCheckResult {
+	private createTimeoutResult(checker: HealthChecker, reason: unknown): HealthCheckResult {
 		return {
 			component: checker.getComponentName(),
 			status: "unhealthy",
-			error: reason?.message || "Health check failed",
+			error: (reason as Error)?.message || "Health check failed",
 			details: {
 				timestamp: new Date().toISOString(),
 			},
@@ -291,7 +348,7 @@ export async function quickHealthCheck(): Promise<{
 				}
 
 				// In multi-platform mode, individual platform failures are not critical
-				if (platformConfig.isMultiPlatform && 
+				if (platformConfig.isMultiPlatform &&
 					(c.component === "Linear Integration" || c.component === "GitHub Integration")) {
 					return false;
 				}
@@ -300,11 +357,39 @@ export async function quickHealthCheck(): Promise<{
 			})
 			.map(c => `${c.component}: ${c.error || "unhealthy"}`);
 
-		// Calculate adjusted status
+		// Calculate adjusted status using same logic as full health check
 		let adjustedStatus: "healthy" | "degraded" | "unhealthy";
 		if (criticalIssues.length === 0) {
-			const hasDegraded = health.components.some(c => c.status === "degraded");
-			adjustedStatus = hasDegraded ? "degraded" : "healthy";
+			// Check for degraded components that actually matter
+			const criticalDegraded = health.components.filter(c => {
+				if (c.status !== "degraded") {
+					return false;
+				}
+
+				// Core components being degraded is concerning
+				if (c.component === "TestFlight Integration") {
+					return true;
+				}
+				if (c.component === "Environment Configuration") {
+					// Environment config degraded only matters if core config is missing
+					return c.details?.missingCoreConfig && Array.isArray(c.details.missingCoreConfig) && c.details.missingCoreConfig.length > 0;
+				}
+
+				// Platform-specific degraded components matter in single-platform mode
+				if (!platformConfig.isMultiPlatform) {
+					if (c.component === "GitHub Integration" && platformConfig.requiresGitHub) {
+						return true;
+					}
+					if (c.component === "Linear Integration" && platformConfig.requiresLinear) {
+						return true;
+					}
+				}
+
+				// Optional components degraded don't affect overall status
+				return false;
+			});
+
+			adjustedStatus = criticalDegraded.length > 0 ? "degraded" : "healthy";
 		} else {
 			adjustedStatus = "unhealthy";
 		}
@@ -314,8 +399,27 @@ export async function quickHealthCheck(): Promise<{
 		if (adjustedStatus === "unhealthy") {
 			message = `System has ${criticalIssues.length} critical issue${criticalIssues.length === 1 ? '' : 's'}`;
 		} else if (adjustedStatus === "degraded") {
-			const degradedCount = health.components.filter(c => c.status === "degraded").length;
-			message = `System functional with ${degradedCount} non-critical warning${degradedCount === 1 ? '' : 's'}`;
+			const criticalDegradedCount = health.components.filter(c => {
+				if (c.status !== "degraded") {
+					return false;
+				}
+				if (c.component === "TestFlight Integration") {
+					return true;
+				}
+				if (c.component === "Environment Configuration") {
+					return c.details?.missingCoreConfig && Array.isArray(c.details.missingCoreConfig) && c.details.missingCoreConfig.length > 0;
+				}
+				if (!platformConfig.isMultiPlatform) {
+					if (c.component === "GitHub Integration" && platformConfig.requiresGitHub) {
+						return true;
+					}
+					if (c.component === "Linear Integration" && platformConfig.requiresLinear) {
+						return true;
+					}
+				}
+				return false;
+			}).length;
+			message = `System functional with ${criticalDegradedCount} warning${criticalDegradedCount === 1 ? '' : 's'} requiring attention`;
 		}
 
 		return {
