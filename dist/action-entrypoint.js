@@ -25757,21 +25757,28 @@ function isGitHubActionEnvironment() {
   return process.env.GITHUB_ACTIONS === "true" || !!process.env.GITHUB_ACTION;
 }
 function getEnvVar(name, githubActionInputName) {
-  let value = process.env[name];
-  if (!value && isGitHubActionEnvironment() && githubActionInputName) {
-    const inputName = `INPUT_${githubActionInputName.toUpperCase().replace(/-/g, "_")}`;
-    value = process.env[inputName];
+  const directValue = process.env[name];
+  if (directValue) {
+    return directValue;
   }
-  return value;
+  if (githubActionInputName) {
+    const inputName = `INPUT_${githubActionInputName.toUpperCase().replace(/-/g, "_")}`;
+    const inputValue = process.env[inputName];
+    if (inputValue) {
+      return inputValue;
+    }
+  }
+  return;
 }
 function getRequiredEnvVar(name, githubActionInputName) {
   const value = getEnvVar(name, githubActionInputName);
   if (!value || value.trim() === "") {
-    const sources = [name];
     if (githubActionInputName) {
-      sources.push(`INPUT_${githubActionInputName.toUpperCase().replace(/-/g, "_")}`);
+      const inputName = `INPUT_${githubActionInputName.toUpperCase().replace(/-/g, "_")}`;
+      throw new Error(`Required environment variable not found. Set environment variable '${name}' or GitHub Action input '${githubActionInputName}' (checked: ${name}, ${inputName})`);
+    } else {
+      throw new Error(`Required environment variable '${name}' not found`);
     }
-    throw new Error(`Required environment variable not found. Tried: ${sources.join(", ")}`);
   }
   return value.trim();
 }
@@ -25858,7 +25865,7 @@ var init_environment_loader = __esm(() => {
     TESTFLIGHT_PRIVATE_KEY: "testflight_private_key",
     TESTFLIGHT_APP_ID: "app_id",
     TESTFLIGHT_BUNDLE_ID: "testflight_bundle_id",
-    GITHUB_TOKEN: "gthb_token",
+    GTHB_TOKEN: "gthb_token",
     GITHUB_OWNER: "github_owner",
     GITHUB_REPO: "github_repo",
     LINEAR_API_TOKEN: "linear_api_token",
@@ -25981,7 +25988,7 @@ var init_defaults = __esm(() => {
     MISSING_ENV_VAR: "Required environment variable not found",
     GITHUB_CONFIG_MISSING: "GitHub configuration not found. Please set GTHB_TOKEN, GITHUB_OWNER, and GITHUB_REPO.",
     LINEAR_CONFIG_MISSING: "Linear configuration not found. Please set LINEAR_API_TOKEN and LINEAR_TEAM_ID.",
-    APP_STORE_CONFIG_MISSING: "App Store Connect configuration not found. Please set APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_KEY_ID, and APP_STORE_CONNECT_PRIVATE_KEY.",
+    APP_STORE_CONFIG_MISSING: "App Store Connect configuration not found. Please set GitHub Action inputs: testflight_issuer_id, testflight_key_id, testflight_private_key, and app_id.",
     RATE_LIMIT_EXCEEDED: "API rate limit exceeded. Please wait before making more requests.",
     AUTHENTICATION_FAILED: "Authentication failed. Please check your credentials.",
     INVALID_CONFIGURATION: "Configuration validation failed"
@@ -26243,7 +26250,7 @@ ${validationResult.errors.join(`
         const fs = __require("node:fs");
         const keyContent = fs.readFileSync(privateKeyPathEnv, "utf8");
         privateKey = validatePrivateKey(keyContent);
-        this.recordConfigSource("appStoreConnect.privateKey", "file", privateKeyPathEnv);
+        this.recordConfigSource("appStoreConnect.privateKey", "environment", privateKeyPathEnv);
       } catch (error) {
         throw new Error(`Failed to read private key from ${privateKeyPathEnv}: ${error}`);
       }
@@ -26260,7 +26267,7 @@ ${validationResult.errors.join(`
     };
   }
   buildGitHubConfig(isGitHubAction) {
-    const githubToken = getEnvVar("GTHB_TOKEN", ENV_VARS.GITHUB_TOKEN);
+    const githubToken = getEnvVar("GTHB_TOKEN", ENV_VARS.GTHB_TOKEN);
     if (!githubToken) {
       return;
     }
@@ -26324,7 +26331,7 @@ ${validationResult.errors.join(`
     return {
       secret: webhookSecret,
       port: getNumericEnvVar("WEBHOOK_PORT", undefined, 3000),
-      ...PLATFORM_DEFAULTS.webhook
+      maxPayloadSize: 1024 * 1024
     };
   }
   buildLLMConfig() {
@@ -26336,19 +26343,19 @@ ${validationResult.errors.join(`
     const fallbackProviders = getListEnvVar("LLM_FALLBACK_PROVIDERS", ENV_VARS.LLM_FALLBACK_PROVIDERS, ["anthropic", "google"]);
     const providers = {
       openai: {
+        ...DEFAULT_LLM_PROVIDERS.openai,
         apiKey: getEnvVar("OPENAI_API_KEY", ENV_VARS.OPENAI_API_KEY) || "",
-        model: getEnvVar("OPENAI_MODEL", ENV_VARS.OPENAI_MODEL) || DEFAULT_LLM_PROVIDERS.openai.model,
-        ...DEFAULT_LLM_PROVIDERS.openai
+        model: getEnvVar("OPENAI_MODEL", ENV_VARS.OPENAI_MODEL) || DEFAULT_LLM_PROVIDERS.openai?.model || "gpt-4"
       },
       anthropic: {
+        ...DEFAULT_LLM_PROVIDERS.anthropic,
         apiKey: getEnvVar("ANTHROPIC_API_KEY", ENV_VARS.ANTHROPIC_API_KEY) || "",
-        model: getEnvVar("ANTHROPIC_MODEL", ENV_VARS.ANTHROPIC_MODEL) || DEFAULT_LLM_PROVIDERS.anthropic.model,
-        ...DEFAULT_LLM_PROVIDERS.anthropic
+        model: getEnvVar("ANTHROPIC_MODEL", ENV_VARS.ANTHROPIC_MODEL) || DEFAULT_LLM_PROVIDERS.anthropic?.model || "claude-3-sonnet-20240229"
       },
       google: {
+        ...DEFAULT_LLM_PROVIDERS.google,
         apiKey: getEnvVar("GOOGLE_API_KEY", ENV_VARS.GOOGLE_API_KEY) || "",
-        model: getEnvVar("GOOGLE_MODEL", ENV_VARS.GOOGLE_MODEL) || DEFAULT_LLM_PROVIDERS.google.model,
-        ...DEFAULT_LLM_PROVIDERS.google
+        model: getEnvVar("GOOGLE_MODEL", ENV_VARS.GOOGLE_MODEL) || DEFAULT_LLM_PROVIDERS.google?.model || "gemini-pro"
       }
     };
     return {
@@ -26357,10 +26364,10 @@ ${validationResult.errors.join(`
       fallbackProviders,
       providers,
       costControls: {
+        ...DEFAULT_LLM_COST_CONTROLS,
         maxCostPerRun: getFloatEnvVar("MAX_LLM_COST_PER_RUN", ENV_VARS.MAX_LLM_COST_PER_RUN, DEFAULT_LLM_COST_CONTROLS.maxCostPerRun),
         maxCostPerMonth: getFloatEnvVar("MAX_LLM_COST_PER_MONTH", ENV_VARS.MAX_LLM_COST_PER_MONTH, DEFAULT_LLM_COST_CONTROLS.maxCostPerMonth),
-        maxTokensPerIssue: getNumericEnvVar("MAX_TOKENS_PER_ISSUE", ENV_VARS.MAX_TOKENS_PER_ISSUE, DEFAULT_LLM_COST_CONTROLS.maxTokensPerIssue),
-        ...DEFAULT_LLM_COST_CONTROLS
+        maxTokensPerIssue: getNumericEnvVar("MAX_TOKENS_PER_ISSUE", ENV_VARS.MAX_TOKENS_PER_ISSUE, DEFAULT_LLM_COST_CONTROLS.maxTokensPerIssue)
       },
       features: {
         codebaseAnalysis: getBooleanEnvVar("ENABLE_CODEBASE_ANALYSIS", ENV_VARS.ENABLE_CODEBASE_ANALYSIS, true),
@@ -47827,7 +47834,7 @@ init_testflight_client();
 init_config();
 init_idempotency_service();
 
-// src/utils/monitoring.ts
+// src/utils/monitoring/health-checkers.ts
 init_codebase_analyzer();
 init_github_client();
 init_linear_client();
@@ -47835,9 +47842,634 @@ init_llm_client();
 init_testflight_client();
 init_state_manager();
 
+// src/utils/monitoring/health-check-base.ts
+class BaseHealthChecker {
+  startTime = 0;
+  async check() {
+    this.startTime = Date.now();
+    try {
+      return await this.performCheck();
+    } catch (error) {
+      return this.createErrorResult(error);
+    }
+  }
+  createSuccessResult(status, details, recommendations = []) {
+    return {
+      component: this.getComponentName(),
+      status,
+      responseTime: Date.now() - this.startTime,
+      details: {
+        ...details,
+        timestamp: new Date().toISOString()
+      },
+      recommendations,
+      lastChecked: new Date().toISOString()
+    };
+  }
+  createErrorResult(error) {
+    return {
+      component: this.getComponentName(),
+      status: "unhealthy",
+      responseTime: Date.now() - this.startTime,
+      error: error.message,
+      details: {
+        timestamp: new Date().toISOString()
+      },
+      recommendations: [
+        `Check ${this.getComponentName()} configuration`,
+        `Verify ${this.getComponentName()} connectivity`
+      ],
+      lastChecked: new Date().toISOString()
+    };
+  }
+}
+
+class BasePlatformAwareHealthChecker extends BaseHealthChecker {
+  adjustStatusForPlatform(status, platform) {
+    if (platform === "both" && status === "unhealthy") {
+      return "degraded";
+    }
+    return status;
+  }
+  createPlatformNotRequiredResult(platform, reason) {
+    return this.createSuccessResult("healthy", {
+      configured: false,
+      reason,
+      platform
+    }, []);
+  }
+}
+
+// src/utils/monitoring/environment-validator.ts
+init_environment_loader();
+
+class EnvironmentValidator {
+  coreVariables = [
+    { key: "TESTFLIGHT_ISSUER_ID", envName: "TESTFLIGHT_ISSUER_ID", inputName: "testflight_issuer_id", displayName: "TestFlight Issuer ID" },
+    { key: "TESTFLIGHT_KEY_ID", envName: "TESTFLIGHT_KEY_ID", inputName: "testflight_key_id", displayName: "TestFlight Key ID" },
+    { key: "TESTFLIGHT_PRIVATE_KEY", envName: "TESTFLIGHT_PRIVATE_KEY", inputName: "testflight_private_key", displayName: "TestFlight Private Key" },
+    { key: "TESTFLIGHT_APP_ID", envName: "TESTFLIGHT_APP_ID", inputName: "app_id", displayName: "TestFlight App ID" }
+  ];
+  githubVariables = [
+    { key: "GTHB_TOKEN", envName: "GTHB_TOKEN", inputName: "gthb_token", displayName: "GitHub Token" },
+    { key: "GITHUB_OWNER", envName: "GITHUB_OWNER", inputName: "github_owner", displayName: "GitHub Owner" },
+    { key: "GITHUB_REPO", envName: "GITHUB_REPO", inputName: "github_repo", displayName: "GitHub Repo" }
+  ];
+  linearVariables = [
+    { key: "LINEAR_API_TOKEN", envName: "LINEAR_API_TOKEN", inputName: "linear_api_token", displayName: "Linear API Token" },
+    { key: "LINEAR_TEAM_ID", envName: "LINEAR_TEAM_ID", inputName: "linear_team_id", displayName: "Linear Team ID" }
+  ];
+  validateEnvironment(platformConfig) {
+    const coreConfig = this.validateConfigVariables(this.coreVariables);
+    const githubConfig = this.validateConfigVariables(this.githubVariables);
+    const linearConfig = this.validateConfigVariables(this.linearVariables);
+    const missingCoreConfig = this.getMissingVariables(coreConfig);
+    const platformIssues = [];
+    const platformWarnings = [];
+    if (platformConfig.requiresGitHub) {
+      const missingGitHub = this.getMissingVariables(githubConfig);
+      if (missingGitHub.length > 0) {
+        if (platformConfig.isMultiPlatform) {
+          platformWarnings.push(...missingGitHub.map((key) => `Missing GitHub config: ${key} (GitHub integration will be disabled)`));
+        } else {
+          platformIssues.push(...missingGitHub.map((key) => `Missing required GitHub config: ${key}`));
+        }
+      }
+    }
+    if (platformConfig.requiresLinear) {
+      const missingLinear = this.getMissingVariables(linearConfig);
+      if (missingLinear.length > 0) {
+        if (platformConfig.isMultiPlatform) {
+          platformWarnings.push(...missingLinear.map((key) => `Missing Linear config: ${key} (Linear integration will be disabled)`));
+        } else {
+          platformIssues.push(...missingLinear.map((key) => `Missing required Linear config: ${key}`));
+        }
+      }
+    }
+    const recommendations = this.generateRecommendations(missingCoreConfig, platformIssues, platformWarnings, platformConfig);
+    const errorMessage = this.buildErrorMessage(missingCoreConfig, platformIssues, platformWarnings);
+    const isValid = missingCoreConfig.length === 0 && platformIssues.length === 0;
+    return {
+      isValid,
+      missingCoreConfig,
+      platformIssues,
+      platformWarnings,
+      errorMessage,
+      recommendations
+    };
+  }
+  getConfigurationValues() {
+    const coreConfig = this.validateConfigVariables(this.coreVariables);
+    const githubConfig = this.validateConfigVariables(this.githubVariables, true);
+    const linearConfig = this.validateConfigVariables(this.linearVariables);
+    return {
+      core: coreConfig,
+      github: githubConfig,
+      linear: linearConfig
+    };
+  }
+  validateConfigVariables(variables, includeContextualValues = false) {
+    const config = {};
+    for (const variable of variables) {
+      let value = getEnvVar(variable.envName, variable.inputName);
+      if (includeContextualValues && !value) {
+        const isGitHubActions = process.env.GITHUB_ACTIONS === "true";
+        if (variable.key === "GITHUB_OWNER" && isGitHubActions) {
+          value = process.env.GITHUB_REPOSITORY_OWNER;
+        } else if (variable.key === "GITHUB_REPO" && isGitHubActions && process.env.GITHUB_REPOSITORY) {
+          value = process.env.GITHUB_REPOSITORY.split("/")[1];
+        }
+      }
+      config[variable.key] = value;
+    }
+    return config;
+  }
+  getMissingVariables(config) {
+    return Object.entries(config).filter(([, value]) => !value || value.trim() === "").map(([key]) => key);
+  }
+  generateRecommendations(missingCoreConfig, platformIssues, platformWarnings, platformConfig) {
+    const recommendations = [];
+    if (missingCoreConfig.length > 0) {
+      recommendations.push("Configure required TestFlight credentials:");
+      for (const key of missingCoreConfig) {
+        const variable = this.coreVariables.find((v) => v.key === key);
+        if (variable) {
+          recommendations.push(`  - Set ${variable.envName} environment variable or ${variable.inputName} in GitHub Action inputs`);
+        }
+      }
+    }
+    if (platformIssues.length > 0) {
+      if (platformConfig.isMultiPlatform) {
+        recommendations.push("Some platform configurations are missing (system will continue with available platforms):");
+      } else {
+        recommendations.push("Configure required platform credentials:");
+      }
+      platformIssues.forEach((issue) => recommendations.push(`  - ${issue}`));
+    }
+    if (platformWarnings.length > 0) {
+      recommendations.push("Optional platform configurations (can be added later):");
+      platformWarnings.forEach((warning) => recommendations.push(`  - ${warning}`));
+    }
+    if (missingCoreConfig.length === 0 && platformIssues.length === 0 && platformWarnings.length === 0) {
+      recommendations.push("All required configuration is present and valid");
+    }
+    return recommendations;
+  }
+  buildErrorMessage(missingCoreConfig, platformIssues, platformWarnings) {
+    let errorMessage = "";
+    if (missingCoreConfig.length > 0) {
+      errorMessage += `Missing core config: ${missingCoreConfig.join(", ")}. `;
+    }
+    if (platformIssues.length > 0) {
+      errorMessage += `Platform issues: ${platformIssues.join(", ")}. `;
+    }
+    if (platformWarnings.length > 0) {
+      errorMessage += `Platform warnings: ${platformWarnings.join(", ")}. `;
+    }
+    return errorMessage.trim() || "Configuration validation failed";
+  }
+}
+
+// src/utils/monitoring/platform-detector.ts
+init_environment_loader();
+
+class PlatformDetector {
+  _cachedConfig = null;
+  getPlatformConfig() {
+    if (this._cachedConfig) {
+      return this._cachedConfig;
+    }
+    const platform = this.detectPlatform();
+    this._cachedConfig = {
+      platform,
+      requiresGitHub: platform === "github" || platform === "both",
+      requiresLinear: platform === "linear" || platform === "both",
+      isMultiPlatform: platform === "both"
+    };
+    return this._cachedConfig;
+  }
+  detectPlatform() {
+    const platformValue = (getEnvVar("PLATFORM", "platform") || "github").toLowerCase();
+    if (platformValue === "linear" || platformValue === "both") {
+      return platformValue;
+    }
+    return "github";
+  }
+  isIntegrationRequired(integration) {
+    const config = this.getPlatformConfig();
+    return integration === "github" ? config.requiresGitHub : config.requiresLinear;
+  }
+  isIntegrationOptional(integration) {
+    const config = this.getPlatformConfig();
+    return config.isMultiPlatform;
+  }
+  clearCache() {
+    this._cachedConfig = null;
+  }
+}
+var _platformDetectorInstance = null;
+function getPlatformDetector() {
+  if (!_platformDetectorInstance) {
+    _platformDetectorInstance = new PlatformDetector;
+  }
+  return _platformDetectorInstance;
+}
+
+// src/utils/monitoring/health-checkers.ts
+class GitHubHealthChecker extends BasePlatformAwareHealthChecker {
+  getComponentName() {
+    return "GitHub Integration";
+  }
+  isRequiredForPlatform(platform) {
+    return platform === "github" || platform === "both";
+  }
+  async performCheck() {
+    const platformConfig = getPlatformDetector().getPlatformConfig();
+    if (!this.isRequiredForPlatform(platformConfig.platform)) {
+      return this.createPlatformNotRequiredResult(platformConfig.platform, "GitHub not required for Linear-only platform");
+    }
+    const client = getGitHubClient();
+    const health = await client.healthCheck();
+    const adjustedStatus = this.adjustStatusForPlatform(health.status, platformConfig.platform);
+    const recommendations = this.generateRecommendations(health, platformConfig.platform);
+    return this.createSuccessResult(adjustedStatus, {
+      ...health.details,
+      platform: platformConfig.platform,
+      originalStatus: health.status
+    }, recommendations);
+  }
+  createErrorResult(error) {
+    const platformConfig = getPlatformDetector().getPlatformConfig();
+    if (!this.isRequiredForPlatform(platformConfig.platform)) {
+      return this.createPlatformNotRequiredResult(platformConfig.platform, "GitHub not required for Linear-only platform");
+    }
+    const status = this.adjustStatusForPlatform("unhealthy", platformConfig.platform);
+    const recommendations = [
+      "Check GitHub token configuration",
+      "Verify GitHub API connectivity"
+    ];
+    if (platformConfig.isMultiPlatform) {
+      recommendations.push("Linear integration will continue to work regardless of GitHub issues");
+    }
+    return {
+      component: this.getComponentName(),
+      status,
+      responseTime: Date.now() - this.startTime,
+      error: error.message,
+      details: {
+        platform: platformConfig.platform,
+        timestamp: new Date().toISOString()
+      },
+      recommendations,
+      lastChecked: new Date().toISOString()
+    };
+  }
+  generateRecommendations(health, platform) {
+    if (health.details.rateLimit?.remaining < 100) {
+      return ["GitHub rate limit running low - consider reducing request frequency"];
+    }
+    if (health.status === "unhealthy" && platform === "both") {
+      return [
+        "Check GitHub token configuration",
+        "Verify GitHub API connectivity",
+        "Linear integration will continue to work regardless of GitHub issues"
+      ];
+    }
+    return [];
+  }
+}
+
+class LinearHealthChecker extends BasePlatformAwareHealthChecker {
+  getComponentName() {
+    return "Linear Integration";
+  }
+  isRequiredForPlatform(platform) {
+    return platform === "linear" || platform === "both";
+  }
+  async performCheck() {
+    const platformConfig = getPlatformDetector().getPlatformConfig();
+    if (!this.isRequiredForPlatform(platformConfig.platform)) {
+      return this.createPlatformNotRequiredResult(platformConfig.platform, "Linear not required for GitHub-only platform");
+    }
+    const linearToken = process.env.LINEAR_API_TOKEN || process.env.INPUT_LINEAR_API_TOKEN;
+    const linearTeamId = process.env.LINEAR_TEAM_ID || process.env.INPUT_LINEAR_TEAM_ID;
+    if (!linearToken) {
+      const status = platformConfig.platform === "linear" ? "degraded" : "healthy";
+      return this.createSuccessResult(status, {
+        configured: false,
+        platform: platformConfig.platform,
+        reason: "Linear API token not provided"
+      }, this.isRequiredForPlatform(platformConfig.platform) ? [
+        "Set LINEAR_API_TOKEN environment variable or linear_api_token in GitHub Action inputs",
+        "Set LINEAR_TEAM_ID environment variable or linear_team_id in GitHub Action inputs"
+      ] : []);
+    }
+    if (!linearTeamId) {
+      return this.createSuccessResult("degraded", {
+        configured: false,
+        platform: platformConfig.platform,
+        error: "Linear API token provided but team ID missing"
+      }, ["Set LINEAR_TEAM_ID environment variable or linear_team_id in GitHub Action inputs"]);
+    }
+    const client = getLinearClient();
+    const health = await client.healthCheck();
+    const adjustedStatus = this.adjustStatusForPlatform(health.status, platformConfig.platform);
+    return this.createSuccessResult(adjustedStatus, {
+      ...health.details,
+      platform: platformConfig.platform,
+      configured: true,
+      originalStatus: health.status
+    }, health.status === "unhealthy" ? [
+      "Check Linear API token configuration",
+      "Verify Linear team ID",
+      "Linear issues won't prevent GitHub integration from working"
+    ] : []);
+  }
+  createErrorResult(error) {
+    const platformConfig = getPlatformDetector().getPlatformConfig();
+    if (!this.isRequiredForPlatform(platformConfig.platform)) {
+      return this.createPlatformNotRequiredResult(platformConfig.platform, "Linear not required for GitHub-only platform");
+    }
+    const status = this.adjustStatusForPlatform("unhealthy", platformConfig.platform);
+    const recommendations = [
+      "Check Linear API token configuration",
+      "Verify Linear API connectivity"
+    ];
+    if (platformConfig.isMultiPlatform) {
+      recommendations.push("GitHub integration will continue to work regardless of Linear issues");
+    }
+    return {
+      component: this.getComponentName(),
+      status,
+      responseTime: Date.now() - this.startTime,
+      error: error.message,
+      details: {
+        platform: platformConfig.platform,
+        configured: false,
+        timestamp: new Date().toISOString()
+      },
+      recommendations,
+      lastChecked: new Date().toISOString()
+    };
+  }
+}
+
+class TestFlightHealthChecker extends BaseHealthChecker {
+  getComponentName() {
+    return "TestFlight Integration";
+  }
+  async performCheck() {
+    const client = getTestFlightClient();
+    const rateLimitInfo = client.getRateLimitInfo();
+    const recommendations = rateLimitInfo?.remaining && rateLimitInfo.remaining < 10 ? ["TestFlight rate limit running low"] : [];
+    return this.createSuccessResult("healthy", {
+      rateLimitInfo: rateLimitInfo || "No rate limit data available",
+      configured: true
+    }, recommendations);
+  }
+  createErrorResult(error) {
+    return {
+      component: this.getComponentName(),
+      status: "unhealthy",
+      responseTime: Date.now() - this.startTime,
+      error: error.message,
+      details: {
+        timestamp: new Date().toISOString()
+      },
+      recommendations: [
+        "Check App Store Connect credentials",
+        "Verify TestFlight API connectivity"
+      ],
+      lastChecked: new Date().toISOString()
+    };
+  }
+}
+
+class LLMHealthChecker extends BaseHealthChecker {
+  getComponentName() {
+    return "LLM Integration";
+  }
+  async performCheck() {
+    const llmEnabled = this.isLLMEnabled();
+    if (!llmEnabled) {
+      return this.createSuccessResult("healthy", {
+        enabled: false,
+        reason: "LLM enhancement is disabled or not configured",
+        checkedVars: ["ENABLE_LLM_ENHANCEMENT", "INPUT_ENABLE_LLM_ENHANCEMENT", "LLM_ENHANCEMENT"]
+      }, ["LLM enhancement is optional. Enable with enable_llm_enhancement: true in GitHub Actions"]);
+    }
+    const availableProviders = this.getAvailableProviders();
+    if (availableProviders.length === 0) {
+      return this.createSuccessResult("degraded", {
+        enabled: true,
+        configured: false,
+        reason: "LLM enhancement enabled but no API keys provided",
+        availableProviders: []
+      }, [
+        "Provide at least one LLM provider API key:",
+        "- openai_api_key for OpenAI GPT models",
+        "- anthropic_api_key for Anthropic Claude models",
+        "- google_api_key for Google Gemini models"
+      ]);
+    }
+    const client = getLLMClient();
+    const health = await client.healthCheck();
+    const status = health.status === "unhealthy" ? "degraded" : health.status;
+    return this.createSuccessResult(status, {
+      enabled: true,
+      configured: true,
+      availableProviders,
+      providers: health.providers,
+      usage: health.usage,
+      costStatus: health.costStatus
+    }, health.costStatus.withinLimits ? [] : ["LLM cost limits exceeded - review usage"]);
+  }
+  createErrorResult(error) {
+    return {
+      component: this.getComponentName(),
+      status: "degraded",
+      responseTime: Date.now() - this.startTime,
+      error: error.message,
+      details: {
+        enabled: true,
+        configured: false,
+        timestamp: new Date().toISOString()
+      },
+      recommendations: [
+        "LLM integration is optional - system can operate without it",
+        "Check LLM provider API keys if enhancement is needed",
+        "Verify LLM configuration and try again"
+      ],
+      lastChecked: new Date().toISOString()
+    };
+  }
+  isLLMEnabled() {
+    return process.env.ENABLE_LLM_ENHANCEMENT === "true" || process.env.INPUT_ENABLE_LLM_ENHANCEMENT === "true" || process.env.LLM_ENHANCEMENT === "true";
+  }
+  getAvailableProviders() {
+    const apiKeys = {
+      openai: process.env.OPENAI_API_KEY || process.env.INPUT_OPENAI_API_KEY,
+      anthropic: process.env.ANTHROPIC_API_KEY || process.env.INPUT_ANTHROPIC_API_KEY,
+      google: process.env.GOOGLE_API_KEY || process.env.INPUT_GOOGLE_API_KEY
+    };
+    return Object.entries(apiKeys).filter(([, key]) => key && key.trim().length > 0).map(([provider]) => provider);
+  }
+}
+
+class StateManagementHealthChecker extends BaseHealthChecker {
+  getComponentName() {
+    return "State Management";
+  }
+  async performCheck() {
+    const stateManager = getStateManager();
+    const stats = await stateManager.getStats();
+    const recommendations = stats.currentlyCached > 1e4 ? ["Large cache size - consider cleanup"] : [];
+    return this.createSuccessResult("healthy", stats, recommendations);
+  }
+  createErrorResult(error) {
+    return {
+      component: this.getComponentName(),
+      status: "degraded",
+      responseTime: Date.now() - this.startTime,
+      error: error.message,
+      details: {
+        timestamp: new Date().toISOString()
+      },
+      recommendations: [
+        "State management issues may cause duplicate processing"
+      ],
+      lastChecked: new Date().toISOString()
+    };
+  }
+}
+
+class CodebaseAnalysisHealthChecker extends BaseHealthChecker {
+  getComponentName() {
+    return "Codebase Analysis";
+  }
+  async performCheck() {
+    const analyzer = getCodebaseAnalyzer();
+    const stats = analyzer.getCacheStats();
+    return this.createSuccessResult("healthy", {
+      cacheSize: stats.size,
+      cachedFiles: stats.files.length,
+      workspaceRoot: analyzer.workspaceRoot
+    });
+  }
+  createErrorResult(error) {
+    return {
+      component: this.getComponentName(),
+      status: "degraded",
+      responseTime: Date.now() - this.startTime,
+      error: error.message,
+      details: {
+        timestamp: new Date().toISOString()
+      },
+      recommendations: [
+        "Codebase analysis issues may reduce enhancement quality"
+      ],
+      lastChecked: new Date().toISOString()
+    };
+  }
+}
+
+class EnvironmentConfigurationHealthChecker extends BaseHealthChecker {
+  validator = new EnvironmentValidator;
+  getComponentName() {
+    return "Environment Configuration";
+  }
+  async performCheck() {
+    const platformConfig = getPlatformDetector().getPlatformConfig();
+    const validation = this.validator.validateEnvironment(platformConfig);
+    let status;
+    if (!validation.isValid) {
+      status = platformConfig.isMultiPlatform && validation.platformIssues.length > 0 && validation.missingCoreConfig.length === 0 ? "degraded" : "unhealthy";
+    } else if (validation.platformWarnings.length > 0) {
+      status = "degraded";
+    } else {
+      status = "healthy";
+    }
+    const configValues = this.validator.getConfigurationValues();
+    return this.createSuccessResult(status, {
+      environment: "development",
+      platform: platformConfig.platform,
+      coreConfigComplete: validation.missingCoreConfig.length === 0,
+      missingCoreConfig: validation.missingCoreConfig,
+      platformIssues: validation.platformIssues,
+      platformWarnings: validation.platformWarnings,
+      detectedInputs: configValues,
+      environmentVariables: this.getEnvironmentDebugInfo()
+    }, validation.recommendations);
+  }
+  createErrorResult(error) {
+    const platformConfig = getPlatformDetector().getPlatformConfig();
+    return {
+      component: this.getComponentName(),
+      status: "degraded",
+      responseTime: Date.now() - this.startTime,
+      error: error.message,
+      details: {
+        platform: platformConfig.platform,
+        timestamp: new Date().toISOString()
+      },
+      recommendations: [
+        "Environment configuration validation failed",
+        "Check that all required environment variables are set",
+        "Verify GitHub Action inputs are correctly configured"
+      ],
+      lastChecked: new Date().toISOString()
+    };
+  }
+  getEnvironmentDebugInfo() {
+    return {
+      core: {
+        TESTFLIGHT_ISSUER_ID: !!process.env.TESTFLIGHT_ISSUER_ID,
+        TESTFLIGHT_KEY_ID: !!process.env.TESTFLIGHT_KEY_ID,
+        TESTFLIGHT_PRIVATE_KEY: !!process.env.TESTFLIGHT_PRIVATE_KEY,
+        TESTFLIGHT_APP_ID: !!process.env.TESTFLIGHT_APP_ID
+      },
+      github: {
+        GTHB_TOKEN: !!process.env.GTHB_TOKEN,
+        GITHUB_OWNER: !!process.env.GITHUB_OWNER,
+        GITHUB_REPO: !!process.env.GITHUB_REPO,
+        GITHUB_ACTIONS: !!process.env.GITHUB_ACTIONS,
+        GITHUB_REPOSITORY: !!process.env.GITHUB_REPOSITORY,
+        GITHUB_REPOSITORY_OWNER: !!process.env.GITHUB_REPOSITORY_OWNER,
+        DEBUG_GITHUB_REPOSITORY: process.env.GITHUB_REPOSITORY || "not set",
+        DEBUG_GITHUB_REPOSITORY_OWNER: process.env.GITHUB_REPOSITORY_OWNER || "not set",
+        DEBUG_RUNNER_OS: process.env.RUNNER_OS || "not set"
+      }
+    };
+  }
+}
+
+// src/utils/monitoring/health-checker-factory.ts
+class DefaultHealthCheckerFactory {
+  createHealthCheckers() {
+    return [
+      new GitHubHealthChecker,
+      new LinearHealthChecker,
+      new TestFlightHealthChecker,
+      new LLMHealthChecker,
+      new StateManagementHealthChecker,
+      new CodebaseAnalysisHealthChecker,
+      new EnvironmentConfigurationHealthChecker
+    ];
+  }
+}
+var _factoryInstance = null;
+function getHealthCheckerFactory() {
+  if (!_factoryInstance) {
+    _factoryInstance = new DefaultHealthCheckerFactory;
+  }
+  return _factoryInstance;
+}
+
+// src/utils/monitoring/system-health-monitor.ts
 class SystemHealthMonitor {
   config;
-  constructor(config) {
+  healthCheckers;
+  constructor(config, healthCheckers) {
     this.config = {
       enableDetailedChecks: true,
       timeoutMs: 30000,
@@ -47845,573 +48477,55 @@ class SystemHealthMonitor {
       environment: "development",
       ...config
     };
+    this.healthCheckers = healthCheckers || getHealthCheckerFactory().createHealthCheckers();
   }
   async checkSystemHealth() {
     const startTime = Date.now();
     const checks = [];
-    const componentChecks = [
-      this.checkGitHubIntegration(),
-      this.checkLinearIntegration(),
-      this.checkTestFlightIntegration(),
-      this.checkLLMIntegration(),
-      this.checkStateManagement(),
-      this.checkCodebaseAnalysis(),
-      this.checkEnvironmentConfiguration()
-    ];
-    const checkResults = await Promise.allSettled(componentChecks.map((check) => Promise.race([check, this.timeoutPromise(this.config.timeoutMs)])));
+    const checkResults = await Promise.allSettled(this.healthCheckers.map((checker) => Promise.race([
+      checker.check(),
+      this.createTimeoutPromise(this.config.timeoutMs, checker.getComponentName())
+    ])));
     checkResults.forEach((result, index) => {
-      const componentNames = [
-        "GitHub Integration",
-        "Linear Integration",
-        "TestFlight Integration",
-        "LLM Integration",
-        "State Management",
-        "Codebase Analysis",
-        "Environment Configuration"
-      ];
       if (result.status === "fulfilled") {
         checks.push(result.value);
       } else {
-        checks.push({
-          component: componentNames[index] || "Unknown",
-          status: "unhealthy",
-          error: result.reason?.message || "Health check failed",
-          details: {},
-          lastChecked: new Date().toISOString(),
-          recommendations: [
-            "Investigate component failure",
-            "Check configuration and connectivity"
-          ]
-        });
+        checks.push(this.createTimeoutResult(this.healthCheckers[index], result.reason));
       }
     });
-    const healthyCount = checks.filter((c) => c.status === "healthy").length;
-    const degradedCount = checks.filter((c) => c.status === "degraded").length;
-    const unhealthyCount = checks.filter((c) => c.status === "unhealthy").length;
-    let overallStatus;
-    if (unhealthyCount > 0) {
-      overallStatus = "unhealthy";
-    } else if (degradedCount > 0) {
-      overallStatus = "degraded";
-    } else {
-      overallStatus = "healthy";
-    }
+    const metrics = this.calculateMetrics(checks, startTime);
+    const overallStatus = this.calculateOverallStatus(checks);
     const recommendations = this.generateSystemRecommendations(checks, overallStatus);
     const environment = await this.gatherEnvironmentMetrics();
     return {
       overall: overallStatus,
       components: checks,
-      metrics: {
-        totalResponseTime: Date.now() - startTime,
-        healthyComponents: healthyCount,
-        degradedComponents: degradedCount,
-        unhealthyComponents: unhealthyCount
-      },
+      metrics,
       environment,
       recommendations,
       lastChecked: new Date().toISOString()
     };
   }
-  async checkGitHubIntegration() {
-    const startTime = Date.now();
-    try {
-      const platform = (process.env.INPUT_PLATFORM || process.env.PLATFORM || "github").toLowerCase();
-      const client = getGitHubClient();
-      const health = await client.healthCheck();
-      let adjustedStatus = health.status;
-      if (platform === "both" && health.status === "unhealthy") {
-        adjustedStatus = "degraded";
-      }
-      return {
-        component: "GitHub Integration",
-        status: adjustedStatus,
-        responseTime: Date.now() - startTime,
-        details: {
-          ...health.details,
-          platform,
-          originalStatus: health.status
-        },
-        recommendations: health.details.rateLimit && typeof health.details.rateLimit === "object" && "remaining" in health.details.rateLimit && health.details.rateLimit.remaining < 100 ? [
-          "GitHub rate limit running low - consider reducing request frequency"
-        ] : health.status === "unhealthy" && platform === "both" ? [
-          "Check GitHub token configuration",
-          "Verify GitHub API connectivity",
-          "Linear integration will continue to work regardless of GitHub issues"
-        ] : [],
-        lastChecked: new Date().toISOString()
-      };
-    } catch (error) {
-      const platform = (process.env.INPUT_PLATFORM || process.env.PLATFORM || "github").toLowerCase();
-      const status = platform === "both" ? "degraded" : "unhealthy";
-      return {
-        component: "GitHub Integration",
-        status,
-        responseTime: Date.now() - startTime,
-        error: error.message,
-        details: {
-          platform
-        },
-        recommendations: [
-          "Check GitHub token configuration",
-          "Verify GitHub API connectivity",
-          platform === "both" ? "Linear integration will continue to work regardless of GitHub issues" : ""
-        ].filter(Boolean),
-        lastChecked: new Date().toISOString()
-      };
-    }
+  calculateMetrics(checks, startTime) {
+    const healthyComponents = checks.filter((c) => c.status === "healthy").length;
+    const degradedComponents = checks.filter((c) => c.status === "degraded").length;
+    const unhealthyComponents = checks.filter((c) => c.status === "unhealthy").length;
+    return {
+      totalResponseTime: Date.now() - startTime,
+      healthyComponents,
+      degradedComponents,
+      unhealthyComponents
+    };
   }
-  async checkLinearIntegration() {
-    const startTime = Date.now();
-    try {
-      const platform = (process.env.INPUT_PLATFORM || process.env.PLATFORM || "github").toLowerCase();
-      const linearToken = process.env.LINEAR_API_TOKEN || process.env.INPUT_LINEAR_API_TOKEN;
-      const linearTeamId = process.env.LINEAR_TEAM_ID || process.env.INPUT_LINEAR_TEAM_ID;
-      if (platform === "github") {
-        return {
-          component: "Linear Integration",
-          status: "healthy",
-          responseTime: Date.now() - startTime,
-          details: {
-            configured: false,
-            reason: "Linear not required for GitHub-only platform",
-            platform,
-            timestamp: new Date().toISOString()
-          },
-          recommendations: [],
-          lastChecked: new Date().toISOString()
-        };
-      }
-      const isLinearExpected = platform === "linear" || platform === "both";
-      if (!linearToken) {
-        return {
-          component: "Linear Integration",
-          status: platform === "linear" ? "degraded" : "healthy",
-          responseTime: Date.now() - startTime,
-          details: {
-            configured: false,
-            platform,
-            reason: isLinearExpected ? "Linear API token not provided" : "Linear not configured",
-            timestamp: new Date().toISOString()
-          },
-          recommendations: isLinearExpected ? [
-            "Set linear_api_token in GitHub Action inputs or LINEAR_API_TOKEN environment variable",
-            "Set linear_team_id in GitHub Action inputs or LINEAR_TEAM_ID environment variable"
-          ] : [],
-          lastChecked: new Date().toISOString()
-        };
-      }
-      if (!linearTeamId) {
-        return {
-          component: "Linear Integration",
-          status: "degraded",
-          responseTime: Date.now() - startTime,
-          details: {
-            configured: false,
-            platform,
-            error: "Linear API token provided but team ID missing",
-            timestamp: new Date().toISOString()
-          },
-          recommendations: [
-            "Set linear_team_id in GitHub Action inputs or LINEAR_TEAM_ID environment variable"
-          ],
-          lastChecked: new Date().toISOString()
-        };
-      }
-      const client = getLinearClient();
-      const health = await client.healthCheck();
-      let adjustedStatus = health.status;
-      if (platform === "both" && health.status === "unhealthy") {
-        adjustedStatus = "degraded";
-      }
-      return {
-        component: "Linear Integration",
-        status: adjustedStatus,
-        responseTime: Date.now() - startTime,
-        details: {
-          ...health.details,
-          platform,
-          configured: true,
-          originalStatus: health.status
-        },
-        recommendations: health.status === "unhealthy" ? ["Check Linear API token configuration", "Verify Linear team ID", "Linear issues won't prevent GitHub integration from working"] : [],
-        lastChecked: new Date().toISOString()
-      };
-    } catch (error) {
-      const platform = (process.env.INPUT_PLATFORM || process.env.PLATFORM || "github").toLowerCase();
-      const status = platform === "github" ? "healthy" : "degraded";
-      return {
-        component: "Linear Integration",
-        status,
-        responseTime: Date.now() - startTime,
-        error: error.message,
-        details: {
-          platform,
-          configured: false
-        },
-        recommendations: [
-          "Check Linear API token configuration",
-          "Verify Linear API connectivity",
-          platform === "both" ? "GitHub integration will continue to work regardless of Linear issues" : ""
-        ].filter(Boolean),
-        lastChecked: new Date().toISOString()
-      };
-    }
-  }
-  async checkTestFlightIntegration() {
-    const startTime = Date.now();
-    try {
-      const client = getTestFlightClient();
-      const rateLimitInfo = client.getRateLimitInfo();
-      return {
-        component: "TestFlight Integration",
-        status: "healthy",
-        responseTime: Date.now() - startTime,
-        details: {
-          rateLimitInfo: rateLimitInfo || "No rate limit data available",
-          configured: true
-        },
-        recommendations: rateLimitInfo?.remaining && rateLimitInfo.remaining < 10 ? ["TestFlight rate limit running low"] : [],
-        lastChecked: new Date().toISOString()
-      };
-    } catch (error) {
-      return {
-        component: "TestFlight Integration",
-        status: "unhealthy",
-        responseTime: Date.now() - startTime,
-        error: error.message,
-        details: {},
-        recommendations: [
-          "Check App Store Connect credentials",
-          "Verify TestFlight API connectivity"
-        ],
-        lastChecked: new Date().toISOString()
-      };
-    }
-  }
-  async checkLLMIntegration() {
-    const startTime = Date.now();
-    try {
-      const llmEnabled = process.env.ENABLE_LLM_ENHANCEMENT === "true" || process.env.INPUT_ENABLE_LLM_ENHANCEMENT === "true" || process.env.LLM_ENHANCEMENT === "true";
-      if (!llmEnabled) {
-        return {
-          component: "LLM Integration",
-          status: "healthy",
-          responseTime: Date.now() - startTime,
-          details: {
-            enabled: false,
-            reason: "LLM enhancement is disabled or not configured",
-            checkedVars: ["ENABLE_LLM_ENHANCEMENT", "INPUT_ENABLE_LLM_ENHANCEMENT", "LLM_ENHANCEMENT"],
-            timestamp: new Date().toISOString()
-          },
-          recommendations: [
-            "LLM enhancement is optional. Enable with enable_llm_enhancement: true in GitHub Actions"
-          ],
-          lastChecked: new Date().toISOString()
-        };
-      }
-      const apiKeys = {
-        openai: process.env.OPENAI_API_KEY || process.env.INPUT_OPENAI_API_KEY,
-        anthropic: process.env.ANTHROPIC_API_KEY || process.env.INPUT_ANTHROPIC_API_KEY,
-        google: process.env.GOOGLE_API_KEY || process.env.INPUT_GOOGLE_API_KEY
-      };
-      const availableProviders = Object.entries(apiKeys).filter(([, key]) => key && key.trim().length > 0).map(([provider]) => provider);
-      if (availableProviders.length === 0) {
-        return {
-          component: "LLM Integration",
-          status: "degraded",
-          responseTime: Date.now() - startTime,
-          details: {
-            enabled: true,
-            configured: false,
-            reason: "LLM enhancement enabled but no API keys provided",
-            availableProviders: [],
-            timestamp: new Date().toISOString()
-          },
-          recommendations: [
-            "Provide at least one LLM provider API key:",
-            "- openai_api_key for OpenAI GPT models",
-            "- anthropic_api_key for Anthropic Claude models",
-            "- google_api_key for Google Gemini models"
-          ],
-          lastChecked: new Date().toISOString()
-        };
-      }
-      const client = getLLMClient();
-      const health = await client.healthCheck();
-      let { status } = health;
-      if (status === "unhealthy") {
-        status = "degraded";
-      }
-      return {
-        component: "LLM Integration",
-        status,
-        responseTime: Date.now() - startTime,
-        details: {
-          enabled: true,
-          configured: true,
-          availableProviders,
-          providers: health.providers,
-          usage: health.usage,
-          costStatus: health.costStatus,
-          timestamp: new Date().toISOString()
-        },
-        recommendations: health.costStatus.withinLimits ? [] : ["LLM cost limits exceeded - review usage"],
-        lastChecked: new Date().toISOString()
-      };
-    } catch (error) {
-      return {
-        component: "LLM Integration",
-        status: "degraded",
-        responseTime: Date.now() - startTime,
-        error: error.message,
-        details: {
-          enabled: true,
-          configured: false,
-          timestamp: new Date().toISOString()
-        },
-        recommendations: [
-          "LLM integration is optional - system can operate without it",
-          "Check LLM provider API keys if enhancement is needed",
-          "Verify LLM configuration and try again"
-        ],
-        lastChecked: new Date().toISOString()
-      };
-    }
-  }
-  async checkStateManagement() {
-    const startTime = Date.now();
-    try {
-      const stateManager = getStateManager();
-      const stats = await stateManager.getStats();
-      return {
-        component: "State Management",
-        status: "healthy",
-        responseTime: Date.now() - startTime,
-        details: stats,
-        recommendations: stats.currentlyCached > 1e4 ? ["Large cache size - consider cleanup"] : [],
-        lastChecked: new Date().toISOString()
-      };
-    } catch (error) {
-      return {
-        component: "State Management",
-        status: "degraded",
-        responseTime: Date.now() - startTime,
-        error: error.message,
-        details: {},
-        recommendations: [
-          "State management issues may cause duplicate processing"
-        ],
-        lastChecked: new Date().toISOString()
-      };
-    }
-  }
-  async checkCodebaseAnalysis() {
-    const startTime = Date.now();
-    try {
-      const analyzer = getCodebaseAnalyzer();
-      const stats = analyzer.getCacheStats();
-      return {
-        component: "Codebase Analysis",
-        status: "healthy",
-        responseTime: Date.now() - startTime,
-        details: {
-          cacheSize: stats.size,
-          cachedFiles: stats.files.length,
-          workspaceRoot: analyzer.workspaceRoot
-        },
-        recommendations: [],
-        lastChecked: new Date().toISOString()
-      };
-    } catch (error) {
-      return {
-        component: "Codebase Analysis",
-        status: "degraded",
-        responseTime: Date.now() - startTime,
-        error: error.message,
-        details: {},
-        recommendations: [
-          "Codebase analysis issues may reduce enhancement quality"
-        ],
-        lastChecked: new Date().toISOString()
-      };
-    }
-  }
-  async checkEnvironmentConfiguration() {
-    const startTime = Date.now();
-    try {
-      const platform = (process.env.INPUT_PLATFORM || process.env.PLATFORM || "github").toLowerCase();
-      const coreConfig = {
-        TESTFLIGHT_ISSUER_ID: process.env.TESTFLIGHT_ISSUER_ID || process.env.INPUT_TESTFLIGHT_ISSUER_ID,
-        TESTFLIGHT_KEY_ID: process.env.TESTFLIGHT_KEY_ID || process.env.INPUT_TESTFLIGHT_KEY_ID,
-        TESTFLIGHT_PRIVATE_KEY: process.env.TESTFLIGHT_PRIVATE_KEY || process.env.INPUT_TESTFLIGHT_PRIVATE_KEY,
-        TESTFLIGHT_APP_ID: process.env.TESTFLIGHT_APP_ID || process.env.INPUT_APP_ID
-      };
-      const isGitHubActions = process.env.GITHUB_ACTIONS === "true";
-      const platformConfig = {
-        github: {
-          GTHB_TOKEN: process.env.GTHB_TOKEN || process.env.INPUT_GTHB_TOKEN,
-          GITHUB_OWNER: process.env.GITHUB_OWNER || process.env.INPUT_GITHUB_OWNER || (isGitHubActions ? process.env.GITHUB_REPOSITORY_OWNER : undefined),
-          GITHUB_REPO: process.env.GITHUB_REPO || process.env.INPUT_GITHUB_REPO || (isGitHubActions && process.env.GITHUB_REPOSITORY ? process.env.GITHUB_REPOSITORY.split("/")[1] : undefined)
-        },
-        linear: {
-          LINEAR_API_TOKEN: process.env.LINEAR_API_TOKEN || process.env.INPUT_LINEAR_API_TOKEN,
-          LINEAR_TEAM_ID: process.env.LINEAR_TEAM_ID || process.env.INPUT_LINEAR_TEAM_ID
-        }
-      };
-      const missingCoreConfig = Object.entries(coreConfig).filter(([, value]) => !value || value.trim() === "").map(([key]) => key);
-      const platformIssues = [];
-      const platformWarnings = [];
-      if (platform === "github" || platform === "both") {
-        const missingGitHub = Object.entries(platformConfig.github).filter(([, value]) => !value || value.trim() === "").map(([key]) => key);
-        if (missingGitHub.length > 0) {
-          if (platform === "github") {
-            platformIssues.push(...missingGitHub.map((key) => `Missing required GitHub config: ${key}`));
-          } else {
-            platformWarnings.push(...missingGitHub.map((key) => `Missing GitHub config: ${key} (GitHub integration will be disabled)`));
-          }
-        }
-      }
-      if (platform === "linear" || platform === "both") {
-        const missingLinear = Object.entries(platformConfig.linear).filter(([, value]) => !value || value.trim() === "").map(([key]) => key);
-        if (missingLinear.length > 0) {
-          if (platform === "linear") {
-            platformIssues.push(...missingLinear.map((key) => `Missing required Linear config: ${key}`));
-          } else {
-            platformWarnings.push(...missingLinear.map((key) => `Missing Linear config: ${key} (Linear integration will be disabled)`));
-          }
-        }
-      }
-      let status;
-      if (missingCoreConfig.length > 0) {
-        status = "unhealthy";
-      } else if (platform === "both" && platformIssues.length > 0) {
-        status = "degraded";
-      } else if (platformIssues.length > 0) {
-        status = "unhealthy";
-      } else if (platformWarnings.length > 0) {
-        status = "degraded";
-      } else {
-        status = "healthy";
-      }
-      const recommendations = [];
-      if (missingCoreConfig.length > 0) {
-        recommendations.push("Configure required TestFlight credentials:");
-        missingCoreConfig.forEach((key) => {
-          const inputName = key.replace("TESTFLIGHT_", "").toLowerCase();
-          const actionInputName = inputName === "app_id" ? "app_id" : `testflight_${inputName}`;
-          recommendations.push(`  - Set ${key} or use GitHub Action input: ${actionInputName}`);
-        });
-      }
-      if (platformIssues.length > 0) {
-        if (platform === "both") {
-          recommendations.push("Some platform configurations are missing (system will continue with available platforms):");
-        } else {
-          recommendations.push("Configure required platform credentials:");
-        }
-        platformIssues.forEach((issue) => recommendations.push(`  - ${issue}`));
-      }
-      if (platformWarnings.length > 0) {
-        recommendations.push("Optional platform configurations (can be added later):");
-        platformWarnings.forEach((warning) => recommendations.push(`  - ${warning}`));
-      }
-      if (status === "healthy") {
-        recommendations.push("All required configuration is present and valid");
-      }
-      let errorMessage = "";
-      if (missingCoreConfig.length > 0) {
-        errorMessage += `Missing core config: ${missingCoreConfig.join(", ")}. `;
-      }
-      if (platformIssues.length > 0) {
-        errorMessage += `Platform issues: ${platformIssues.join(", ")}. `;
-      }
-      if (platformWarnings.length > 0) {
-        errorMessage += `Platform warnings: ${platformWarnings.join(", ")}. `;
-      }
-      return {
-        component: "Environment Configuration",
-        status,
-        responseTime: Date.now() - startTime,
-        error: status !== "healthy" ? errorMessage.trim() || "Configuration validation failed" : undefined,
-        details: {
-          environment: "development",
-          platform,
-          coreConfigComplete: missingCoreConfig.length === 0,
-          missingCoreConfig,
-          platformIssues,
-          platformWarnings,
-          detectedInputs: {
-            core: Object.fromEntries(Object.entries(coreConfig).map(([key, value]) => [key, !!value])),
-            platform: platform === "github" || platform === "both" ? {
-              github: Object.fromEntries(Object.entries(platformConfig.github).map(([key, value]) => [key, !!value]))
-            } : platform === "linear" || platform === "both" ? {
-              linear: Object.fromEntries(Object.entries(platformConfig.linear).map(([key, value]) => [key, !!value]))
-            } : {}
-          },
-          environmentVariables: {
-            core: {
-              TESTFLIGHT_ISSUER_ID: !!process.env.TESTFLIGHT_ISSUER_ID,
-              INPUT_TESTFLIGHT_ISSUER_ID: !!process.env.INPUT_TESTFLIGHT_ISSUER_ID,
-              TESTFLIGHT_KEY_ID: !!process.env.TESTFLIGHT_KEY_ID,
-              INPUT_TESTFLIGHT_KEY_ID: !!process.env.INPUT_TESTFLIGHT_KEY_ID,
-              TESTFLIGHT_PRIVATE_KEY: !!process.env.TESTFLIGHT_PRIVATE_KEY,
-              INPUT_TESTFLIGHT_PRIVATE_KEY: !!process.env.INPUT_TESTFLIGHT_PRIVATE_KEY,
-              TESTFLIGHT_APP_ID: !!process.env.TESTFLIGHT_APP_ID,
-              INPUT_APP_ID: !!process.env.INPUT_APP_ID
-            },
-            github: {
-              GTHB_TOKEN: !!process.env.GTHB_TOKEN,
-              INPUT_GTHB_TOKEN: !!process.env.INPUT_GTHB_TOKEN,
-              GITHUB_OWNER: !!process.env.GITHUB_OWNER,
-              INPUT_GITHUB_OWNER: !!process.env.INPUT_GITHUB_OWNER,
-              GITHUB_REPO: !!process.env.GITHUB_REPO,
-              INPUT_GITHUB_REPO: !!process.env.INPUT_GITHUB_REPO,
-              GITHUB_ACTIONS: !!process.env.GITHUB_ACTIONS,
-              GITHUB_REPOSITORY: !!process.env.GITHUB_REPOSITORY,
-              GITHUB_REPOSITORY_OWNER: !!process.env.GITHUB_REPOSITORY_OWNER,
-              GITHUB_REF: !!process.env.GITHUB_REF,
-              GITHUB_REF_NAME: !!process.env.GITHUB_REF_NAME,
-              GITHUB_SHA: !!process.env.GITHUB_SHA,
-              GITHUB_ACTOR: !!process.env.GITHUB_ACTOR,
-              GITHUB_WORKFLOW: !!process.env.GITHUB_WORKFLOW,
-              GITHUB_RUN_ID: !!process.env.GITHUB_RUN_ID,
-              GITHUB_RUN_NUMBER: !!process.env.GITHUB_RUN_NUMBER,
-              GITHUB_EVENT_NAME: !!process.env.GITHUB_EVENT_NAME,
-              GITHUB_WORKSPACE: !!process.env.GITHUB_WORKSPACE,
-              DEBUG_GITHUB_REPOSITORY: process.env.GITHUB_REPOSITORY || "not set",
-              DEBUG_GITHUB_REPOSITORY_OWNER: process.env.GITHUB_REPOSITORY_OWNER || "not set",
-              DEBUG_GITHUB_REF: process.env.GITHUB_REF?.substring(0, 30) || "not set",
-              DEBUG_GITHUB_SHA: process.env.GITHUB_SHA?.substring(0, 8) || "not set",
-              DEBUG_GITHUB_ACTOR: process.env.GITHUB_ACTOR || "not set",
-              DEBUG_GITHUB_WORKFLOW: process.env.GITHUB_WORKFLOW || "not set",
-              DEBUG_GITHUB_EVENT_NAME: process.env.GITHUB_EVENT_NAME || "not set",
-              RUNNER_OS: !!process.env.RUNNER_OS,
-              RUNNER_ARCH: !!process.env.RUNNER_ARCH,
-              DEBUG_RUNNER_OS: process.env.RUNNER_OS || "not set",
-              DEBUG_RUNNER_ARCH: process.env.RUNNER_ARCH || "not set"
-            }
-          },
-          timestamp: new Date().toISOString()
-        },
-        recommendations,
-        lastChecked: new Date().toISOString()
-      };
-    } catch (error) {
-      return {
-        component: "Environment Configuration",
-        status: "degraded",
-        responseTime: Date.now() - startTime,
-        error: error.message,
-        details: {
-          platform: process.env.INPUT_PLATFORM || process.env.PLATFORM || "github",
-          timestamp: new Date().toISOString()
-        },
-        recommendations: [
-          "Environment configuration validation failed",
-          "Check that all required environment variables are set",
-          "Verify GitHub Action inputs are correctly configured"
-        ],
-        lastChecked: new Date().toISOString()
-      };
+  calculateOverallStatus(checks) {
+    const unhealthyCount = checks.filter((c) => c.status === "unhealthy").length;
+    const degradedCount = checks.filter((c) => c.status === "degraded").length;
+    if (unhealthyCount > 0) {
+      return "unhealthy";
+    } else if (degradedCount > 0) {
+      return "degraded";
+    } else {
+      return "healthy";
     }
   }
   generateSystemRecommendations(checks, overallStatus) {
@@ -48422,16 +48536,12 @@ class SystemHealthMonitor {
       }
     });
     if (overallStatus === "unhealthy") {
-      recommendations.push("System has critical issues - immediate attention required");
-      recommendations.push("Consider running in safe mode until issues are resolved");
+      recommendations.push("System has critical issues - immediate attention required", "Consider running in safe mode until issues are resolved");
     } else if (overallStatus === "degraded") {
-      recommendations.push("System is functional but has some issues - monitor closely");
-      recommendations.push("Address warnings to improve system reliability");
+      recommendations.push("System is functional but has some issues - monitor closely", "Address warnings to improve system reliability");
     }
     if (this.config.environment === "production") {
-      recommendations.push("Set up monitoring alerts for system health changes");
-      recommendations.push("Review logs regularly for early warning signs");
-      recommendations.push("Ensure backup systems are configured");
+      recommendations.push("Set up monitoring alerts for system health changes", "Review logs regularly for early warning signs", "Ensure backup systems are configured");
     }
     return [...new Set(recommendations)];
   }
@@ -48448,12 +48558,27 @@ class SystemHealthMonitor {
       }
     };
   }
-  timeoutPromise(ms) {
+  createTimeoutPromise(ms, componentName) {
     return new Promise((_, reject) => {
       setTimeout(() => {
-        reject(new Error(`Health check timed out after ${ms}ms`));
+        reject(new Error(`Health check for ${componentName} timed out after ${ms}ms`));
       }, ms);
     });
+  }
+  createTimeoutResult(checker, reason) {
+    return {
+      component: checker.getComponentName(),
+      status: "unhealthy",
+      error: reason?.message || "Health check failed",
+      details: {
+        timestamp: new Date().toISOString()
+      },
+      recommendations: [
+        "Investigate component failure",
+        "Check configuration and connectivity"
+      ],
+      lastChecked: new Date().toISOString()
+    };
   }
   getMonitoringRecommendations() {
     const recommendations = [
@@ -48470,38 +48595,26 @@ class SystemHealthMonitor {
     return recommendations;
   }
 }
-var _healthMonitorInstance = null;
-function getSystemHealthMonitor() {
-  if (!_healthMonitorInstance) {
-    _healthMonitorInstance = new SystemHealthMonitor;
-  }
-  return _healthMonitorInstance;
-}
 async function quickHealthCheck() {
   try {
-    const monitor = getSystemHealthMonitor();
+    const monitor = new SystemHealthMonitor;
     const health = await monitor.checkSystemHealth();
-    const platform = (process.env.INPUT_PLATFORM || process.env.PLATFORM || "github").toLowerCase();
+    const platformConfig = getPlatformDetector().getPlatformConfig();
     const criticalIssues = health.components.filter((c) => {
       if (c.status !== "unhealthy") {
         return false;
       }
-      if (platform === "github" && c.component === "Linear Integration") {
+      if (!platformConfig.requiresGitHub && c.component === "GitHub Integration") {
         return false;
       }
-      if (platform === "linear" && c.component === "GitHub Integration") {
+      if (!platformConfig.requiresLinear && c.component === "Linear Integration") {
         return false;
       }
-      if (platform === "both" && (c.component === "Linear Integration" || c.component === "GitHub Integration")) {
+      const optionalComponents = ["LLM Integration", "Codebase Analysis", "State Management"];
+      if (optionalComponents.includes(c.component)) {
         return false;
       }
-      if (c.component === "LLM Integration") {
-        return false;
-      }
-      if (c.component === "Codebase Analysis") {
-        return false;
-      }
-      if (c.component === "State Management") {
+      if (platformConfig.isMultiPlatform && (c.component === "Linear Integration" || c.component === "GitHub Integration")) {
         return false;
       }
       return true;
@@ -48533,7 +48646,13 @@ async function quickHealthCheck() {
     };
   }
 }
-
+var _healthMonitorInstance = null;
+function getSystemHealthMonitor() {
+  if (!_healthMonitorInstance) {
+    _healthMonitorInstance = new SystemHealthMonitor;
+  }
+  return _healthMonitorInstance;
+}
 // src/utils/service-factory.ts
 class GitHubIssueService {
   githubClient;
@@ -48733,19 +48852,22 @@ function validateEnvironmentConfiguration(config) {
   const errors = [];
   const warnings = [];
   const requiredFields = [
-    "APP_STORE_CONNECT_ISSUER_ID",
-    "APP_STORE_CONNECT_KEY_ID",
-    "APP_STORE_CONNECT_PRIVATE_KEY"
+    { primary: "TESTFLIGHT_ISSUER_ID", fallback: "INPUT_TESTFLIGHT_ISSUER_ID", name: "TestFlight Issuer ID" },
+    { primary: "TESTFLIGHT_KEY_ID", fallback: "INPUT_TESTFLIGHT_KEY_ID", name: "TestFlight Key ID" },
+    { primary: "TESTFLIGHT_PRIVATE_KEY", fallback: "INPUT_TESTFLIGHT_PRIVATE_KEY", name: "TestFlight Private Key" },
+    { primary: "TESTFLIGHT_APP_ID", fallback: "INPUT_APP_ID", name: "TestFlight App ID" }
   ];
   for (const field of requiredFields) {
-    if (!config[field]) {
-      errors.push(`Missing required environment variable: ${field}`);
+    if (!config[field.primary] && !config[field.fallback]) {
+      errors.push(`Missing required environment variable: ${field.name} (set ${field.primary} environment variable or GitHub Action input)`);
     }
   }
-  if (config.APP_STORE_CONNECT_ISSUER_ID && typeof config.APP_STORE_CONNECT_ISSUER_ID === "string" && !VALIDATION_PATTERNS.ISSUER_ID.test(config.APP_STORE_CONNECT_ISSUER_ID)) {
+  const issuerId = config.TESTFLIGHT_ISSUER_ID || config.INPUT_TESTFLIGHT_ISSUER_ID;
+  if (issuerId && typeof issuerId === "string" && !VALIDATION_PATTERNS.ISSUER_ID.test(issuerId)) {
     errors.push("Invalid App Store Connect Issuer ID format");
   }
-  if (config.APP_STORE_CONNECT_KEY_ID && typeof config.APP_STORE_CONNECT_KEY_ID === "string" && !VALIDATION_PATTERNS.API_KEY_ID.test(config.APP_STORE_CONNECT_KEY_ID)) {
+  const keyId = config.TESTFLIGHT_KEY_ID || config.INPUT_TESTFLIGHT_KEY_ID;
+  if (keyId && typeof keyId === "string" && !VALIDATION_PATTERNS.API_KEY_ID.test(keyId)) {
     errors.push("Invalid App Store Connect Key ID format");
   }
   if (config.GTHB_TOKEN && typeof config.GTHB_TOKEN === "string" && !VALIDATION_PATTERNS.GTHB_TOKEN.test(config.GTHB_TOKEN)) {
@@ -49320,15 +49442,18 @@ async function run() {
     core2.error(`  Memory usage: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`);
     core2.error(`  Uptime: ${Math.round(process.uptime())}s`);
     const relevantEnvVars = [
-      "INPUT_TESTFLIGHT_ISSUER_ID",
-      "INPUT_TESTFLIGHT_KEY_ID",
-      "INPUT_APP_ID",
-      "INPUT_GTHB_TOKEN",
-      "INPUT_LINEAR_API_TOKEN",
-      "INPUT_LINEAR_TEAM_ID",
-      "INPUT_ENABLE_LLM_ENHANCEMENT",
-      "INPUT_ANTHROPIC_API_KEY",
-      "INPUT_OPENAI_API_KEY"
+      "TESTFLIGHT_ISSUER_ID",
+      "TESTFLIGHT_KEY_ID",
+      "TESTFLIGHT_PRIVATE_KEY",
+      "TESTFLIGHT_APP_ID",
+      "GTHB_TOKEN",
+      "GITHUB_OWNER",
+      "GITHUB_REPO",
+      "LINEAR_API_TOKEN",
+      "LINEAR_TEAM_ID",
+      "ENABLE_LLM_ENHANCEMENT",
+      "ANTHROPIC_API_KEY",
+      "OPENAI_API_KEY"
     ];
     core2.error("\uD83D\uDD27 Environment variable status:");
     relevantEnvVars.forEach((envVar) => {

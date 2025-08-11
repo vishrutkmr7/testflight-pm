@@ -110,9 +110,9 @@ export const CONFIG_PRESETS = {
      */
     GITHUB_ONLY: {
         requiredEnvVars: [
-            "APP_STORE_CONNECT_ISSUER_ID",
-            "APP_STORE_CONNECT_KEY_ID",
-            "APP_STORE_CONNECT_PRIVATE_KEY",
+            "TESTFLIGHT_ISSUER_ID",
+            "TESTFLIGHT_KEY_ID",
+            "TESTFLIGHT_PRIVATE_KEY",
             "GTHB_TOKEN",
         ],
         optionalEnvVars: [
@@ -128,9 +128,9 @@ export const CONFIG_PRESETS = {
      */
     LINEAR_ONLY: {
         requiredEnvVars: [
-            "APP_STORE_CONNECT_ISSUER_ID",
-            "APP_STORE_CONNECT_KEY_ID",
-            "APP_STORE_CONNECT_PRIVATE_KEY",
+            "TESTFLIGHT_ISSUER_ID",
+            "TESTFLIGHT_KEY_ID",
+            "TESTFLIGHT_PRIVATE_KEY",
             "LINEAR_API_TOKEN",
             "LINEAR_TEAM_ID",
         ],
@@ -145,9 +145,9 @@ export const CONFIG_PRESETS = {
      */
     FULL_FEATURED: {
         requiredEnvVars: [
-            "APP_STORE_CONNECT_ISSUER_ID",
-            "APP_STORE_CONNECT_KEY_ID",
-            "APP_STORE_CONNECT_PRIVATE_KEY",
+            "TESTFLIGHT_ISSUER_ID",
+            "TESTFLIGHT_KEY_ID",
+            "TESTFLIGHT_PRIVATE_KEY",
             "GTHB_TOKEN",
             "LINEAR_API_TOKEN",
             "LINEAR_TEAM_ID",

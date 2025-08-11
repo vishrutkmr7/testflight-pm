@@ -14,22 +14,28 @@ export function isGitHubActionEnvironment(): boolean {
 }
 
 /**
- * Gets environment variable value with GitHub Action input fallback
+ * Gets environment variable value prioritizing GitHub Action input format
  */
 export function getEnvVar(
     name: string,
     githubActionInputName?: string,
 ): string | undefined {
-    // First try direct environment variable
-    let value = process.env[name];
-
-    // If in GitHub Action and no direct env var, try input format
-    if (!value && isGitHubActionEnvironment() && githubActionInputName) {
-        const inputName = `INPUT_${githubActionInputName.toUpperCase().replace(/-/g, "_")}`;
-        value = process.env[inputName];
+    // Priority 1: Direct environment variable
+    const directValue = process.env[name];
+    if (directValue) {
+        return directValue;
     }
-
-    return value;
+    
+    // Priority 2: GitHub Action input format (INPUT_*) as fallback
+    if (githubActionInputName) {
+        const inputName = `INPUT_${githubActionInputName.toUpperCase().replace(/-/g, "_")}`;
+        const inputValue = process.env[inputName];
+        if (inputValue) {
+            return inputValue;
+        }
+    }
+    
+    return undefined;
 }
 
 /**
@@ -42,15 +48,16 @@ export function getRequiredEnvVar(
     const value = getEnvVar(name, githubActionInputName);
 
     if (!value || value.trim() === "") {
-        const sources = [name];
         if (githubActionInputName) {
-            sources.push(
-                `INPUT_${githubActionInputName.toUpperCase().replace(/-/g, "_")}`,
+            const inputName = `INPUT_${githubActionInputName.toUpperCase().replace(/-/g, "_")}`;
+            throw new Error(
+                `Required environment variable not found. Set environment variable '${name}' or GitHub Action input '${githubActionInputName}' (checked: ${name}, ${inputName})`,
+            );
+        } else {
+            throw new Error(
+                `Required environment variable '${name}' not found`,
             );
         }
-        throw new Error(
-            `Required environment variable not found. Tried: ${sources.join(", ")}`,
-        );
     }
 
     return value.trim();
@@ -146,7 +153,7 @@ export const ENV_VARS = {
     TESTFLIGHT_BUNDLE_ID: "testflight_bundle_id",
 
     // GitHub - FIXED to match action.yml inputs
-    GITHUB_TOKEN: "gthb_token",
+    GTHB_TOKEN: "gthb_token",
     GITHUB_OWNER: "github_owner",
     GITHUB_REPO: "github_repo",
 

@@ -35,7 +35,8 @@ import type {
     Environment,
     LogLevel,
     LLMProvider,
-    LLMProviderConfig
+    LLMProviderConfig,
+    ProcessingConfig
 } from "./types.js";
 
 /**
@@ -152,7 +153,7 @@ export class ConfigurationManager {
                 const fs = require("node:fs");
                 const keyContent = fs.readFileSync(privateKeyPathEnv, "utf8");
                 privateKey = validatePrivateKey(keyContent);
-                this.recordConfigSource("appStoreConnect.privateKey", "file", privateKeyPathEnv);
+                this.recordConfigSource("appStoreConnect.privateKey", "environment", privateKeyPathEnv);
             } catch (error) {
                 throw new Error(
                     `Failed to read private key from ${privateKeyPathEnv}: ${error}`
@@ -178,7 +179,7 @@ export class ConfigurationManager {
      * Builds GitHub configuration if available
      */
     private buildGitHubConfig(isGitHubAction: boolean): GitHubConfig | undefined {
-        const githubToken = getEnvVar("GTHB_TOKEN", ENV_VARS.GITHUB_TOKEN);
+        const githubToken = getEnvVar("GTHB_TOKEN", ENV_VARS.GTHB_TOKEN);
 
         if (!githubToken) {
             return undefined;
@@ -295,7 +296,7 @@ export class ConfigurationManager {
     /**
      * Builds webhook configuration for local development
      */
-    private buildWebhookConfig(isGitHubAction: boolean): undefined {
+    private buildWebhookConfig(isGitHubAction: boolean): { secret: string; port: number; maxPayloadSize: number; } | undefined {
         if (isGitHubAction) {
             return undefined; // Webhooks not supported in GitHub Actions
         }
@@ -308,7 +309,7 @@ export class ConfigurationManager {
         return {
             secret: webhookSecret,
             port: getNumericEnvVar("WEBHOOK_PORT", undefined, 3000),
-            ...PLATFORM_DEFAULTS.webhook,
+            maxPayloadSize: 1024 * 1024, // 1MB default
         };
     }
 
@@ -336,20 +337,20 @@ export class ConfigurationManager {
         // Build provider configurations
         const providers: Record<LLMProvider, LLMProviderConfig> = {
             openai: {
-                apiKey: getEnvVar("OPENAI_API_KEY", ENV_VARS.OPENAI_API_KEY) || "",
-                model: getEnvVar("OPENAI_MODEL", ENV_VARS.OPENAI_MODEL) || DEFAULT_LLM_PROVIDERS.openai.model,
                 ...DEFAULT_LLM_PROVIDERS.openai,
-            },
+                apiKey: getEnvVar("OPENAI_API_KEY", ENV_VARS.OPENAI_API_KEY) || "",
+                model: getEnvVar("OPENAI_MODEL", ENV_VARS.OPENAI_MODEL) || DEFAULT_LLM_PROVIDERS.openai?.model || "gpt-4",
+            } as LLMProviderConfig,
             anthropic: {
-                apiKey: getEnvVar("ANTHROPIC_API_KEY", ENV_VARS.ANTHROPIC_API_KEY) || "",
-                model: getEnvVar("ANTHROPIC_MODEL", ENV_VARS.ANTHROPIC_MODEL) || DEFAULT_LLM_PROVIDERS.anthropic.model,
                 ...DEFAULT_LLM_PROVIDERS.anthropic,
-            },
+                apiKey: getEnvVar("ANTHROPIC_API_KEY", ENV_VARS.ANTHROPIC_API_KEY) || "",
+                model: getEnvVar("ANTHROPIC_MODEL", ENV_VARS.ANTHROPIC_MODEL) || DEFAULT_LLM_PROVIDERS.anthropic?.model || "claude-3-sonnet-20240229",
+            } as LLMProviderConfig,
             google: {
-                apiKey: getEnvVar("GOOGLE_API_KEY", ENV_VARS.GOOGLE_API_KEY) || "",
-                model: getEnvVar("GOOGLE_MODEL", ENV_VARS.GOOGLE_MODEL) || DEFAULT_LLM_PROVIDERS.google.model,
                 ...DEFAULT_LLM_PROVIDERS.google,
-            },
+                apiKey: getEnvVar("GOOGLE_API_KEY", ENV_VARS.GOOGLE_API_KEY) || "",
+                model: getEnvVar("GOOGLE_MODEL", ENV_VARS.GOOGLE_MODEL) || DEFAULT_LLM_PROVIDERS.google?.model || "gemini-pro",
+            } as LLMProviderConfig,
         };
 
         return {
@@ -358,6 +359,7 @@ export class ConfigurationManager {
             fallbackProviders,
             providers,
             costControls: {
+                ...DEFAULT_LLM_COST_CONTROLS,
                 maxCostPerRun: getFloatEnvVar(
                     "MAX_LLM_COST_PER_RUN",
                     ENV_VARS.MAX_LLM_COST_PER_RUN,
@@ -373,7 +375,6 @@ export class ConfigurationManager {
                     ENV_VARS.MAX_TOKENS_PER_ISSUE,
                     DEFAULT_LLM_COST_CONTROLS.maxTokensPerIssue
                 ),
-                ...DEFAULT_LLM_COST_CONTROLS,
             },
             features: {
                 codebaseAnalysis: getBooleanEnvVar(

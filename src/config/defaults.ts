@@ -175,7 +175,7 @@ export const ERROR_MESSAGES = {
     MISSING_ENV_VAR: "Required environment variable not found",
     GITHUB_CONFIG_MISSING: "GitHub configuration not found. Please set GTHB_TOKEN, GITHUB_OWNER, and GITHUB_REPO.",
     LINEAR_CONFIG_MISSING: "Linear configuration not found. Please set LINEAR_API_TOKEN and LINEAR_TEAM_ID.",
-    APP_STORE_CONFIG_MISSING: "App Store Connect configuration not found. Please set APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_KEY_ID, and APP_STORE_CONNECT_PRIVATE_KEY.",
+    APP_STORE_CONFIG_MISSING: "App Store Connect configuration not found. Please set GitHub Action inputs: testflight_issuer_id, testflight_key_id, testflight_private_key, and app_id.",
     RATE_LIMIT_EXCEEDED: "API rate limit exceeded. Please wait before making more requests.",
     AUTHENTICATION_FAILED: "Authentication failed. Please check your credentials.",
     INVALID_CONFIGURATION: "Configuration validation failed",

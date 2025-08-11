@@ -16,7 +16,7 @@ import { getIdempotencyService } from "./src/utils/idempotency-service.js";
 import {
 	getSystemHealthMonitor,
 	quickHealthCheck,
-} from "./src/utils/monitoring.js";
+} from "./src/utils/monitoring/index.js";
 import type { ProcessingWindow } from "./src/utils/processing-window.js";
 import {
 	type IssueCreationResult,
@@ -408,9 +408,10 @@ async function run(): Promise<void> {
 
 		// Debug environment variables that might be relevant
 		const relevantEnvVars = [
-			'INPUT_TESTFLIGHT_ISSUER_ID', 'INPUT_TESTFLIGHT_KEY_ID', 'INPUT_APP_ID',
-			'INPUT_GTHB_TOKEN', 'INPUT_LINEAR_API_TOKEN', 'INPUT_LINEAR_TEAM_ID',
-			'INPUT_ENABLE_LLM_ENHANCEMENT', 'INPUT_ANTHROPIC_API_KEY', 'INPUT_OPENAI_API_KEY'
+			'TESTFLIGHT_ISSUER_ID', 'TESTFLIGHT_KEY_ID', 'TESTFLIGHT_PRIVATE_KEY', 'TESTFLIGHT_APP_ID',
+			'GTHB_TOKEN', 'GITHUB_OWNER', 'GITHUB_REPO',
+			'LINEAR_API_TOKEN', 'LINEAR_TEAM_ID',
+			'ENABLE_LLM_ENHANCEMENT', 'ANTHROPIC_API_KEY', 'OPENAI_API_KEY'
 		];
 		core.error("🔧 Environment variable status:");
 		relevantEnvVars.forEach(envVar => {

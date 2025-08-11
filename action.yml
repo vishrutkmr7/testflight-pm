@@ -16,6 +16,9 @@ inputs:
   app_id:
     description: "TestFlight App ID"
     required: true
+  testflight_bundle_id:
+    description: "TestFlight Bundle ID (optional)"
+    required: false
 
   # Issue Management Platform Configuration
   platform:

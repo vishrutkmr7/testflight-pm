@@ -40,32 +40,35 @@ export function validateEnvironmentConfiguration(
 	const errors: string[] = [];
 	const warnings: string[] = [];
 
-	// Required fields validation
+	// Required fields validation - check both simple format (primary) and INPUT_ format (fallback)
 	const requiredFields = [
-		"APP_STORE_CONNECT_ISSUER_ID",
-		"APP_STORE_CONNECT_KEY_ID",
-		"APP_STORE_CONNECT_PRIVATE_KEY",
+		{ primary: "TESTFLIGHT_ISSUER_ID", fallback: "INPUT_TESTFLIGHT_ISSUER_ID", name: "TestFlight Issuer ID" },
+		{ primary: "TESTFLIGHT_KEY_ID", fallback: "INPUT_TESTFLIGHT_KEY_ID", name: "TestFlight Key ID" },
+		{ primary: "TESTFLIGHT_PRIVATE_KEY", fallback: "INPUT_TESTFLIGHT_PRIVATE_KEY", name: "TestFlight Private Key" },
+		{ primary: "TESTFLIGHT_APP_ID", fallback: "INPUT_APP_ID", name: "TestFlight App ID" },
 	];
 
 	for (const field of requiredFields) {
-		if (!config[field]) {
-			errors.push(`Missing required environment variable: ${field}`);
+		if (!config[field.primary] && !config[field.fallback]) {
+			errors.push(`Missing required environment variable: ${field.name} (set ${field.primary} environment variable or GitHub Action input)`);
 		}
 	}
 
-	// Validate specific patterns
+	// Validate specific patterns using the actual values (preferring simple format)
+	const issuerId = config.TESTFLIGHT_ISSUER_ID || config.INPUT_TESTFLIGHT_ISSUER_ID;
 	if (
-		config.APP_STORE_CONNECT_ISSUER_ID &&
-		typeof config.APP_STORE_CONNECT_ISSUER_ID === "string" &&
-		!VALIDATION_PATTERNS.ISSUER_ID.test(config.APP_STORE_CONNECT_ISSUER_ID)
+		issuerId &&
+		typeof issuerId === "string" &&
+		!VALIDATION_PATTERNS.ISSUER_ID.test(issuerId)
 	) {
 		errors.push("Invalid App Store Connect Issuer ID format");
 	}
 
+	const keyId = config.TESTFLIGHT_KEY_ID || config.INPUT_TESTFLIGHT_KEY_ID;
 	if (
-		config.APP_STORE_CONNECT_KEY_ID &&
-		typeof config.APP_STORE_CONNECT_KEY_ID === "string" &&
-		!VALIDATION_PATTERNS.API_KEY_ID.test(config.APP_STORE_CONNECT_KEY_ID)
+		keyId &&
+		typeof keyId === "string" &&
+		!VALIDATION_PATTERNS.API_KEY_ID.test(keyId)
 	) {
 		errors.push("Invalid App Store Connect Key ID format");
 	}
