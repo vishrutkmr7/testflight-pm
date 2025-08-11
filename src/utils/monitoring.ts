@@ -746,18 +746,42 @@ export class SystemHealthMonitor {
 							INPUT_APP_ID: !!process.env.INPUT_APP_ID,
 						},
 						github: {
+							// Action input variables
 							GTHB_TOKEN: !!process.env.GTHB_TOKEN,
 							INPUT_GTHB_TOKEN: !!process.env.INPUT_GTHB_TOKEN,
 							GITHUB_OWNER: !!process.env.GITHUB_OWNER,
 							INPUT_GITHUB_OWNER: !!process.env.INPUT_GITHUB_OWNER,
-							GITHUB_REPOSITORY_OWNER: !!process.env.GITHUB_REPOSITORY_OWNER,
 							GITHUB_REPO: !!process.env.GITHUB_REPO,
 							INPUT_GITHUB_REPO: !!process.env.INPUT_GITHUB_REPO,
-							GITHUB_REPOSITORY: !!process.env.GITHUB_REPOSITORY,
+							
+							// GitHub Actions default environment variables
 							GITHUB_ACTIONS: !!process.env.GITHUB_ACTIONS,
-							// Show actual values for debugging (first 20 chars for security)
-							DEBUG_GITHUB_REPOSITORY: process.env.GITHUB_REPOSITORY?.substring(0, 20) || 'not set',
-							DEBUG_GITHUB_REPOSITORY_OWNER: process.env.GITHUB_REPOSITORY_OWNER?.substring(0, 20) || 'not set',
+							GITHUB_REPOSITORY: !!process.env.GITHUB_REPOSITORY,
+							GITHUB_REPOSITORY_OWNER: !!process.env.GITHUB_REPOSITORY_OWNER,
+							GITHUB_REF: !!process.env.GITHUB_REF,
+							GITHUB_REF_NAME: !!process.env.GITHUB_REF_NAME,
+							GITHUB_SHA: !!process.env.GITHUB_SHA,
+							GITHUB_ACTOR: !!process.env.GITHUB_ACTOR,
+							GITHUB_WORKFLOW: !!process.env.GITHUB_WORKFLOW,
+							GITHUB_RUN_ID: !!process.env.GITHUB_RUN_ID,
+							GITHUB_RUN_NUMBER: !!process.env.GITHUB_RUN_NUMBER,
+							GITHUB_EVENT_NAME: !!process.env.GITHUB_EVENT_NAME,
+							GITHUB_WORKSPACE: !!process.env.GITHUB_WORKSPACE,
+							
+							// Show actual values for debugging (truncated for security)
+							DEBUG_GITHUB_REPOSITORY: process.env.GITHUB_REPOSITORY || 'not set',
+							DEBUG_GITHUB_REPOSITORY_OWNER: process.env.GITHUB_REPOSITORY_OWNER || 'not set',
+							DEBUG_GITHUB_REF: process.env.GITHUB_REF?.substring(0, 30) || 'not set',
+							DEBUG_GITHUB_SHA: process.env.GITHUB_SHA?.substring(0, 8) || 'not set',
+							DEBUG_GITHUB_ACTOR: process.env.GITHUB_ACTOR || 'not set',
+							DEBUG_GITHUB_WORKFLOW: process.env.GITHUB_WORKFLOW || 'not set',
+							DEBUG_GITHUB_EVENT_NAME: process.env.GITHUB_EVENT_NAME || 'not set',
+							
+							// Runner information
+							RUNNER_OS: !!process.env.RUNNER_OS,
+							RUNNER_ARCH: !!process.env.RUNNER_ARCH,
+							DEBUG_RUNNER_OS: process.env.RUNNER_OS || 'not set',
+							DEBUG_RUNNER_ARCH: process.env.RUNNER_ARCH || 'not set',
 						}
 					},
 					timestamp: new Date().toISOString(),

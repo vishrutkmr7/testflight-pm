@@ -25816,24 +25816,48 @@ function getGitHubContext() {
     repository: process.env.GITHUB_REPOSITORY,
     repositoryOwner: process.env.GITHUB_REPOSITORY_OWNER,
     repositoryName: process.env.GITHUB_REPOSITORY?.split("/")[1],
+    repositoryId: process.env.GITHUB_REPOSITORY_ID,
     ref: process.env.GITHUB_REF,
+    refName: process.env.GITHUB_REF_NAME,
+    refType: process.env.GITHUB_REF_TYPE,
     sha: process.env.GITHUB_SHA,
     actor: process.env.GITHUB_ACTOR,
+    actorId: process.env.GITHUB_ACTOR_ID,
     workflow: process.env.GITHUB_WORKFLOW,
+    workflowRef: process.env.GITHUB_WORKFLOW_REF,
+    workflowSha: process.env.GITHUB_WORKFLOW_SHA,
+    job: process.env.GITHUB_JOB,
     runId: process.env.GITHUB_RUN_ID,
-    runNumber: process.env.GITHUB_RUN_NUMBER
+    runNumber: process.env.GITHUB_RUN_NUMBER,
+    runAttempt: process.env.GITHUB_RUN_ATTEMPT,
+    eventName: process.env.GITHUB_EVENT_NAME,
+    eventPath: process.env.GITHUB_EVENT_PATH,
+    workspace: process.env.GITHUB_WORKSPACE,
+    env: process.env.GITHUB_ENV,
+    path: process.env.GITHUB_PATH,
+    apiUrl: process.env.GITHUB_API_URL,
+    serverUrl: process.env.GITHUB_SERVER_URL,
+    graphqlUrl: process.env.GITHUB_GRAPHQL_URL,
+    token: process.env.GITHUB_TOKEN,
+    runnerName: process.env.RUNNER_NAME,
+    runnerOs: process.env.RUNNER_OS,
+    runnerArch: process.env.RUNNER_ARCH,
+    runnerTemp: process.env.RUNNER_TEMP,
+    runnerToolCache: process.env.RUNNER_TOOL_CACHE,
+    stepSummary: process.env.GITHUB_STEP_SUMMARY,
+    isGitHubActions: process.env.GITHUB_ACTIONS === "true",
+    retentionDays: process.env.GITHUB_RETENTION_DAYS
   };
 }
 var core, ENV_VARS;
 var init_environment_loader = __esm(() => {
   core = __toESM(require_core(), 1);
   ENV_VARS = {
-    APP_STORE_CONNECT_ISSUER_ID: "testflight_issuer_id",
-    APP_STORE_CONNECT_KEY_ID: "testflight_key_id",
-    APP_STORE_CONNECT_PRIVATE_KEY: "testflight_private_key",
-    APP_STORE_CONNECT_PRIVATE_KEY_PATH: undefined,
+    TESTFLIGHT_ISSUER_ID: "testflight_issuer_id",
+    TESTFLIGHT_KEY_ID: "testflight_key_id",
+    TESTFLIGHT_PRIVATE_KEY: "testflight_private_key",
     TESTFLIGHT_APP_ID: "app_id",
-    TESTFLIGHT_BUNDLE_ID: "testflight-bundle-id",
+    TESTFLIGHT_BUNDLE_ID: "testflight_bundle_id",
     GITHUB_TOKEN: "gthb_token",
     GITHUB_OWNER: "github_owner",
     GITHUB_REPO: "github_repo",
@@ -26206,11 +26230,11 @@ ${validationResult.errors.join(`
     };
   }
   buildAppStoreConnectConfig(isGitHubAction) {
-    const issuerId = getRequiredEnvVar("APP_STORE_CONNECT_ISSUER_ID", ENV_VARS.APP_STORE_CONNECT_ISSUER_ID);
-    const keyId = getRequiredEnvVar("APP_STORE_CONNECT_KEY_ID", ENV_VARS.APP_STORE_CONNECT_KEY_ID);
+    const issuerId = getRequiredEnvVar("TESTFLIGHT_ISSUER_ID", ENV_VARS.TESTFLIGHT_ISSUER_ID);
+    const keyId = getRequiredEnvVar("TESTFLIGHT_KEY_ID", ENV_VARS.TESTFLIGHT_KEY_ID);
     let privateKey;
-    const privateKeyEnv = getEnvVar("APP_STORE_CONNECT_PRIVATE_KEY", ENV_VARS.APP_STORE_CONNECT_PRIVATE_KEY);
-    const privateKeyPathEnv = getEnvVar("APP_STORE_CONNECT_PRIVATE_KEY_PATH");
+    const privateKeyEnv = getEnvVar("TESTFLIGHT_PRIVATE_KEY", ENV_VARS.TESTFLIGHT_PRIVATE_KEY);
+    const privateKeyPathEnv = getEnvVar("TESTFLIGHT_PRIVATE_KEY_PATH");
     if (privateKeyEnv) {
       privateKey = validatePrivateKey(privateKeyEnv);
       this.recordConfigSource("appStoreConnect.privateKey", "environment");
@@ -26224,7 +26248,7 @@ ${validationResult.errors.join(`
         throw new Error(`Failed to read private key from ${privateKeyPathEnv}: ${error}`);
       }
     } else {
-      throw new Error("APP_STORE_CONNECT_PRIVATE_KEY must be set (file paths not supported in GitHub Actions)");
+      throw new Error("TESTFLIGHT_PRIVATE_KEY must be set (file paths not supported in GitHub Actions)");
     }
     return {
       issuerId,
@@ -48217,16 +48241,17 @@ class SystemHealthMonitor {
     try {
       const platform = (process.env.INPUT_PLATFORM || process.env.PLATFORM || "github").toLowerCase();
       const coreConfig = {
-        APP_STORE_CONNECT_ISSUER_ID: process.env.APP_STORE_CONNECT_ISSUER_ID || process.env.INPUT_TESTFLIGHT_ISSUER_ID,
-        APP_STORE_CONNECT_KEY_ID: process.env.APP_STORE_CONNECT_KEY_ID || process.env.INPUT_TESTFLIGHT_KEY_ID,
-        APP_STORE_CONNECT_PRIVATE_KEY: process.env.APP_STORE_CONNECT_PRIVATE_KEY || process.env.INPUT_TESTFLIGHT_PRIVATE_KEY,
+        TESTFLIGHT_ISSUER_ID: process.env.TESTFLIGHT_ISSUER_ID || process.env.INPUT_TESTFLIGHT_ISSUER_ID,
+        TESTFLIGHT_KEY_ID: process.env.TESTFLIGHT_KEY_ID || process.env.INPUT_TESTFLIGHT_KEY_ID,
+        TESTFLIGHT_PRIVATE_KEY: process.env.TESTFLIGHT_PRIVATE_KEY || process.env.INPUT_TESTFLIGHT_PRIVATE_KEY,
         TESTFLIGHT_APP_ID: process.env.TESTFLIGHT_APP_ID || process.env.INPUT_APP_ID
       };
+      const isGitHubActions = process.env.GITHUB_ACTIONS === "true";
       const platformConfig = {
         github: {
           GTHB_TOKEN: process.env.GTHB_TOKEN || process.env.INPUT_GTHB_TOKEN,
-          GITHUB_OWNER: process.env.GITHUB_OWNER || process.env.INPUT_GITHUB_OWNER,
-          GITHUB_REPO: process.env.GITHUB_REPO || process.env.INPUT_GITHUB_REPO
+          GITHUB_OWNER: process.env.GITHUB_OWNER || process.env.INPUT_GITHUB_OWNER || (isGitHubActions ? process.env.GITHUB_REPOSITORY_OWNER : undefined),
+          GITHUB_REPO: process.env.GITHUB_REPO || process.env.INPUT_GITHUB_REPO || (isGitHubActions && process.env.GITHUB_REPOSITORY ? process.env.GITHUB_REPOSITORY.split("/")[1] : undefined)
         },
         linear: {
           LINEAR_API_TOKEN: process.env.LINEAR_API_TOKEN || process.env.INPUT_LINEAR_API_TOKEN,
@@ -48270,10 +48295,11 @@ class SystemHealthMonitor {
       }
       const recommendations = [];
       if (missingCoreConfig.length > 0) {
-        recommendations.push("Configure required TestFlight/App Store Connect credentials:");
+        recommendations.push("Configure required TestFlight credentials:");
         missingCoreConfig.forEach((key) => {
-          const inputName = key.replace("APP_STORE_CONNECT_", "").toLowerCase();
-          recommendations.push(`  - Set ${key} or use GitHub Action input: testflight_${inputName}`);
+          const inputName = key.replace("TESTFLIGHT_", "").toLowerCase();
+          const actionInputName = inputName === "app_id" ? "app_id" : `testflight_${inputName}`;
+          recommendations.push(`  - Set ${key} or use GitHub Action input: ${actionInputName}`);
         });
       }
       if (platformIssues.length > 0) {
@@ -48323,14 +48349,45 @@ class SystemHealthMonitor {
           },
           environmentVariables: {
             core: {
-              APP_STORE_CONNECT_ISSUER_ID: !!process.env.APP_STORE_CONNECT_ISSUER_ID,
+              TESTFLIGHT_ISSUER_ID: !!process.env.TESTFLIGHT_ISSUER_ID,
               INPUT_TESTFLIGHT_ISSUER_ID: !!process.env.INPUT_TESTFLIGHT_ISSUER_ID,
-              APP_STORE_CONNECT_KEY_ID: !!process.env.APP_STORE_CONNECT_KEY_ID,
+              TESTFLIGHT_KEY_ID: !!process.env.TESTFLIGHT_KEY_ID,
               INPUT_TESTFLIGHT_KEY_ID: !!process.env.INPUT_TESTFLIGHT_KEY_ID,
-              APP_STORE_CONNECT_PRIVATE_KEY: !!process.env.APP_STORE_CONNECT_PRIVATE_KEY,
+              TESTFLIGHT_PRIVATE_KEY: !!process.env.TESTFLIGHT_PRIVATE_KEY,
               INPUT_TESTFLIGHT_PRIVATE_KEY: !!process.env.INPUT_TESTFLIGHT_PRIVATE_KEY,
               TESTFLIGHT_APP_ID: !!process.env.TESTFLIGHT_APP_ID,
               INPUT_APP_ID: !!process.env.INPUT_APP_ID
+            },
+            github: {
+              GTHB_TOKEN: !!process.env.GTHB_TOKEN,
+              INPUT_GTHB_TOKEN: !!process.env.INPUT_GTHB_TOKEN,
+              GITHUB_OWNER: !!process.env.GITHUB_OWNER,
+              INPUT_GITHUB_OWNER: !!process.env.INPUT_GITHUB_OWNER,
+              GITHUB_REPO: !!process.env.GITHUB_REPO,
+              INPUT_GITHUB_REPO: !!process.env.INPUT_GITHUB_REPO,
+              GITHUB_ACTIONS: !!process.env.GITHUB_ACTIONS,
+              GITHUB_REPOSITORY: !!process.env.GITHUB_REPOSITORY,
+              GITHUB_REPOSITORY_OWNER: !!process.env.GITHUB_REPOSITORY_OWNER,
+              GITHUB_REF: !!process.env.GITHUB_REF,
+              GITHUB_REF_NAME: !!process.env.GITHUB_REF_NAME,
+              GITHUB_SHA: !!process.env.GITHUB_SHA,
+              GITHUB_ACTOR: !!process.env.GITHUB_ACTOR,
+              GITHUB_WORKFLOW: !!process.env.GITHUB_WORKFLOW,
+              GITHUB_RUN_ID: !!process.env.GITHUB_RUN_ID,
+              GITHUB_RUN_NUMBER: !!process.env.GITHUB_RUN_NUMBER,
+              GITHUB_EVENT_NAME: !!process.env.GITHUB_EVENT_NAME,
+              GITHUB_WORKSPACE: !!process.env.GITHUB_WORKSPACE,
+              DEBUG_GITHUB_REPOSITORY: process.env.GITHUB_REPOSITORY || "not set",
+              DEBUG_GITHUB_REPOSITORY_OWNER: process.env.GITHUB_REPOSITORY_OWNER || "not set",
+              DEBUG_GITHUB_REF: process.env.GITHUB_REF?.substring(0, 30) || "not set",
+              DEBUG_GITHUB_SHA: process.env.GITHUB_SHA?.substring(0, 8) || "not set",
+              DEBUG_GITHUB_ACTOR: process.env.GITHUB_ACTOR || "not set",
+              DEBUG_GITHUB_WORKFLOW: process.env.GITHUB_WORKFLOW || "not set",
+              DEBUG_GITHUB_EVENT_NAME: process.env.GITHUB_EVENT_NAME || "not set",
+              RUNNER_OS: !!process.env.RUNNER_OS,
+              RUNNER_ARCH: !!process.env.RUNNER_ARCH,
+              DEBUG_RUNNER_OS: process.env.RUNNER_OS || "not set",
+              DEBUG_RUNNER_ARCH: process.env.RUNNER_ARCH || "not set"
             }
           },
           timestamp: new Date().toISOString()

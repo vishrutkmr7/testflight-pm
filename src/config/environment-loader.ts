@@ -197,6 +197,7 @@ export const ENV_VARS = {
 
 /**
  * GitHub Actions context helpers
+ * Provides comprehensive access to GitHub Actions default environment variables
  */
 export function getGitHubContext() {
     if (!isGitHubActionEnvironment()) {
@@ -204,14 +205,60 @@ export function getGitHubContext() {
     }
 
     return {
+        // Repository information
         repository: process.env.GITHUB_REPOSITORY,
         repositoryOwner: process.env.GITHUB_REPOSITORY_OWNER,
         repositoryName: process.env.GITHUB_REPOSITORY?.split("/")[1],
+        repositoryId: process.env.GITHUB_REPOSITORY_ID,
+        
+        // Git reference information
         ref: process.env.GITHUB_REF,
+        refName: process.env.GITHUB_REF_NAME,
+        refType: process.env.GITHUB_REF_TYPE,
         sha: process.env.GITHUB_SHA,
+        
+        // Workflow execution context
         actor: process.env.GITHUB_ACTOR,
+        actorId: process.env.GITHUB_ACTOR_ID,
         workflow: process.env.GITHUB_WORKFLOW,
+        workflowRef: process.env.GITHUB_WORKFLOW_REF,
+        workflowSha: process.env.GITHUB_WORKFLOW_SHA,
+        job: process.env.GITHUB_JOB,
         runId: process.env.GITHUB_RUN_ID,
         runNumber: process.env.GITHUB_RUN_NUMBER,
+        runAttempt: process.env.GITHUB_RUN_ATTEMPT,
+        
+        // Event information
+        eventName: process.env.GITHUB_EVENT_NAME,
+        eventPath: process.env.GITHUB_EVENT_PATH,
+        
+        // Workspace information
+        workspace: process.env.GITHUB_WORKSPACE,
+        
+        // Environment information
+        env: process.env.GITHUB_ENV,
+        path: process.env.GITHUB_PATH,
+        
+        // Server information
+        apiUrl: process.env.GITHUB_API_URL,
+        serverUrl: process.env.GITHUB_SERVER_URL,
+        graphqlUrl: process.env.GITHUB_GRAPHQL_URL,
+        
+        // Security context
+        token: process.env.GITHUB_TOKEN,
+        
+        // Runner information
+        runnerName: process.env.RUNNER_NAME,
+        runnerOs: process.env.RUNNER_OS,
+        runnerArch: process.env.RUNNER_ARCH,
+        runnerTemp: process.env.RUNNER_TEMP,
+        runnerToolCache: process.env.RUNNER_TOOL_CACHE,
+        
+        // Step information (if available)
+        stepSummary: process.env.GITHUB_STEP_SUMMARY,
+        
+        // Additional useful flags
+        isGitHubActions: process.env.GITHUB_ACTIONS === 'true',
+        retentionDays: process.env.GITHUB_RETENTION_DAYS,
     };
 }
