@@ -55,7 +55,7 @@ export class GitHubHealthChecker extends BasePlatformAwareHealthChecker {
         );
     }
 
-    protected createErrorResult(error: Error): HealthCheckResult {
+    protected override createErrorResult(error: Error): HealthCheckResult {
         const platformConfig = getPlatformDetector().getPlatformConfig();
 
         // Skip if not required for current platform
@@ -184,7 +184,7 @@ export class LinearHealthChecker extends BasePlatformAwareHealthChecker {
         );
     }
 
-    protected createErrorResult(error: Error): HealthCheckResult {
+    protected override createErrorResult(error: Error): HealthCheckResult {
         const platformConfig = getPlatformDetector().getPlatformConfig();
 
         // Skip if not required for current platform
@@ -247,7 +247,7 @@ export class TestFlightHealthChecker extends BaseHealthChecker {
         );
     }
 
-    protected createErrorResult(error: Error): HealthCheckResult {
+    protected override createErrorResult(error: Error): HealthCheckResult {
         return {
             component: this.getComponentName(),
             status: "unhealthy",
@@ -331,7 +331,7 @@ export class LLMHealthChecker extends BaseHealthChecker {
         );
     }
 
-    protected createErrorResult(error: Error): HealthCheckResult {
+    protected override createErrorResult(error: Error): HealthCheckResult {
         // Always treat LLM issues as degraded since it's optional
         return {
             component: this.getComponentName(),
@@ -390,7 +390,7 @@ export class StateManagementHealthChecker extends BaseHealthChecker {
         return this.createSuccessResult("healthy", stats, recommendations);
     }
 
-    protected createErrorResult(error: Error): HealthCheckResult {
+    protected override createErrorResult(error: Error): HealthCheckResult {
         return {
             component: this.getComponentName(),
             status: "degraded",
@@ -429,7 +429,7 @@ export class CodebaseAnalysisHealthChecker extends BaseHealthChecker {
         );
     }
 
-    protected createErrorResult(error: Error): HealthCheckResult {
+    protected override createErrorResult(error: Error): HealthCheckResult {
         return {
             component: this.getComponentName(),
             status: "degraded",
@@ -491,7 +491,7 @@ export class EnvironmentConfigurationHealthChecker extends BaseHealthChecker {
         );
     }
 
-    protected createErrorResult(error: Error): HealthCheckResult {
+    protected override createErrorResult(error: Error): HealthCheckResult {
         const platformConfig = getPlatformDetector().getPlatformConfig();
 
         return {

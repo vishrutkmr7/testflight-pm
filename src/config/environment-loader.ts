@@ -25,7 +25,7 @@ export function getEnvVar(
     if (directValue) {
         return directValue;
     }
-    
+
     // Priority 2: GitHub Action input format (INPUT_*) as fallback
     if (githubActionInputName) {
         const inputName = `INPUT_${githubActionInputName.toUpperCase().replace(/-/g, "_")}`;
@@ -34,7 +34,7 @@ export function getEnvVar(
             return inputValue;
         }
     }
-    
+
     return undefined;
 }
 
