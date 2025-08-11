@@ -26074,25 +26074,33 @@ function validateLLMConfig(config) {
   if (!config.primaryProvider) {
     errors.push("LLM primary provider is required when LLM is enabled");
   }
-  const selectedProviders = new Set([
-    config.primaryProvider,
-    ...config.fallbackProviders
-  ]);
-  for (const [providerName, providerConfig] of Object.entries(config.providers)) {
-    if (!selectedProviders.has(providerName)) {
-      continue;
+  const primaryProviderConfig = config.providers[config.primaryProvider];
+  if (primaryProviderConfig) {
+    if (!primaryProviderConfig.apiKey || primaryProviderConfig.apiKey.trim().length === 0) {
+      errors.push(`${config.primaryProvider} API key is required`);
     }
-    if (!providerConfig.apiKey || providerConfig.apiKey.trim().length === 0) {
-      errors.push(`${providerName} API key is required`);
+    if (!primaryProviderConfig.model || primaryProviderConfig.model.trim().length === 0) {
+      errors.push(`${config.primaryProvider} model is required`);
     }
-    if (!providerConfig.model || providerConfig.model.trim().length === 0) {
-      errors.push(`${providerName} model is required`);
+    if (primaryProviderConfig.maxTokens <= 0) {
+      errors.push(`${config.primaryProvider} max tokens must be positive`);
     }
-    if (providerConfig.maxTokens <= 0) {
-      errors.push(`${providerName} max tokens must be positive`);
+    if (primaryProviderConfig.temperature < 0 || primaryProviderConfig.temperature > 2) {
+      errors.push(`${config.primaryProvider} temperature must be between 0 and 2`);
     }
-    if (providerConfig.temperature < 0 || providerConfig.temperature > 2) {
-      errors.push(`${providerName} temperature must be between 0 and 2`);
+  }
+  for (const fallbackProvider of config.fallbackProviders || []) {
+    const fallbackConfig = config.providers[fallbackProvider];
+    if (fallbackConfig) {
+      if (!fallbackConfig.model || fallbackConfig.model.trim().length === 0) {
+        errors.push(`${fallbackProvider} model is required`);
+      }
+      if (fallbackConfig.maxTokens <= 0) {
+        errors.push(`${fallbackProvider} max tokens must be positive`);
+      }
+      if (fallbackConfig.temperature < 0 || fallbackConfig.temperature > 2) {
+        errors.push(`${fallbackProvider} temperature must be between 0 and 2`);
+      }
     }
   }
   if (config.costControls.maxCostPerRun <= 0) {
