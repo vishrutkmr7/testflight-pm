@@ -387,6 +387,23 @@ export interface ProcessedFeedbackData {
 			expiresAt: Date;
 		}>;
 		detailedLogs?: string[]; // Actual crash log content
+		systemInfo?: {
+			// Enhanced system information from detailed crash submission API
+			batteryPercentage?: number;
+			appUptimeInMilliseconds?: number | null;
+			connectionType?: string; // "wifi", "cellular", etc.
+			diskBytesAvailable?: number;
+			diskBytesTotal?: number;
+			architecture?: string; // "arm64", "x86_64", etc.
+			pairedAppleWatch?: string | null;
+			screenDimensions?: {
+				width?: number;
+				height?: number;
+			};
+			// Computed/derived fields for better UX
+			diskSpaceRemainingGB?: number | null;
+			appUptimeFormatted?: string | null;
+		};
 	};
 
 	screenshotData?: {

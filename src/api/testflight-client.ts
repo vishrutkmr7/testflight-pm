@@ -98,6 +98,53 @@ export class TestFlightClient {
 	}
 
 	/**
+	 * Gets screenshot submissions for a specific app with date filtering
+	 * Handles the API's 'createdDate' field requirements and provides fallback filtering
+	 */
+	private async getAppScreenshotSubmissionsWithDateFilter(
+		appId: string,
+		since: Date,
+	): Promise<TestFlightScreenshotFeedback[]> {
+		try {
+			// First try with API-level date filtering using createdDate
+			const isoDate = since.toISOString();
+			const apiFilteredResults = await this.getAppScreenshotSubmissions(appId, {
+				filter: {
+					createdDate: `>${isoDate}`,
+				},
+				limit: 100,
+			});
+
+			console.log(`✅ API-level date filtering successful for screenshot submissions`);
+			return apiFilteredResults;
+		} catch (error) {
+			// If API filtering fails, fall back to fetching more data and filtering client-side
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			console.warn(`⚠️ API-level date filtering failed for screenshot submissions: ${errorMessage}`);
+			console.log(`🔄 Falling back to client-side filtering...`);
+
+			try {
+				// Fetch broader dataset (last 7 days worth to be safe)
+				const allRecentScreenshots = await this.getAppScreenshotSubmissions(appId, {
+					limit: DEFAULT_TESTFLIGHT_CONFIG.MAX_LIMIT, // Get more results
+				});
+
+				// Filter client-side based on actual createdDate or submittedAt fields
+				const filteredScreenshots = allRecentScreenshots.filter(screenshot => {
+					const createdDate = new Date(screenshot.attributes.createdDate || screenshot.attributes.submittedAt || 0);
+					return createdDate >= since;
+				});
+
+				console.log(`✅ Client-side filtering successful: ${filteredScreenshots.length}/${allRecentScreenshots.length} screenshot submissions match date filter`);
+				return filteredScreenshots;
+			} catch (fallbackError) {
+				console.error(`❌ Both API and client-side filtering failed for screenshot submissions:`, fallbackError);
+				throw fallbackError;
+			}
+		}
+	}
+
+	/**
 	 * Gets detailed information about a specific screenshot submission
 	 * Uses /betaFeedbackScreenshotSubmissions/{id}
 	 */
@@ -427,6 +474,53 @@ export class TestFlightClient {
 	}
 
 	/**
+	 * Gets crash submissions for a specific app with date filtering
+	 * Handles the API's 'createdDate' field requirements and provides fallback filtering
+	 */
+	private async getAppCrashSubmissionsWithDateFilter(
+		appId: string,
+		since: Date,
+	): Promise<TestFlightCrashReport[]> {
+		try {
+			// First try with API-level date filtering using createdDate
+			const isoDate = since.toISOString();
+			const apiFilteredResults = await this.getAppCrashSubmissions(appId, {
+				filter: {
+					createdDate: `>${isoDate}`,
+				},
+				limit: 100,
+			});
+
+			console.log(`✅ API-level date filtering successful for crash submissions`);
+			return apiFilteredResults;
+		} catch (error) {
+			// If API filtering fails, fall back to fetching more data and filtering client-side
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			console.warn(`⚠️ API-level date filtering failed for crash submissions: ${errorMessage}`);
+			console.log(`🔄 Falling back to client-side filtering...`);
+
+			try {
+				// Fetch broader dataset (last 7 days worth to be safe)
+				const allRecentCrashes = await this.getAppCrashSubmissions(appId, {
+					limit: DEFAULT_TESTFLIGHT_CONFIG.MAX_LIMIT, // Get more results
+				});
+
+				// Filter client-side based on actual createdDate or submittedAt fields
+				const filteredCrashes = allRecentCrashes.filter(crash => {
+					const createdDate = new Date(crash.attributes.createdDate || crash.attributes.submittedAt || 0);
+					return createdDate >= since;
+				});
+
+				console.log(`✅ Client-side filtering successful: ${filteredCrashes.length}/${allRecentCrashes.length} crash submissions match date filter`);
+				return filteredCrashes;
+			} catch (fallbackError) {
+				console.error(`❌ Both API and client-side filtering failed for crash submissions:`, fallbackError);
+				throw fallbackError;
+			}
+		}
+	}
+
+	/**
 	 * Gets detailed information about a specific crash submission
 	 */
 	public async getDetailedCrashSubmission(
@@ -619,22 +713,11 @@ export class TestFlightClient {
 		// Resolve app ID
 		const resolvedAppId = await this.resolveAppId(bundleId);
 
-		const isoDate = since.toISOString();
-
 		// Get crash submissions and screenshot feedback in parallel
+		// Note: Apple's API uses 'createdDate' not 'submittedAt' for filtering
 		const [crashes, screenshots] = await Promise.all([
-			this.getAppCrashSubmissions(resolvedAppId, {
-				filter: {
-					submittedAt: `>${isoDate}`,
-				},
-				limit: 100,
-			}),
-			this.getAppScreenshotSubmissions(resolvedAppId, {
-				filter: {
-					submittedAt: `>${isoDate}`,
-				},
-				limit: 100,
-			}),
+			this.getAppCrashSubmissionsWithDateFilter(resolvedAppId, since),
+			this.getAppScreenshotSubmissionsWithDateFilter(resolvedAppId, since),
 		]);
 
 		const processedData: ProcessedFeedbackData[] = [];
@@ -915,14 +998,37 @@ export class TestFlightClient {
 	}
 
 	/**
-	 * Processes crash reports with enhanced details (including detailed crash logs)
+	 * Processes crash reports with enhanced details (including detailed crash logs and system metadata)
 	 */
 	private async processCrashReportsWithDetails(
 		crashes: TestFlightCrashReport[],
 		processedData: ProcessedFeedbackData[],
 	): Promise<void> {
 		for (const crash of crashes) {
-			const processedCrash = this.processCrashReport(crash);
+			let processedCrash = this.processCrashReport(crash);
+
+			// ENHANCEMENT: Get detailed crash submission metadata for richer debugging context
+			try {
+				console.log(`🔍 Fetching enhanced crash metadata for ${crash.id}`);
+				const detailedCrash = await this.getDetailedCrashSubmission(crash.id, {
+					include: "build,tester",
+					fields: {
+						betaFeedbackCrashSubmissions: [
+							"createdDate", "comment", "email", "deviceModel", "osVersion",
+							"batteryPercentage", "appUptimeInMilliseconds", "connectionType",
+							"diskBytesAvailable", "diskBytesTotal", "architecture",
+							"pairedAppleWatch", "screenWidthInPoints", "screenHeightInPoints"
+						].join(",")
+					}
+				});
+
+				// Merge enhanced metadata into processed crash
+				processedCrash = this.mergeEnhancedCrashMetadata(processedCrash, detailedCrash);
+				console.log(`✅ Enhanced crash metadata obtained for ${crash.id}`);
+			} catch (error) {
+				console.warn(`⚠️ Failed to get enhanced crash metadata for ${crash.id}:`, error);
+				// Continue with basic data if enhanced fails
+			}
 
 			// Get detailed crash log content
 			try {
@@ -950,9 +1056,23 @@ export class TestFlightClient {
 		for (const screenshot of screenshots) {
 			const processedScreenshot = this.processScreenshotFeedback(screenshot);
 
-			// Get detailed screenshot submission data
+			// ENHANCEMENT: Get detailed screenshot submission with optimized field selection
 			try {
-				const detailedScreenshot = await this.getDetailedScreenshotSubmission(screenshot.id);
+				console.log(`🔍 Fetching enhanced screenshot metadata for ${screenshot.id}`);
+				const detailedScreenshot = await this.getDetailedScreenshotSubmission(screenshot.id, {
+					include: "build,tester",
+					fields: {
+						betaFeedbackScreenshotSubmissions: [
+							"createdDate", "comment", "email", "deviceModel", "osVersion",
+							"batteryPercentage", "appUptimeInMilliseconds", "connectionType",
+							"diskBytesAvailable", "diskBytesTotal", "architecture",
+							"pairedAppleWatch", "screenWidthInPoints", "screenHeightInPoints",
+							"applicationState", "memoryPressure", "batteryLevel", "batteryState",
+							"thermalState", "diskSpaceRemaining", "submissionMethod", "testerNotes",
+							"screenshots"
+						].join(",")
+					}
+				});
 
 				if (processedScreenshot.screenshotData) {
 					// Add enhanced screenshot information
@@ -975,8 +1095,11 @@ export class TestFlightClient {
 							await this.processEnhancedScreenshotImages(detailedScreenshot.attributes.screenshots);
 					}
 				}
+
+				console.log(`✅ Enhanced screenshot metadata obtained for ${screenshot.id}`);
 			} catch (error) {
-				console.warn(`Failed to get detailed screenshot submission for ${screenshot.id}:`, error);
+				console.warn(`⚠️ Failed to get enhanced screenshot metadata for ${screenshot.id}:`, error);
+				// Continue with basic data if enhanced fails
 			}
 
 			processedData.push(processedScreenshot);
@@ -1123,6 +1246,63 @@ export class TestFlightClient {
 				annotations: attrs.annotations || [],
 			},
 		};
+	}
+
+	/**
+	 * Merges enhanced crash metadata from detailed API response into processed crash data
+	 */
+	private mergeEnhancedCrashMetadata(
+		processedCrash: ProcessedFeedbackData,
+		detailedCrash: DetailedTestFlightCrashReport,
+	): ProcessedFeedbackData {
+		if (!processedCrash.crashData) {
+			return processedCrash;
+		}
+
+		const attrs = detailedCrash.attributes;
+
+		// Add enhanced system information
+		const enhancedCrashData = {
+			...processedCrash.crashData,
+			systemInfo: {
+				batteryPercentage: attrs.batteryPercentage,
+				appUptimeInMilliseconds: attrs.appUptimeInMilliseconds,
+				connectionType: attrs.connectionType,
+				diskBytesAvailable: attrs.diskBytesAvailable,
+				diskBytesTotal: attrs.diskBytesTotal,
+				architecture: attrs.architecture,
+				pairedAppleWatch: attrs.pairedAppleWatch,
+				screenDimensions: {
+					width: attrs.screenWidthInPoints,
+					height: attrs.screenHeightInPoints,
+				},
+				// Derived/computed fields for better UX
+				diskSpaceRemainingGB: attrs.diskBytesAvailable ?
+					Math.round((attrs.diskBytesAvailable / (1024 ** 3)) * 10) / 10 : null,
+				appUptimeFormatted: attrs.appUptimeInMilliseconds ?
+					this.formatUptime(attrs.appUptimeInMilliseconds) : null,
+			}
+		};
+
+		return {
+			...processedCrash,
+			crashData: enhancedCrashData,
+		};
+	}
+
+	/**
+	 * Formats uptime milliseconds into human-readable format
+	 */
+	private formatUptime(uptimeMs: number): string {
+		const seconds = Math.floor(uptimeMs / 1000);
+		const minutes = Math.floor(seconds / 60);
+		const hours = Math.floor(minutes / 60);
+		const days = Math.floor(hours / 24);
+
+		if (days > 0) return `${days}d ${hours % 24}h ${minutes % 60}m`;
+		if (hours > 0) return `${hours}h ${minutes % 60}m`;
+		if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
+		return `${seconds}s`;
 	}
 
 	/**

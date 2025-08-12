@@ -360,6 +360,55 @@ export function formatFeedbackForLinear(feedback: ProcessedFeedbackData): {
 			description += `> ${feedback.screenshotData.text.replace(/\n/g, "\n> ")}\n\n`;
 		}
 
+		// ENHANCEMENT: Add system context for screenshot feedback
+		if (feedback.screenshotData.systemInfo) {
+			description += "### 📊 System Context at Feedback\n\n";
+			const sysInfo = feedback.screenshotData.systemInfo;
+
+			description += "| Context | Value |\n";
+			description += "|---------|-------|\n";
+
+			if (sysInfo.applicationState) {
+				const stateIcon = sysInfo.applicationState === "foreground" ? "🟢" :
+					sysInfo.applicationState === "background" ? "🟡" : "🔴";
+				description += `| ${stateIcon} **App State** | ${sysInfo.applicationState} |\n`;
+			}
+
+			if (sysInfo.batteryLevel !== undefined) {
+				const batteryIcon = sysInfo.batteryLevel < 20 ? "🪫" : sysInfo.batteryLevel < 50 ? "🔋" : "🔋";
+				description += `| ${batteryIcon} **Battery** | ${sysInfo.batteryLevel}% |\n`;
+			}
+
+			if (sysInfo.memoryPressure) {
+				const memoryIcon = sysInfo.memoryPressure === "critical" ? "🚨" :
+					sysInfo.memoryPressure === "warning" ? "⚠️" : "✅";
+				description += `| ${memoryIcon} **Memory** | ${sysInfo.memoryPressure} |\n`;
+			}
+
+			if (sysInfo.thermalState) {
+				const thermalIcon = sysInfo.thermalState === "critical" ? "🔥" :
+					sysInfo.thermalState === "serious" ? "🌡️" : "❄️";
+				description += `| ${thermalIcon} **Thermal** | ${sysInfo.thermalState} |\n`;
+			}
+
+			if (sysInfo.diskSpaceRemaining !== undefined) {
+				const spaceGB = Math.round((sysInfo.diskSpaceRemaining / (1024 ** 3)) * 10) / 10;
+				const spaceIcon = spaceGB < 1 ? "💾" : "💿";
+				description += `| ${spaceIcon} **Free Space** | ${spaceGB}GB |\n`;
+			}
+
+			description += "\n";
+		}
+
+		if (feedback.screenshotData.submissionMethod) {
+			description += `### Submission Method\n${feedback.screenshotData.submissionMethod}\n\n`;
+		}
+
+		if (feedback.screenshotData.testerNotes) {
+			description += "### Tester Notes\n";
+			description += `> ${feedback.screenshotData.testerNotes.replace(/\n/g, "\n> ")}\n\n`;
+		}
+
 		if (feedback.screenshotData.images.length > 0) {
 			description += `### Screenshots (${feedback.screenshotData.images.length})\n`;
 			feedback.screenshotData.images.forEach((image, _index) => {
@@ -461,10 +510,10 @@ export async function getLinearIntegrationHealth(): Promise<{
 			recommendations:
 				healthCheck.status !== "healthy"
 					? [
-							"Verify Linear API token is valid",
-							"Check Linear team ID is correct",
-							"Ensure network connectivity to Linear API",
-						]
+						"Verify Linear API token is valid",
+						"Check Linear team ID is correct",
+						"Ensure network connectivity to Linear API",
+					]
 					: undefined,
 		};
 	} catch (error) {

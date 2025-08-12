@@ -25957,7 +25957,7 @@ var init_defaults = __esm(() => {
   DEFAULT_TESTFLIGHT_CONFIG = {
     DEFAULT_LIMIT: 50,
     MAX_LIMIT: 200,
-    DEFAULT_SORT: "-submittedAt",
+    DEFAULT_SORT: "-createdDate",
     FETCH_LOOKBACK_HOURS: 24
   };
   TESTFLIGHT_CONFIG = DEFAULT_TESTFLIGHT_CONFIG;
@@ -28257,6 +28257,45 @@ ${feedback.crashData.exceptionMessage}
 
 `;
       }
+      if (feedback.crashData.systemInfo) {
+        body += `### \uD83D\uDCCA System Context at Crash
+
+`;
+        const sysInfo = feedback.crashData.systemInfo;
+        body += `| Context | Value |
+`;
+        body += `|---------|-------|
+`;
+        if (sysInfo.batteryPercentage !== undefined) {
+          const batteryIcon = sysInfo.batteryPercentage < 20 ? "\uD83E\uDEAB" : sysInfo.batteryPercentage < 50 ? "\uD83D\uDD0B" : "\uD83D\uDD0B";
+          body += `| ${batteryIcon} **Battery** | ${sysInfo.batteryPercentage}% |
+`;
+        }
+        if (sysInfo.appUptimeFormatted) {
+          body += `| ⏱️ **App Uptime** | ${sysInfo.appUptimeFormatted} |
+`;
+        }
+        if (sysInfo.connectionType) {
+          const connectionIcon = sysInfo.connectionType.toLowerCase().includes("wifi") ? "\uD83D\uDCF6" : "\uD83D\uDCF1";
+          body += `| ${connectionIcon} **Connection** | ${sysInfo.connectionType} |
+`;
+        }
+        if (sysInfo.diskSpaceRemainingGB !== null && sysInfo.diskSpaceRemainingGB !== undefined) {
+          const spaceIcon = sysInfo.diskSpaceRemainingGB < 1 ? "\uD83D\uDCBE" : "\uD83D\uDCBF";
+          body += `| ${spaceIcon} **Free Space** | ${sysInfo.diskSpaceRemainingGB}GB |
+`;
+        }
+        if (sysInfo.architecture) {
+          body += `| \uD83C\uDFD7️ **Architecture** | ${sysInfo.architecture} |
+`;
+        }
+        if (sysInfo.pairedAppleWatch) {
+          body += `| ⌚ **Apple Watch** | ${sysInfo.pairedAppleWatch} |
+`;
+        }
+        body += `
+`;
+      }
       body += `### Stack Trace
 \`\`\`
 ${feedback.crashData.trace}
@@ -28281,6 +28320,56 @@ ${feedback.crashData.trace}
       if (feedback.screenshotData.text) {
         body += `**Feedback Text:**
 > ${feedback.screenshotData.text.replace(/\n/g, `
+> `)}
+
+`;
+      }
+      if (feedback.screenshotData.systemInfo) {
+        body += `### \uD83D\uDCCA System Context at Feedback
+
+`;
+        const sysInfo = feedback.screenshotData.systemInfo;
+        body += `| Context | Value |
+`;
+        body += `|---------|-------|
+`;
+        if (sysInfo.applicationState) {
+          const stateIcon = sysInfo.applicationState === "foreground" ? "\uD83D\uDFE2" : sysInfo.applicationState === "background" ? "\uD83D\uDFE1" : "\uD83D\uDD34";
+          body += `| ${stateIcon} **App State** | ${sysInfo.applicationState} |
+`;
+        }
+        if (sysInfo.batteryLevel !== undefined) {
+          const batteryIcon = sysInfo.batteryLevel < 20 ? "\uD83E\uDEAB" : sysInfo.batteryLevel < 50 ? "\uD83D\uDD0B" : "\uD83D\uDD0B";
+          body += `| ${batteryIcon} **Battery** | ${sysInfo.batteryLevel}% |
+`;
+        }
+        if (sysInfo.memoryPressure) {
+          const memoryIcon = sysInfo.memoryPressure === "critical" ? "\uD83D\uDEA8" : sysInfo.memoryPressure === "warning" ? "⚠️" : "✅";
+          body += `| ${memoryIcon} **Memory** | ${sysInfo.memoryPressure} |
+`;
+        }
+        if (sysInfo.thermalState) {
+          const thermalIcon = sysInfo.thermalState === "critical" ? "\uD83D\uDD25" : sysInfo.thermalState === "serious" ? "\uD83C\uDF21️" : "❄️";
+          body += `| ${thermalIcon} **Thermal** | ${sysInfo.thermalState} |
+`;
+        }
+        if (sysInfo.diskSpaceRemaining !== undefined) {
+          const spaceGB = Math.round(sysInfo.diskSpaceRemaining / 1024 ** 3 * 10) / 10;
+          const spaceIcon = spaceGB < 1 ? "\uD83D\uDCBE" : "\uD83D\uDCBF";
+          body += `| ${spaceIcon} **Free Space** | ${spaceGB}GB |
+`;
+        }
+        body += `
+`;
+      }
+      if (feedback.screenshotData.submissionMethod) {
+        body += `**Submission Method:** ${feedback.screenshotData.submissionMethod}
+
+`;
+      }
+      if (feedback.screenshotData.testerNotes) {
+        body += `**Tester Notes:**
+> ${feedback.screenshotData.testerNotes.replace(/\n/g, `
 > `)}
 
 `;
@@ -46230,6 +46319,45 @@ ${feedback.crashData.exceptionMessage}
 
 `;
       }
+      if (feedback.crashData.systemInfo) {
+        description += `### \uD83D\uDCCA System Context at Crash
+
+`;
+        const sysInfo = feedback.crashData.systemInfo;
+        description += `| Context | Value |
+`;
+        description += `|---------|-------|
+`;
+        if (sysInfo.batteryPercentage !== undefined) {
+          const batteryIcon = sysInfo.batteryPercentage < 20 ? "\uD83E\uDEAB" : sysInfo.batteryPercentage < 50 ? "\uD83D\uDD0B" : "\uD83D\uDD0B";
+          description += `| ${batteryIcon} **Battery** | ${sysInfo.batteryPercentage}% |
+`;
+        }
+        if (sysInfo.appUptimeFormatted) {
+          description += `| ⏱️ **App Uptime** | ${sysInfo.appUptimeFormatted} |
+`;
+        }
+        if (sysInfo.connectionType) {
+          const connectionIcon = sysInfo.connectionType.toLowerCase().includes("wifi") ? "\uD83D\uDCF6" : "\uD83D\uDCF1";
+          description += `| ${connectionIcon} **Connection** | ${sysInfo.connectionType} |
+`;
+        }
+        if (sysInfo.diskSpaceRemainingGB !== null && sysInfo.diskSpaceRemainingGB !== undefined) {
+          const spaceIcon = sysInfo.diskSpaceRemainingGB < 1 ? "\uD83D\uDCBE" : "\uD83D\uDCBF";
+          description += `| ${spaceIcon} **Free Space** | ${sysInfo.diskSpaceRemainingGB}GB |
+`;
+        }
+        if (sysInfo.architecture) {
+          description += `| \uD83C\uDFD7️ **Architecture** | ${sysInfo.architecture} |
+`;
+        }
+        if (sysInfo.pairedAppleWatch) {
+          description += `| ⌚ **Apple Watch** | ${sysInfo.pairedAppleWatch} |
+`;
+        }
+        description += `
+`;
+      }
       description += `### Stack Trace
 \`\`\`
 ${feedback.crashData.trace}
@@ -48038,6 +48166,37 @@ class TestFlightClient {
     const response = await this.makeApiRequest(`/apps/${appId}/betaFeedbackScreenshotSubmissions`, queryParams);
     return response.data;
   }
+  async getAppScreenshotSubmissionsWithDateFilter(appId, since) {
+    try {
+      const isoDate = since.toISOString();
+      const apiFilteredResults = await this.getAppScreenshotSubmissions(appId, {
+        filter: {
+          createdDate: `>${isoDate}`
+        },
+        limit: 100
+      });
+      console.log(`✅ API-level date filtering successful for screenshot submissions`);
+      return apiFilteredResults;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.warn(`⚠️ API-level date filtering failed for screenshot submissions: ${errorMessage}`);
+      console.log(`\uD83D\uDD04 Falling back to client-side filtering...`);
+      try {
+        const allRecentScreenshots = await this.getAppScreenshotSubmissions(appId, {
+          limit: DEFAULT_TESTFLIGHT_CONFIG.MAX_LIMIT
+        });
+        const filteredScreenshots = allRecentScreenshots.filter((screenshot) => {
+          const createdDate = new Date(screenshot.attributes.createdDate || screenshot.attributes.submittedAt || 0);
+          return createdDate >= since;
+        });
+        console.log(`✅ Client-side filtering successful: ${filteredScreenshots.length}/${allRecentScreenshots.length} screenshot submissions match date filter`);
+        return filteredScreenshots;
+      } catch (fallbackError) {
+        console.error(`❌ Both API and client-side filtering failed for screenshot submissions:`, fallbackError);
+        throw fallbackError;
+      }
+    }
+  }
   async getDetailedScreenshotSubmission(screenshotId, params) {
     const response = await this.makeApiRequest(`/betaFeedbackScreenshotSubmissions/${screenshotId}`, params);
     return response.data;
@@ -48219,6 +48378,37 @@ class TestFlightClient {
     const response = await this.makeApiRequest(`/apps/${appId}/betaFeedbackCrashSubmissions`, queryParams);
     return response.data;
   }
+  async getAppCrashSubmissionsWithDateFilter(appId, since) {
+    try {
+      const isoDate = since.toISOString();
+      const apiFilteredResults = await this.getAppCrashSubmissions(appId, {
+        filter: {
+          createdDate: `>${isoDate}`
+        },
+        limit: 100
+      });
+      console.log(`✅ API-level date filtering successful for crash submissions`);
+      return apiFilteredResults;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.warn(`⚠️ API-level date filtering failed for crash submissions: ${errorMessage}`);
+      console.log(`\uD83D\uDD04 Falling back to client-side filtering...`);
+      try {
+        const allRecentCrashes = await this.getAppCrashSubmissions(appId, {
+          limit: DEFAULT_TESTFLIGHT_CONFIG.MAX_LIMIT
+        });
+        const filteredCrashes = allRecentCrashes.filter((crash) => {
+          const createdDate = new Date(crash.attributes.createdDate || crash.attributes.submittedAt || 0);
+          return createdDate >= since;
+        });
+        console.log(`✅ Client-side filtering successful: ${filteredCrashes.length}/${allRecentCrashes.length} crash submissions match date filter`);
+        return filteredCrashes;
+      } catch (fallbackError) {
+        console.error(`❌ Both API and client-side filtering failed for crash submissions:`, fallbackError);
+        throw fallbackError;
+      }
+    }
+  }
   async getDetailedCrashSubmission(crashId, params) {
     const response = await this.makeApiRequest(`/betaFeedbackCrashSubmissions/${crashId}`, params);
     return response.data;
@@ -48317,20 +48507,9 @@ class TestFlightClient {
   }
   async getEnhancedRecentFeedback(since, bundleId) {
     const resolvedAppId = await this.resolveAppId(bundleId);
-    const isoDate = since.toISOString();
     const [crashes, screenshots] = await Promise.all([
-      this.getAppCrashSubmissions(resolvedAppId, {
-        filter: {
-          submittedAt: `>${isoDate}`
-        },
-        limit: 100
-      }),
-      this.getAppScreenshotSubmissions(resolvedAppId, {
-        filter: {
-          submittedAt: `>${isoDate}`
-        },
-        limit: 100
-      })
+      this.getAppCrashSubmissionsWithDateFilter(resolvedAppId, since),
+      this.getAppScreenshotSubmissionsWithDateFilter(resolvedAppId, since)
     ]);
     const processedData = [];
     await this.processCrashReportsWithDetails(crashes, processedData);
@@ -48491,7 +48670,35 @@ class TestFlightClient {
   }
   async processCrashReportsWithDetails(crashes, processedData) {
     for (const crash of crashes) {
-      const processedCrash = this.processCrashReport(crash);
+      let processedCrash = this.processCrashReport(crash);
+      try {
+        console.log(`\uD83D\uDD0D Fetching enhanced crash metadata for ${crash.id}`);
+        const detailedCrash = await this.getDetailedCrashSubmission(crash.id, {
+          include: "build,tester",
+          fields: {
+            betaFeedbackCrashSubmissions: [
+              "createdDate",
+              "comment",
+              "email",
+              "deviceModel",
+              "osVersion",
+              "batteryPercentage",
+              "appUptimeInMilliseconds",
+              "connectionType",
+              "diskBytesAvailable",
+              "diskBytesTotal",
+              "architecture",
+              "pairedAppleWatch",
+              "screenWidthInPoints",
+              "screenHeightInPoints"
+            ].join(",")
+          }
+        });
+        processedCrash = this.mergeEnhancedCrashMetadata(processedCrash, detailedCrash);
+        console.log(`✅ Enhanced crash metadata obtained for ${crash.id}`);
+      } catch (error) {
+        console.warn(`⚠️ Failed to get enhanced crash metadata for ${crash.id}:`, error);
+      }
       try {
         const crashLog = await this.getCrashLog(crash.id);
         const detailedLogContent = await this.downloadDetailedCrashLog(crashLog);
@@ -48508,7 +48715,37 @@ class TestFlightClient {
     for (const screenshot of screenshots) {
       const processedScreenshot = this.processScreenshotFeedback(screenshot);
       try {
-        const detailedScreenshot = await this.getDetailedScreenshotSubmission(screenshot.id);
+        console.log(`\uD83D\uDD0D Fetching enhanced screenshot metadata for ${screenshot.id}`);
+        const detailedScreenshot = await this.getDetailedScreenshotSubmission(screenshot.id, {
+          include: "build,tester",
+          fields: {
+            betaFeedbackScreenshotSubmissions: [
+              "createdDate",
+              "comment",
+              "email",
+              "deviceModel",
+              "osVersion",
+              "batteryPercentage",
+              "appUptimeInMilliseconds",
+              "connectionType",
+              "diskBytesAvailable",
+              "diskBytesTotal",
+              "architecture",
+              "pairedAppleWatch",
+              "screenWidthInPoints",
+              "screenHeightInPoints",
+              "applicationState",
+              "memoryPressure",
+              "batteryLevel",
+              "batteryState",
+              "thermalState",
+              "diskSpaceRemaining",
+              "submissionMethod",
+              "testerNotes",
+              "screenshots"
+            ].join(",")
+          }
+        });
         if (processedScreenshot.screenshotData) {
           processedScreenshot.screenshotData.testerNotes = detailedScreenshot.attributes.testerNotes;
           processedScreenshot.screenshotData.submissionMethod = detailedScreenshot.attributes.submissionMethod;
@@ -48524,8 +48761,9 @@ class TestFlightClient {
             processedScreenshot.screenshotData.enhancedImages = await this.processEnhancedScreenshotImages(detailedScreenshot.attributes.screenshots);
           }
         }
+        console.log(`✅ Enhanced screenshot metadata obtained for ${screenshot.id}`);
       } catch (error) {
-        console.warn(`Failed to get detailed screenshot submission for ${screenshot.id}:`, error);
+        console.warn(`⚠️ Failed to get enhanced screenshot metadata for ${screenshot.id}:`, error);
       }
       processedData.push(processedScreenshot);
     }
@@ -48633,6 +48871,47 @@ class TestFlightClient {
         annotations: attrs.annotations || []
       }
     };
+  }
+  mergeEnhancedCrashMetadata(processedCrash, detailedCrash) {
+    if (!processedCrash.crashData) {
+      return processedCrash;
+    }
+    const attrs = detailedCrash.attributes;
+    const enhancedCrashData = {
+      ...processedCrash.crashData,
+      systemInfo: {
+        batteryPercentage: attrs.batteryPercentage,
+        appUptimeInMilliseconds: attrs.appUptimeInMilliseconds,
+        connectionType: attrs.connectionType,
+        diskBytesAvailable: attrs.diskBytesAvailable,
+        diskBytesTotal: attrs.diskBytesTotal,
+        architecture: attrs.architecture,
+        pairedAppleWatch: attrs.pairedAppleWatch,
+        screenDimensions: {
+          width: attrs.screenWidthInPoints,
+          height: attrs.screenHeightInPoints
+        },
+        diskSpaceRemainingGB: attrs.diskBytesAvailable ? Math.round(attrs.diskBytesAvailable / 1024 ** 3 * 10) / 10 : null,
+        appUptimeFormatted: attrs.appUptimeInMilliseconds ? this.formatUptime(attrs.appUptimeInMilliseconds) : null
+      }
+    };
+    return {
+      ...processedCrash,
+      crashData: enhancedCrashData
+    };
+  }
+  formatUptime(uptimeMs) {
+    const seconds = Math.floor(uptimeMs / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+    if (days > 0)
+      return `${days}d ${hours % 24}h ${minutes % 60}m`;
+    if (hours > 0)
+      return `${hours}h ${minutes % 60}m`;
+    if (minutes > 0)
+      return `${minutes}m ${seconds % 60}s`;
+    return `${seconds}s`;
   }
   sleep(ms) {
     return new Promise((resolve2) => setTimeout(resolve2, ms));

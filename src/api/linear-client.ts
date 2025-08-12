@@ -716,6 +716,44 @@ export class LinearClient {
 				description += `**Message:**\n\`\`\`\n${feedback.crashData.exceptionMessage}\n\`\`\`\n\n`;
 			}
 
+			// ENHANCEMENT: Add system context for better debugging
+			if (feedback.crashData.systemInfo) {
+				description += "### 📊 System Context at Crash\n\n";
+				const sysInfo = feedback.crashData.systemInfo;
+
+				description += "| Context | Value |\n";
+				description += "|---------|-------|\n";
+
+				if (sysInfo.batteryPercentage !== undefined) {
+					const batteryIcon = sysInfo.batteryPercentage < 20 ? "🪫" : sysInfo.batteryPercentage < 50 ? "🔋" : "🔋";
+					description += `| ${batteryIcon} **Battery** | ${sysInfo.batteryPercentage}% |\n`;
+				}
+
+				if (sysInfo.appUptimeFormatted) {
+					description += `| ⏱️ **App Uptime** | ${sysInfo.appUptimeFormatted} |\n`;
+				}
+
+				if (sysInfo.connectionType) {
+					const connectionIcon = sysInfo.connectionType.toLowerCase().includes('wifi') ? "📶" : "📱";
+					description += `| ${connectionIcon} **Connection** | ${sysInfo.connectionType} |\n`;
+				}
+
+				if (sysInfo.diskSpaceRemainingGB !== null && sysInfo.diskSpaceRemainingGB !== undefined) {
+					const spaceIcon = sysInfo.diskSpaceRemainingGB < 1 ? "💾" : "💿";
+					description += `| ${spaceIcon} **Free Space** | ${sysInfo.diskSpaceRemainingGB}GB |\n`;
+				}
+
+				if (sysInfo.architecture) {
+					description += `| 🏗️ **Architecture** | ${sysInfo.architecture} |\n`;
+				}
+
+				if (sysInfo.pairedAppleWatch) {
+					description += `| ⌚ **Apple Watch** | ${sysInfo.pairedAppleWatch} |\n`;
+				}
+
+				description += "\n";
+			}
+
 			description += `### Stack Trace\n\`\`\`\n${feedback.crashData.trace}\n\`\`\`\n\n`;
 
 			if (feedback.crashData.logs.length > 0) {

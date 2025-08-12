@@ -67,7 +67,7 @@ export const PRIORITY_LEVELS = {
 export const DEFAULT_TESTFLIGHT_CONFIG = {
     DEFAULT_LIMIT: 50,
     MAX_LIMIT: 200,
-    DEFAULT_SORT: "-submittedAt",
+    DEFAULT_SORT: "-createdDate",
     FETCH_LOOKBACK_HOURS: 24,
 } as const;
 

@@ -402,6 +402,7 @@ export class LLMHealthChecker extends BaseHealthChecker {
             );
         }
 
+
         // Check for available API keys
         const availableProviders = this.getAvailableProviders();
 

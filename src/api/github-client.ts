@@ -32,7 +32,6 @@ import {
 	DEFAULT_HTTP_CONFIG,
 	getConfiguration,
 } from "../config/index.js";
-import { getTestFlightClient } from "./testflight-client.js";
 
 /**
  * GitHub Issues API Client with rate limiting awareness, screenshot attachment, and secure configuration
@@ -982,6 +981,44 @@ export class GitHubClient {
 				body += `**Message:**\n\`\`\`\n${feedback.crashData.exceptionMessage}\n\`\`\`\n\n`;
 			}
 
+			// ENHANCEMENT: Add system context for better debugging
+			if (feedback.crashData.systemInfo) {
+				body += "### 📊 System Context at Crash\n\n";
+				const sysInfo = feedback.crashData.systemInfo;
+
+				body += "| Context | Value |\n";
+				body += "|---------|-------|\n";
+
+				if (sysInfo.batteryPercentage !== undefined) {
+					const batteryIcon = sysInfo.batteryPercentage < 20 ? "🪫" : sysInfo.batteryPercentage < 50 ? "🔋" : "🔋";
+					body += `| ${batteryIcon} **Battery** | ${sysInfo.batteryPercentage}% |\n`;
+				}
+
+				if (sysInfo.appUptimeFormatted) {
+					body += `| ⏱️ **App Uptime** | ${sysInfo.appUptimeFormatted} |\n`;
+				}
+
+				if (sysInfo.connectionType) {
+					const connectionIcon = sysInfo.connectionType.toLowerCase().includes('wifi') ? "📶" : "📱";
+					body += `| ${connectionIcon} **Connection** | ${sysInfo.connectionType} |\n`;
+				}
+
+				if (sysInfo.diskSpaceRemainingGB !== null && sysInfo.diskSpaceRemainingGB !== undefined) {
+					const spaceIcon = sysInfo.diskSpaceRemainingGB < 1 ? "💾" : "💿";
+					body += `| ${spaceIcon} **Free Space** | ${sysInfo.diskSpaceRemainingGB}GB |\n`;
+				}
+
+				if (sysInfo.architecture) {
+					body += `| 🏗️ **Architecture** | ${sysInfo.architecture} |\n`;
+				}
+
+				if (sysInfo.pairedAppleWatch) {
+					body += `| ⌚ **Apple Watch** | ${sysInfo.pairedAppleWatch} |\n`;
+				}
+
+				body += "\n";
+			}
+
 			body += `### Stack Trace\n\`\`\`\n${feedback.crashData.trace}\n\`\`\`\n\n`;
 
 			if (feedback.crashData.logs.length > 0) {
@@ -998,6 +1035,54 @@ export class GitHubClient {
 
 			if (feedback.screenshotData.text) {
 				body += `**Feedback Text:**\n> ${feedback.screenshotData.text.replace(/\n/g, "\n> ")}\n\n`;
+			}
+
+			// ENHANCEMENT: Add system context for screenshot feedback
+			if (feedback.screenshotData.systemInfo) {
+				body += "### 📊 System Context at Feedback\n\n";
+				const sysInfo = feedback.screenshotData.systemInfo;
+
+				body += "| Context | Value |\n";
+				body += "|---------|-------|\n";
+
+				if (sysInfo.applicationState) {
+					const stateIcon = sysInfo.applicationState === "foreground" ? "🟢" :
+						sysInfo.applicationState === "background" ? "🟡" : "🔴";
+					body += `| ${stateIcon} **App State** | ${sysInfo.applicationState} |\n`;
+				}
+
+				if (sysInfo.batteryLevel !== undefined) {
+					const batteryIcon = sysInfo.batteryLevel < 20 ? "🪫" : sysInfo.batteryLevel < 50 ? "🔋" : "🔋";
+					body += `| ${batteryIcon} **Battery** | ${sysInfo.batteryLevel}% |\n`;
+				}
+
+				if (sysInfo.memoryPressure) {
+					const memoryIcon = sysInfo.memoryPressure === "critical" ? "🚨" :
+						sysInfo.memoryPressure === "warning" ? "⚠️" : "✅";
+					body += `| ${memoryIcon} **Memory** | ${sysInfo.memoryPressure} |\n`;
+				}
+
+				if (sysInfo.thermalState) {
+					const thermalIcon = sysInfo.thermalState === "critical" ? "🔥" :
+						sysInfo.thermalState === "serious" ? "🌡️" : "❄️";
+					body += `| ${thermalIcon} **Thermal** | ${sysInfo.thermalState} |\n`;
+				}
+
+				if (sysInfo.diskSpaceRemaining !== undefined) {
+					const spaceGB = Math.round((sysInfo.diskSpaceRemaining / (1024 ** 3)) * 10) / 10;
+					const spaceIcon = spaceGB < 1 ? "💾" : "💿";
+					body += `| ${spaceIcon} **Free Space** | ${spaceGB}GB |\n`;
+				}
+
+				body += "\n";
+			}
+
+			if (feedback.screenshotData.submissionMethod) {
+				body += `**Submission Method:** ${feedback.screenshotData.submissionMethod}\n\n`;
+			}
+
+			if (feedback.screenshotData.testerNotes) {
+				body += `**Tester Notes:**\n> ${feedback.screenshotData.testerNotes.replace(/\n/g, "\n> ")}\n\n`;
 			}
 
 			if (feedback.screenshotData.images.length > 0) {
