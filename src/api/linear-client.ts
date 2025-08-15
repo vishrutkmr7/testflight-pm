@@ -967,7 +967,7 @@ export class LinearClient {
 	/**
 	 * Formats enhanced system information for display (DRY helper)
 	 */
-	private formatSystemInfo(systemInfo: ProcessedFeedbackData['screenshotData']['systemInfo']): string {
+	private formatSystemInfo(systemInfo: any): string {
 		if (!systemInfo) {
 			return "";
 		}
