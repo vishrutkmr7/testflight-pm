@@ -63,6 +63,11 @@ export class LinearClient {
 		additionalLabels: string[] = [],
 		assigneeId?: string,
 		projectId?: string,
+		options?: {
+			customTitle?: string;
+			customDescription?: string;
+			priority?: LinearPriority;
+		},
 	): Promise<LinearIssue> {
 		try {
 			// Check for duplicates if enabled
@@ -82,6 +87,7 @@ export class LinearClient {
 				additionalLabels,
 				assigneeId,
 				projectId,
+				options,
 			);
 
 			// Create issue using Linear SDK
@@ -676,22 +682,72 @@ export class LinearClient {
 		additionalLabels: string[] = [],
 		assigneeId?: string,
 		projectId?: string,
+		options?: {
+			customTitle?: string;
+			customDescription?: string;
+			priority?: LinearPriority;
+		},
 	) {
 		const isCrash = feedback.type === "crash";
 		const typeIcon = isCrash ? "💥" : "📱";
 		const typeLabel = isCrash ? "Crash Report" : "User Feedback";
 
-		// Generate title
-		let title = `${typeIcon} ${typeLabel}: ${feedback.appVersion} (${feedback.buildNumber})`;
+		// Generate title - use enhanced title if provided, otherwise generate standard title
+		let title = options?.customTitle ||
+			`${typeIcon} ${typeLabel}: ${feedback.appVersion} (${feedback.buildNumber})`;
 
-		if (isCrash && feedback.crashData?.exceptionType) {
-			title += ` - ${feedback.crashData.exceptionType}`;
-		} else if (feedback.screenshotData?.text) {
-			const shortText = feedback.screenshotData.text.substring(0, 40);
-			title += ` - ${shortText}${shortText.length < feedback.screenshotData.text.length ? "..." : ""}`;
+		// If using standard title, add additional context
+		if (!options?.customTitle) {
+			if (isCrash && feedback.crashData?.exceptionType) {
+				title += ` - ${feedback.crashData.exceptionType}`;
+			} else if (feedback.screenshotData?.text) {
+				const shortText = feedback.screenshotData.text.substring(0, 40);
+				title += ` - ${shortText}${shortText.length < feedback.screenshotData.text.length ? "..." : ""}`;
+			}
 		}
 
-		// Generate description
+		// Generate description - use enhanced description if provided, otherwise generate standard description
+		const description = options?.customDescription ||
+			this.generateStandardDescription(feedback, typeIcon, typeLabel);
+
+		// Determine labels
+		const baseLabels = isCrash
+			? this.config.crashLabels
+			: this.config.feedbackLabels;
+		const allLabels = [
+			...this.config.defaultLabels,
+			...baseLabels,
+			...additionalLabels,
+		];
+
+		// Determine priority - use enhanced priority if provided, otherwise use default logic
+		let priority = options?.priority || this.config.defaultPriority;
+		if (!options?.priority && isCrash) {
+			priority = 2; // High priority for crashes when not using enhanced priority
+		}
+
+		return {
+			title,
+			description,
+			teamId: this.config.teamId,
+			priority,
+			assigneeId,
+			projectId,
+			labels: allLabels,
+		};
+	}
+
+	/**
+	 * Generates standard description for Linear issues from TestFlight feedback
+	 */
+	private generateStandardDescription(
+		feedback: ProcessedFeedbackData,
+		typeIcon: string,
+		typeLabel: string,
+	): string {
+		const isCrash = feedback.type === "crash";
+
+		// Start with header
 		let description = `## ${typeIcon} ${typeLabel} from TestFlight\n\n`;
 
 		// Metadata table
@@ -820,31 +876,7 @@ export class LinearClient {
 
 		description += `---\n*Automatically created from TestFlight feedback. ID: \`${feedback.id}\`*`;
 
-		// Determine labels
-		const baseLabels = isCrash
-			? this.config.crashLabels
-			: this.config.feedbackLabels;
-		const allLabels = [
-			...this.config.defaultLabels,
-			...baseLabels,
-			...additionalLabels,
-		];
-
-		// Determine priority based on feedback type
-		let priority = this.config.defaultPriority;
-		if (isCrash) {
-			priority = 2; // High priority for crashes
-		}
-
-		return {
-			title,
-			description,
-			teamId: this.config.teamId,
-			priority,
-			assigneeId,
-			projectId,
-			labels: allLabels,
-		};
+		return description;
 	}
 
 	/**

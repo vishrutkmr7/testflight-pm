@@ -95,7 +95,7 @@ export interface HealthCheckResult {
  * Concrete GitHub issue creation service
  */
 export class GitHubIssueService implements IssueCreationService {
-	constructor(private githubClient: GitHubClientInterface) {}
+	constructor(private githubClient: GitHubClientInterface) { }
 
 	async createIssueFromFeedback(
 		feedback: ProcessedFeedbackData,
@@ -133,11 +133,11 @@ export class GitHubIssueService implements IssueCreationService {
 			reasons: result.reasons,
 			existingIssue: result.existingIssue
 				? {
-						id: result.existingIssue.id.toString(),
-						url: result.existingIssue.html_url,
-						title: result.existingIssue.title,
-						number: result.existingIssue.number,
-					}
+					id: result.existingIssue.id.toString(),
+					url: result.existingIssue.html_url,
+					title: result.existingIssue.title,
+					number: result.existingIssue.number,
+				}
 				: undefined,
 		};
 	}
@@ -151,7 +151,7 @@ export class GitHubIssueService implements IssueCreationService {
  * Concrete Linear issue creation service
  */
 export class LinearIssueService implements IssueCreationService {
-	constructor(private linearClient: LinearClientInterface) {}
+	constructor(private linearClient: LinearClientInterface) { }
 
 	async createIssueFromFeedback(
 		feedback: ProcessedFeedbackData,
@@ -167,6 +167,7 @@ export class LinearIssueService implements IssueCreationService {
 			additionalLabels,
 			assigneeId,
 			projectId,
+			undefined, // options - no enhancement for basic service factory usage
 		);
 
 		return {

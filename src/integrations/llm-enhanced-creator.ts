@@ -504,6 +504,11 @@ export class LLMEnhancedIssueCreator {
 				createOptions.additionalLabels,
 				createOptions.assigneeId,
 				createOptions.projectId,
+				{
+					customTitle: createOptions.customTitle,
+					customDescription: createOptions.customDescription,
+					priority: createOptions.priority,
+				},
 			);
 
 			// Convert LinearIssue to LinearIssueCreationResult

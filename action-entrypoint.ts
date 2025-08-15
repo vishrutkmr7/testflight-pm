@@ -46,6 +46,7 @@ interface WorkflowState {
 	idempotencyService: IdempotencyService;
 	isDryRun: boolean;
 	isDebugMode: boolean;
+	platform: "github" | "linear" | "both";
 }
 
 async function run(): Promise<void> {
@@ -155,6 +156,9 @@ async function run(): Promise<void> {
 		);
 		const isDryRun = core.getBooleanInput("dry_run");
 
+		// Get platform configuration  
+		const platform = (core.getInput("platform") || "github").toLowerCase() as "github" | "linear" | "both";
+
 		// Enhanced debug logging
 		if (isDebugMode) {
 			core.info("🐛 Debug mode enabled - verbose logging active");
@@ -166,7 +170,7 @@ async function run(): Promise<void> {
 		}
 
 		core.info(
-			`🔧 Configuration: LLM=${enableLLMEnhancement}, Analysis=${enableCodebaseAnalysis}, Duplicates=${enableDuplicateDetection}, DryRun=${isDryRun}, Debug=${isDebugMode}`,
+			`🔧 Configuration: Platform=${platform}, LLM=${enableLLMEnhancement}, Analysis=${enableCodebaseAnalysis}, Duplicates=${enableDuplicateDetection}, DryRun=${isDryRun}, Debug=${isDebugMode}`,
 		);
 
 		// Initialize services
@@ -203,11 +207,13 @@ async function run(): Promise<void> {
 			codebaseAnalyzer,
 			serviceFactory,
 			idempotencyService,
+			platform,
 		};
 
 		// Debug workflow state
 		if (isDebugMode) {
 			core.debug("🔧 Workflow state initialized:");
+			core.debug(`  Platform: ${workflowState.platform}`);
 			core.debug(`  TestFlight client: ${!!workflowState.testFlightClient}`);
 			core.debug(`  LLM client: ${!!workflowState.llmClient}`);
 			core.debug(`  Codebase analyzer: ${!!workflowState.codebaseAnalyzer}`);
@@ -424,6 +430,7 @@ async function processFeedbackItem(
 		serviceFactory,
 		isDryRun,
 		isDebugMode,
+		platform,
 	} = state;
 
 	let issueCreated = false;
@@ -480,6 +487,7 @@ async function processFeedbackItem(
 		// Create or enhance issue
 		let issueResult: EnhancedIssueCreationResult | IssueCreationResult | null =
 			null;
+		let createResult: import('./src/utils/idempotency-service.js').CreateIssueResult | null = null; // For standard issue creation results
 
 		if (enableLLMEnhancement && llmClient) {
 			core.info(`🤖 Using LLM enhancement for feedback: ${feedback.id}`);
@@ -490,7 +498,7 @@ async function processFeedbackItem(
 			).then((m) => m.getLLMEnhancedIssueCreator());
 
 			issueResult = await enhancedCreator.createEnhancedIssue(feedback, {
-				platform: "github", // Could be configurable
+				platform: platform,
 				enableLLMEnhancement: true,
 				enableCodebaseAnalysis: !!codebaseAnalyzer,
 				analysisDepth: "moderate",
@@ -510,26 +518,86 @@ async function processFeedbackItem(
 				);
 			}
 		} else {
-			// Standard issue creation
-			core.info(`📝 Creating standard issue for feedback: ${feedback.id}`);
+			// Standard issue creation with platform support
+			core.info(`📝 Creating standard issue for feedback: ${feedback.id} on platform: ${platform}`);
 
-			issueResult = await serviceFactory.createIssueWithDefault(feedback);
-			issueCreated = true;
-			core.info(`✅ Standard issue created: ${issueResult.url}`);
+			// Use idempotency service which already supports multiple platforms
+			const { idempotencyService } = state;
+			createResult = await idempotencyService.createIssueWithDuplicateProtection(feedback, {
+				preferredPlatform: platform,
+				skipDuplicateDetection: !enableDuplicateDetection,
+			});
+
+			// Convert CreateIssueResult to IssueCreationResult format for consistency
+			if (createResult.processedBy.length > 0) {
+				issueCreated = true;
+				// Use the first successful result for the URL - convert to IssueCreationResult
+				const githubResult = createResult.github;
+				const linearResult = createResult.linear;
+
+				if (githubResult) {
+					issueResult = {
+						id: githubResult.issue.id.toString(),
+						url: githubResult.issue.html_url,
+						title: githubResult.issue.title,
+						number: githubResult.issue.number,
+						wasExisting: githubResult.wasExisting || false,
+						action: githubResult.wasExisting ? "comment_added" : "created",
+						message: `GitHub issue ${githubResult.wasExisting ? "updated" : "created"}: #${githubResult.issue.number}`,
+						platform: "github",
+					};
+				} else if (linearResult) {
+					issueResult = {
+						id: linearResult.issue.id,
+						url: linearResult.issue.url,
+						title: linearResult.issue.title,
+						identifier: linearResult.issue.identifier,
+						wasExisting: linearResult.wasExisting || false,
+						action: linearResult.wasExisting ? "comment_added" : "created",
+						message: `Linear issue ${linearResult.wasExisting ? "updated" : "created"}: ${linearResult.issue.identifier}`,
+						platform: "linear",
+					};
+				}
+
+				if (!issueResult) {
+					// Fallback to constructing a basic result
+					issueResult = {
+						id: "unknown",
+						url: "unknown",
+						title: "Issue created",
+						platform: platform === "both" ? "github" : platform,
+						wasExisting: false,
+						action: "created",
+						message: `Issue created on ${createResult.processedBy.join(", ")}`,
+					};
+				}
+				core.info(`✅ Standard issue created on ${createResult.processedBy.join(", ")}`);
+			} else {
+				core.error(`❌ Failed to create issue on any platform. Errors: ${createResult.errors.join("; ")}`);
+			}
 		}
 
 		// Extract URL from different result types
 		let issueUrl = "";
 		if (issueResult) {
 			if ("url" in issueResult) {
-				// IssueCreationResult
+				// IssueCreationResult from standard issue creation
 				issueUrl = issueResult.url;
 			} else if ("github" in issueResult || "linear" in issueResult) {
-				// EnhancedIssueCreationResult
+				// EnhancedIssueCreationResult from LLM enhancement
 				issueUrl =
 					issueResult.github?.issue?.url ||
 					issueResult.linear?.issue?.url ||
 					"";
+			}
+		}
+
+		// For standard issue creation using idempotency service, also check the createResult
+		if (!issueUrl && createResult && typeof issueResult === "object" && "processedBy" in createResult) {
+			if (createResult.github?.issue) {
+				issueUrl = createResult.github.issue.html_url;
+			} else if (createResult.linear?.issue) {
+				issueUrl = createResult.linear.issue.url;
 			}
 		}
 

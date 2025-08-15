@@ -55,6 +55,11 @@ export async function createLinearIssueFromFeedback(
 			options.additionalLabels || [],
 			options.assigneeId,
 			options.projectId,
+			{
+				customTitle: options.customTitle,
+				customDescription: options.customDescription,
+				priority: options.priority,
+			},
 		);
 
 		// Check if this was a new issue or an update to existing

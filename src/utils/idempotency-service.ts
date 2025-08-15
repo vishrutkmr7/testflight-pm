@@ -154,6 +154,7 @@ export class IdempotencyService {
 						[], // additionalLabels
 						undefined, // assigneeId
 						undefined, // projectId
+						undefined, // options - no enhancement for standard creation
 					);
 
 					// Convert to LinearIssueCreationResult format
