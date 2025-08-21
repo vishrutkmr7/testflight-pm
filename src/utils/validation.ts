@@ -441,8 +441,15 @@ export function sanitizeUserInput(input: string): string {
 		return "";
 	}
 
-	return input
-		.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "") // Remove script tags
+	// Remove all script tags by repeatedly applying the regex until no matches remain
+	let sanitized = input;
+	let prev;
+	do {
+		prev = sanitized;
+		sanitized = sanitized.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "");
+	} while (sanitized !== prev);
+
+	return sanitized
 		.replace(/javascript:/gi, "") // Remove javascript: protocol
 		.replace(/on\w+\s*=/gi, "") // Remove event handlers
 		.replace(/[<>]/g, (match) => (match === "<" ? "&lt;" : "&gt;")) // Escape HTML
