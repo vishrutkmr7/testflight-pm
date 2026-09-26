@@ -5,39 +5,60 @@ var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
+function __accessProp(key) {
+  return this[key];
+}
+var __toESMCache_node;
+var __toESMCache_esm;
 var __toESM = (mod, isNodeMode, target) => {
+  var canCache = mod != null && typeof mod === "object";
+  if (canCache) {
+    var cache = isNodeMode ? __toESMCache_node ??= new WeakMap : __toESMCache_esm ??= new WeakMap;
+    var cached = cache.get(mod);
+    if (cached)
+      return cached;
+  }
   target = mod != null ? __create(__getProtoOf(mod)) : {};
   const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
   for (let key of __getOwnPropNames(mod))
     if (!__hasOwnProp.call(to, key))
       __defProp(to, key, {
-        get: () => mod[key],
+        get: __accessProp.bind(mod, key),
         enumerable: true
       });
+  if (canCache)
+    cache.set(mod, to);
   return to;
 };
-var __moduleCache = /* @__PURE__ */ new WeakMap;
 var __toCommonJS = (from) => {
-  var entry = __moduleCache.get(from), desc;
+  var entry = (__moduleCache ??= new WeakMap).get(from), desc;
   if (entry)
     return entry;
   entry = __defProp({}, "__esModule", { value: true });
-  if (from && typeof from === "object" || typeof from === "function")
-    __getOwnPropNames(from).map((key) => !__hasOwnProp.call(entry, key) && __defProp(entry, key, {
-      get: () => from[key],
-      enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable
-    }));
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (var key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(entry, key))
+        __defProp(entry, key, {
+          get: __accessProp.bind(from, key),
+          enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable
+        });
+  }
   __moduleCache.set(from, entry);
   return entry;
 };
+var __moduleCache;
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
+var __returnValue = (v) => v;
+function __exportSetter(name, newValue) {
+  this[name] = __returnValue.bind(null, newValue);
+}
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, {
       get: all[name],
       enumerable: true,
       configurable: true,
-      set: (newValue) => all[name] = () => newValue
+      set: __exportSetter.bind(all, name)
     });
 };
 var __esm = (fn, res) => () => (fn && (res = fn(fn = 0)), res);
@@ -3460,7 +3481,7 @@ var require_constants2 = __commonJS((exports, module) => {
     }
   })();
   var channel;
-  var structuredClone = globalThis.structuredClone ?? function structuredClone(value, options = undefined) {
+  var structuredClone = globalThis.structuredClone ?? function structuredClone2(value, options = undefined) {
     if (arguments.length === 0) {
       throw new TypeError("missing argument");
     }
@@ -13081,7 +13102,7 @@ var require_fetch = __commonJS((exports, module) => {
       request.cache = "no-store";
     }
     const newConnection = forceNewConnection ? "yes" : "no";
-    if (request.mode === "websocket") {} else {}
+    if (request.mode === "websocket") {}
     let requestBody = null;
     if (request.body == null && fetchParams.processRequestEndOfBody) {
       queueMicrotask(() => fetchParams.processRequestEndOfBody());
@@ -16385,7 +16406,7 @@ var require_undici = __commonJS((exports, module) => {
   exports.getGlobalDispatcher = getGlobalDispatcher;
   if (util.nodeMajor > 16 || util.nodeMajor === 16 && util.nodeMinor >= 8) {
     let fetchImpl = null;
-    exports.fetch = async function fetch(resource) {
+    exports.fetch = async function fetch2(resource) {
       if (!fetchImpl) {
         fetchImpl = require_fetch().fetch;
       }
@@ -27692,6 +27713,8 @@ class GitHubClient {
   milestonesCache = new Map;
   rateLimitInfo = null;
   lastCacheUpdate = {};
+  assetBranch = "testflight-screenshots";
+  assetBranchReady = false;
   constructor() {
     const envConfig = getConfiguration();
     if (!envConfig.github) {
@@ -27992,27 +28015,13 @@ class GitHubClient {
           });
           continue;
         }
-        const gistDescription = `TestFlight Screenshot - ${feedback.type} - ${feedback.id} - ${screenshot.filename}`;
-        let content;
-        if (screenshot.content instanceof Uint8Array) {
-          content = Buffer.from(screenshot.content).toString("base64");
-        } else {
-          content = screenshot.content;
-        }
-        const gist = await this.createGist({
-          description: gistDescription,
-          public: false,
-          files: {
-            [screenshot.filename]: {
-              content
-            }
-          }
-        });
+        const base64Content = screenshot.content instanceof Uint8Array ? Buffer.from(screenshot.content).toString("base64") : screenshot.content;
+        const rawUrl = await this.commitScreenshotToAssetBranch(feedback, screenshot.filename, base64Content);
         results.uploaded++;
         results.details.push({
           filename: screenshot.filename,
           success: true,
-          url: gist.html_url
+          url: rawUrl
         });
       } catch (error) {
         results.failed++;
@@ -28029,6 +28038,42 @@ class GitHubClient {
   async createGist(gistData) {
     const response = await this.makeApiRequest("POST", "/gists", gistData);
     return response.data;
+  }
+  async ensureAssetBranch() {
+    if (this.assetBranchReady)
+      return;
+    const { owner, repo } = this.config;
+    try {
+      await this.makeApiRequest("GET", `/repos/${owner}/${repo}/git/ref/heads/${this.assetBranch}`);
+      this.assetBranchReady = true;
+      return;
+    } catch {}
+    const repoInfo = await this.makeApiRequest("GET", `/repos/${owner}/${repo}`);
+    const baseRef = await this.makeApiRequest("GET", `/repos/${owner}/${repo}/git/ref/heads/${repoInfo.data.default_branch}`);
+    await this.makeApiRequest("POST", `/repos/${owner}/${repo}/git/refs`, {
+      ref: `refs/heads/${this.assetBranch}`,
+      sha: baseRef.data.object.sha
+    });
+    this.assetBranchReady = true;
+  }
+  async commitScreenshotToAssetBranch(feedback, filename, base64Content) {
+    await this.ensureAssetBranch();
+    const { owner, repo } = this.config;
+    const safeName = filename.replace(/[^A-Za-z0-9._-]/g, "_");
+    const path = `screenshots/${feedback.id}/${safeName}`;
+    const apiPath = `/repos/${owner}/${repo}/contents/${path}`;
+    let existingSha;
+    try {
+      const existing = await this.makeApiRequest("GET", `${apiPath}?ref=${this.assetBranch}`);
+      existingSha = existing.data.sha;
+    } catch {}
+    await this.makeApiRequest("PUT", apiPath, {
+      message: `TestFlight screenshot: ${feedback.id}/${safeName}`,
+      content: base64Content,
+      branch: this.assetBranch,
+      ...existingSha ? { sha: existingSha } : {}
+    });
+    return `https://github.com/${owner}/${repo}/raw/${this.assetBranch}/${path}`;
   }
   async getRateLimit() {
     const response = await this.makeApiRequest("GET", "/rate_limit");
@@ -28420,7 +28465,10 @@ ${feedback.crashData.trace}
 `;
     for (const detail of attachmentResults.details) {
       if (detail.success && detail.url) {
-        screenshotSection += `- [${detail.filename}](${detail.url})
+        screenshotSection += `![${detail.filename}](${detail.url})
+
+[${detail.filename}](${detail.url})
+
 `;
       } else {
         screenshotSection += `- ❌ ${detail.filename} (failed to upload)
@@ -45826,7 +45874,7 @@ class LinearClient {
       apiKey: this.config.apiToken
     });
   }
-  async createIssueFromTestFlight(feedback, additionalLabels = [], assigneeId, projectId) {
+  async createIssueFromTestFlight(feedback, additionalLabels = [], assigneeId, projectId, options) {
     try {
       if (this.config.enableDuplicateDetection) {
         const duplicateIssue = await this.findDuplicateIssue(feedback);
@@ -45836,7 +45884,7 @@ class LinearClient {
           return duplicateIssue;
         }
       }
-      const issueData = this.prepareIssueFromTestFlight(feedback, additionalLabels, assigneeId, projectId);
+      const issueData = this.prepareIssueFromTestFlight(feedback, additionalLabels, assigneeId, projectId, options);
       const issueCreatePayload = await this.sdk.createIssue({
         title: issueData.title,
         description: issueData.description,
@@ -46268,17 +46316,42 @@ class LinearClient {
       roadmaps: []
     };
   }
-  prepareIssueFromTestFlight(feedback, additionalLabels = [], assigneeId, projectId) {
+  prepareIssueFromTestFlight(feedback, additionalLabels = [], assigneeId, projectId, options) {
     const isCrash = feedback.type === "crash";
     const typeIcon = isCrash ? "\uD83D\uDCA5" : "\uD83D\uDCF1";
     const typeLabel = isCrash ? "Crash Report" : "User Feedback";
-    let title = `${typeIcon} ${typeLabel}: ${feedback.appVersion} (${feedback.buildNumber})`;
-    if (isCrash && feedback.crashData?.exceptionType) {
-      title += ` - ${feedback.crashData.exceptionType}`;
-    } else if (feedback.screenshotData?.text) {
-      const shortText = feedback.screenshotData.text.substring(0, 40);
-      title += ` - ${shortText}${shortText.length < feedback.screenshotData.text.length ? "..." : ""}`;
+    let title = options?.customTitle || `${typeIcon} ${typeLabel}: ${feedback.appVersion} (${feedback.buildNumber})`;
+    if (!options?.customTitle) {
+      if (isCrash && feedback.crashData?.exceptionType) {
+        title += ` - ${feedback.crashData.exceptionType}`;
+      } else if (feedback.screenshotData?.text) {
+        const shortText = feedback.screenshotData.text.substring(0, 40);
+        title += ` - ${shortText}${shortText.length < feedback.screenshotData.text.length ? "..." : ""}`;
+      }
     }
+    const description = options?.customDescription || this.generateStandardDescription(feedback, typeIcon, typeLabel);
+    const baseLabels = isCrash ? this.config.crashLabels : this.config.feedbackLabels;
+    const allLabels = [
+      ...this.config.defaultLabels,
+      ...baseLabels,
+      ...additionalLabels
+    ];
+    let priority = options?.priority || this.config.defaultPriority;
+    if (!options?.priority && isCrash) {
+      priority = 2;
+    }
+    return {
+      title,
+      description,
+      teamId: this.config.teamId,
+      priority,
+      assigneeId,
+      projectId,
+      labels: allLabels
+    };
+  }
+  generateStandardDescription(feedback, typeIcon, typeLabel) {
+    const isCrash = feedback.type === "crash";
     let description = `## ${typeIcon} ${typeLabel} from TestFlight
 
 `;
@@ -46442,25 +46515,7 @@ ${feedback.crashData.trace}
 `;
     description += `---
 *Automatically created from TestFlight feedback. ID: \`${feedback.id}\`*`;
-    const baseLabels = isCrash ? this.config.crashLabels : this.config.feedbackLabels;
-    const allLabels = [
-      ...this.config.defaultLabels,
-      ...baseLabels,
-      ...additionalLabels
-    ];
-    let priority = this.config.defaultPriority;
-    if (isCrash) {
-      priority = 2;
-    }
-    return {
-      title,
-      description,
-      teamId: this.config.teamId,
-      priority,
-      assigneeId,
-      projectId,
-      labels: allLabels
-    };
+    return description;
   }
   async addTestFlightCommentToIssue(issueId, feedback) {
     const typeIcon = feedback.type === "crash" ? "\uD83D\uDCA5" : "\uD83D\uDCF1";
@@ -46581,8 +46636,8 @@ function validateLinearConfig2() {
 }
 var import_sdk, _linearClientInstance = null;
 var init_linear_client = __esm(() => {
-  import_sdk = __toESM(require_index_cjs_min(), 1);
   init_config();
+  import_sdk = __toESM(require_index_cjs_min(), 1);
 });
 
 // src/utils/state-manager.ts
@@ -46846,7 +46901,7 @@ class IdempotencyService {
       if (preferredPlatform === "linear" || preferredPlatform === "both") {
         try {
           const linearClient = getLinearClient();
-          const linearIssue = await linearClient.createIssueFromTestFlight(feedback, [], undefined, undefined);
+          const linearIssue = await linearClient.createIssueFromTestFlight(feedback, [], undefined, undefined, undefined);
           result.linear = {
             issue: linearIssue,
             wasExisting: false,
@@ -47696,7 +47751,11 @@ class LLMEnhancedIssueCreator {
         enableDuplicateDetection: !options.skipDuplicateDetection
       };
       console.log("Creating Linear issue with enhanced data");
-      const linearIssue = await this.linearClient.createIssueFromTestFlight(feedback, createOptions.additionalLabels, createOptions.assigneeId, createOptions.projectId);
+      const linearIssue = await this.linearClient.createIssueFromTestFlight(feedback, createOptions.additionalLabels, createOptions.assigneeId, createOptions.projectId, {
+        customTitle: createOptions.customTitle,
+        customDescription: createOptions.customDescription,
+        priority: createOptions.priority
+      });
       return {
         issue: linearIssue,
         wasExisting: false,
@@ -48009,9 +48068,9 @@ var init_llm_enhanced_creator = __esm(() => {
 });
 
 // action-entrypoint.ts
-var core2 = __toESM(require_core(), 1);
 init_codebase_analyzer();
 init_llm_client();
+var core2 = __toESM(require_core(), 1);
 
 // src/api/testflight-client.ts
 init_config();
@@ -48734,14 +48793,6 @@ class TestFlightClient {
               "pairedAppleWatch",
               "screenWidthInPoints",
               "screenHeightInPoints",
-              "applicationState",
-              "memoryPressure",
-              "batteryLevel",
-              "batteryState",
-              "thermalState",
-              "diskSpaceRemaining",
-              "submissionMethod",
-              "testerNotes",
               "screenshots"
             ].join(",")
           }
@@ -48771,10 +48822,10 @@ class TestFlightClient {
   async processEnhancedScreenshotImages(screenshots) {
     return screenshots.map((screenshot, index) => ({
       url: screenshot.url,
-      fileName: screenshot.fileName,
+      fileName: screenshot.fileName || this.extractFileNameFromUrl(screenshot.url) || `screenshot-${index + 1}.png`,
       fileSize: screenshot.fileSize,
       expiresAt: new Date(screenshot.expiresAt),
-      imageFormat: this.extractImageFormat(screenshot.fileName),
+      imageFormat: this.extractImageFormat(screenshot.fileName, screenshot.url),
       imageScale: 1,
       imageDimensions: {
         width: 0,
@@ -48787,8 +48838,9 @@ class TestFlightClient {
       }
     }));
   }
-  extractImageFormat(fileName) {
-    const extension = fileName.toLowerCase().split(".").pop();
+  extractImageFormat(fileName, url) {
+    const source = ((fileName || url || "").split("?")[0] ?? "").toLowerCase();
+    const extension = source.split(".").pop();
     switch (extension) {
       case "png":
         return "png";
@@ -48800,6 +48852,13 @@ class TestFlightClient {
       default:
         return "png";
     }
+  }
+  extractFileNameFromUrl(url) {
+    if (!url)
+      return;
+    const path = url.split("?")[0] ?? "";
+    const last = path.split("/").pop();
+    return last && last.includes(".") ? last : undefined;
   }
   processCrashReport(crash) {
     const attrs = crash.attributes;
@@ -48862,9 +48921,9 @@ class TestFlightClient {
       } : undefined,
       screenshotData: {
         text: feedbackText,
-        images: attrs.screenshots.map((img) => ({
+        images: attrs.screenshots.map((img, index) => ({
           url: img.url,
-          fileName: img.fileName,
+          fileName: img.fileName || this.extractFileNameFromUrl(img.url) || `screenshot-${index + 1}.png`,
           fileSize: img.fileSize,
           expiresAt: new Date(img.expiresAt)
         })),
@@ -50038,7 +50097,7 @@ class LinearIssueService {
     const additionalLabels = options?.additionalLabels || [];
     const assigneeId = options?.assigneeId;
     const projectId = options?.projectId;
-    const result = await this.linearClient.createIssueFromTestFlight(feedback, additionalLabels, assigneeId, projectId);
+    const result = await this.linearClient.createIssueFromTestFlight(feedback, additionalLabels, assigneeId, projectId, undefined);
     return {
       id: result.id,
       url: result.url,
@@ -50258,6 +50317,7 @@ async function run() {
     const enableCodebaseAnalysis = core2.getBooleanInput("enable_codebase_analysis");
     const enableDuplicateDetection = core2.getBooleanInput("enable_duplicate_detection");
     const isDryRun = core2.getBooleanInput("dry_run");
+    const platform = (core2.getInput("platform") || "github").toLowerCase();
     if (isDebugMode) {
       core2.info("\uD83D\uDC1B Debug mode enabled - verbose logging active");
       core2.debug("Environment variables check:");
@@ -50266,7 +50326,7 @@ async function run() {
       core2.debug(`  RUNNER_OS: ${process.env.RUNNER_OS}`);
       core2.debug(`  GITHUB_REPOSITORY: ${process.env.GITHUB_REPOSITORY}`);
     }
-    core2.info(`\uD83D\uDD27 Configuration: LLM=${enableLLMEnhancement}, Analysis=${enableCodebaseAnalysis}, Duplicates=${enableDuplicateDetection}, DryRun=${isDryRun}, Debug=${isDebugMode}`);
+    core2.info(`\uD83D\uDD27 Configuration: Platform=${platform}, LLM=${enableLLMEnhancement}, Analysis=${enableCodebaseAnalysis}, Duplicates=${enableDuplicateDetection}, DryRun=${isDryRun}, Debug=${isDebugMode}`);
     const testFlightClient = getTestFlightClient();
     const llmClient = enableLLMEnhancement ? getLLMClient() : null;
     const codebaseAnalyzer = enableCodebaseAnalysis ? getCodebaseAnalyzer() : null;
@@ -50287,10 +50347,12 @@ async function run() {
       llmClient,
       codebaseAnalyzer,
       serviceFactory,
-      idempotencyService
+      idempotencyService,
+      platform
     };
     if (isDebugMode) {
       core2.debug("\uD83D\uDD27 Workflow state initialized:");
+      core2.debug(`  Platform: ${workflowState.platform}`);
       core2.debug(`  TestFlight client: ${!!workflowState.testFlightClient}`);
       core2.debug(`  LLM client: ${!!workflowState.llmClient}`);
       core2.debug(`  Codebase analyzer: ${!!workflowState.codebaseAnalyzer}`);
@@ -50434,7 +50496,8 @@ async function processFeedbackItem(feedback, state) {
     codebaseAnalyzer,
     serviceFactory,
     isDryRun,
-    isDebugMode
+    isDebugMode,
+    platform
   } = state;
   let issueCreated = false;
   let issueUpdated = false;
@@ -50474,11 +50537,12 @@ async function processFeedbackItem(feedback, state) {
       core2.info(`\uD83D\uDCCA Found ${codebaseAnalysis.relevantFiles.length} relevant code areas`);
     }
     let issueResult = null;
+    let createResult = null;
     if (enableLLMEnhancement && llmClient) {
       core2.info(`\uD83E\uDD16 Using LLM enhancement for feedback: ${feedback.id}`);
       const enhancedCreator = await Promise.resolve().then(() => (init_llm_enhanced_creator(), exports_llm_enhanced_creator)).then((m) => m.getLLMEnhancedIssueCreator());
       issueResult = await enhancedCreator.createEnhancedIssue(feedback, {
-        platform: "github",
+        platform,
         enableLLMEnhancement: true,
         enableCodebaseAnalysis: !!codebaseAnalyzer,
         analysisDepth: "moderate",
@@ -50492,10 +50556,54 @@ async function processFeedbackItem(feedback, state) {
         core2.info(`✅ Enhanced issue created: ${issueResult.github?.issue?.url || issueResult.linear?.issue?.url || "URL not available"}`);
       }
     } else {
-      core2.info(`\uD83D\uDCDD Creating standard issue for feedback: ${feedback.id}`);
-      issueResult = await serviceFactory.createIssueWithDefault(feedback);
-      issueCreated = true;
-      core2.info(`✅ Standard issue created: ${issueResult.url}`);
+      core2.info(`\uD83D\uDCDD Creating standard issue for feedback: ${feedback.id} on platform: ${platform}`);
+      const { idempotencyService } = state;
+      createResult = await idempotencyService.createIssueWithDuplicateProtection(feedback, {
+        preferredPlatform: platform,
+        skipDuplicateDetection: !enableDuplicateDetection
+      });
+      if (createResult.processedBy.length > 0) {
+        issueCreated = true;
+        const githubResult = createResult.github;
+        const linearResult = createResult.linear;
+        if (githubResult) {
+          issueResult = {
+            id: githubResult.issue.id.toString(),
+            url: githubResult.issue.html_url,
+            title: githubResult.issue.title,
+            number: githubResult.issue.number,
+            wasExisting: githubResult.wasExisting || false,
+            action: githubResult.wasExisting ? "comment_added" : "created",
+            message: `GitHub issue ${githubResult.wasExisting ? "updated" : "created"}: #${githubResult.issue.number}`,
+            platform: "github"
+          };
+        } else if (linearResult) {
+          issueResult = {
+            id: linearResult.issue.id,
+            url: linearResult.issue.url,
+            title: linearResult.issue.title,
+            identifier: linearResult.issue.identifier,
+            wasExisting: linearResult.wasExisting || false,
+            action: linearResult.wasExisting ? "comment_added" : "created",
+            message: `Linear issue ${linearResult.wasExisting ? "updated" : "created"}: ${linearResult.issue.identifier}`,
+            platform: "linear"
+          };
+        }
+        if (!issueResult) {
+          issueResult = {
+            id: "unknown",
+            url: "unknown",
+            title: "Issue created",
+            platform: platform === "both" ? "github" : platform,
+            wasExisting: false,
+            action: "created",
+            message: `Issue created on ${createResult.processedBy.join(", ")}`
+          };
+        }
+        core2.info(`✅ Standard issue created on ${createResult.processedBy.join(", ")}`);
+      } else {
+        core2.error(`❌ Failed to create issue on any platform. Errors: ${createResult.errors.join("; ")}`);
+      }
     }
     let issueUrl = "";
     if (issueResult) {
@@ -50503,6 +50611,13 @@ async function processFeedbackItem(feedback, state) {
         issueUrl = issueResult.url;
       } else if ("github" in issueResult || "linear" in issueResult) {
         issueUrl = issueResult.github?.issue?.url || issueResult.linear?.issue?.url || "";
+      }
+    }
+    if (!issueUrl && createResult && typeof issueResult === "object" && "processedBy" in createResult) {
+      if (createResult.github?.issue) {
+        issueUrl = createResult.github.issue.html_url;
+      } else if (createResult.linear?.issue) {
+        issueUrl = createResult.linear.issue.url;
       }
     }
     return {

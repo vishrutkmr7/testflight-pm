@@ -48,6 +48,11 @@ export class GitHubClient {
 	private rateLimitInfo: GitHubRateLimit | null = null;
 	private lastCacheUpdate: { labels?: Date; milestones?: Date } = {};
 
+	// Screenshots are committed to a dedicated branch (not gists, which only hold
+	// text and never render as images) and embedded via their raw URL.
+	private readonly assetBranch = "testflight-screenshots";
+	private assetBranchReady = false;
+
 	constructor() {
 		const envConfig = getConfiguration();
 
@@ -577,34 +582,26 @@ export class GitHubClient {
 					continue;
 				}
 
-				// Create a Gist with the screenshot - improved approach
-				const gistDescription = `TestFlight Screenshot - ${feedback.type} - ${feedback.id} - ${screenshot.filename}`;
+				// Commit the screenshot to a dedicated asset branch and embed the raw
+				// URL. Gists only store text, so images uploaded to them never render;
+				// the Contents API stores real binary from base64 and serves a
+				// viewable raw URL that GitHub embeds inline in the issue.
+				const base64Content =
+					screenshot.content instanceof Uint8Array
+						? Buffer.from(screenshot.content).toString("base64")
+						: screenshot.content;
 
-				// For binary content, we need to encode properly
-				let content: string;
-				if (screenshot.content instanceof Uint8Array) {
-					// Convert Uint8Array to base64 for text-based Gist storage
-					content = Buffer.from(screenshot.content).toString("base64");
-				} else {
-					// Already a string (base64 or text)
-					content = screenshot.content;
-				}
-
-				const gist = await this.createGist({
-					description: gistDescription,
-					public: false,
-					files: {
-						[screenshot.filename]: {
-							content: content,
-						},
-					},
-				});
+				const rawUrl = await this.commitScreenshotToAssetBranch(
+					feedback,
+					screenshot.filename,
+					base64Content,
+				);
 
 				results.uploaded++;
 				results.details.push({
 					filename: screenshot.filename,
 					success: true,
-					url: gist.html_url,
+					url: rawUrl,
 				});
 			} catch (error) {
 				results.failed++;
@@ -635,6 +632,76 @@ export class GitHubClient {
 			gistData,
 		);
 		return response.data;
+	}
+
+	/**
+	 * Ensures the dedicated screenshot asset branch exists, creating it from the
+	 * default branch head on first use. Cached so it only runs once per run.
+	 */
+	private async ensureAssetBranch(): Promise<void> {
+		if (this.assetBranchReady) return;
+		const { owner, repo } = this.config;
+		try {
+			await this.makeApiRequest(
+				"GET",
+				`/repos/${owner}/${repo}/git/ref/heads/${this.assetBranch}`,
+			);
+			this.assetBranchReady = true;
+			return;
+		} catch {
+			// Branch does not exist yet — create it below.
+		}
+		const repoInfo = await this.makeApiRequest<{ default_branch: string }>(
+			"GET",
+			`/repos/${owner}/${repo}`,
+		);
+		const baseRef = await this.makeApiRequest<{ object: { sha: string } }>(
+			"GET",
+			`/repos/${owner}/${repo}/git/ref/heads/${repoInfo.data.default_branch}`,
+		);
+		await this.makeApiRequest("POST", `/repos/${owner}/${repo}/git/refs`, {
+			ref: `refs/heads/${this.assetBranch}`,
+			sha: baseRef.data.object.sha,
+		});
+		this.assetBranchReady = true;
+	}
+
+	/**
+	 * Commits a screenshot (base64) to the asset branch via the Contents API and
+	 * returns a raw URL that renders inline in the issue.
+	 */
+	private async commitScreenshotToAssetBranch(
+		feedback: ProcessedFeedbackData,
+		filename: string,
+		base64Content: string,
+	): Promise<string> {
+		await this.ensureAssetBranch();
+		const { owner, repo } = this.config;
+		const safeName = filename.replace(/[^A-Za-z0-9._-]/g, "_");
+		const path = `screenshots/${feedback.id}/${safeName}`;
+		const apiPath = `/repos/${owner}/${repo}/contents/${path}`;
+
+		// If the file already exists on the branch (e.g. a re-run), its sha is
+		// required to update it instead of failing with 422.
+		let existingSha: string | undefined;
+		try {
+			const existing = await this.makeApiRequest<{ sha: string }>(
+				"GET",
+				`${apiPath}?ref=${this.assetBranch}`,
+			);
+			existingSha = existing.data.sha;
+		} catch {
+			// New file — no sha needed.
+		}
+
+		await this.makeApiRequest("PUT", apiPath, {
+			message: `TestFlight screenshot: ${feedback.id}/${safeName}`,
+			content: base64Content,
+			branch: this.assetBranch,
+			...(existingSha ? { sha: existingSha } : {}),
+		});
+
+		return `https://github.com/${owner}/${repo}/raw/${this.assetBranch}/${path}`;
 	}
 
 	/**
@@ -1125,7 +1192,9 @@ export class GitHubClient {
 
 		for (const detail of attachmentResults.details) {
 			if (detail.success && detail.url) {
-				screenshotSection += `- [${detail.filename}](${detail.url})\n`;
+				// Inline embed (![]) so the image renders; keep a plain link too as
+				// a fallback for clients that don't proxy the raw URL.
+				screenshotSection += `![${detail.filename}](${detail.url})\n\n[${detail.filename}](${detail.url})\n\n`;
 			} else {
 				screenshotSection += `- ❌ ${detail.filename} (failed to upload)\n`;
 			}
