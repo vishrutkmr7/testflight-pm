@@ -10,32 +10,13 @@ Intelligent TestFlight feedback processing with AI-powered issue enhancement and
 - 🔄 **Duplicate Prevention** - Smart duplicate detection to avoid creating redundant issues
 - 💰 **Cost Controls** - Built-in LLM usage tracking and spending limits
 
-## 📋 What TestFlight Data We Collect
+## 📋 What We Process
 
-This action uses the **App Store Connect API 4.0** (announced during WWDC25 Platforms State of the Union) to access beta tester feedback for your apps. Specifically, we retrieve:
+This action uses the **App Store Connect API 4.0** (announced during WWDC25 Platforms State of the Union) to automatically process your TestFlight feedback:
 
-### 🔥 **Beta Feedback Crash Submissions**
-- **Crash logs** with full stack traces and exception details
-- **Device information** (model, OS version, app version)
-- **System state** during crash (memory, battery, thermal state)
-- **Detailed crash metadata** including incident identifiers and symbols
-
-### 📸 **Beta Feedback Screenshot Submissions**  
-- **Screenshots** submitted by testers with annotations
-- **Tester comments** and feedback text
-- **System information** (app state, memory pressure, battery level)
-- **Enhanced image metadata** (format, dimensions, compression)
-- **Submission context** (manual vs automatic capture)
-
-### 🔗 **API Endpoints Used**
-- `GET /v1/apps` - List and resolve apps by Bundle ID
-- `GET /v1/apps/{id}/betaFeedbackCrashSubmissions` - Get crash reports  
-- `GET /v1/betaFeedbackCrashSubmissions/{id}` - Get detailed crash data
-- `GET /v1/betaFeedbackCrashSubmissions/{id}/crashLog` - Download crash logs
-- `GET /v1/apps/{id}/betaFeedbackScreenshotSubmissions` - Get screenshot feedback
-- `GET /v1/betaFeedbackScreenshotSubmissions/{id}` - Get detailed screenshot data
-
-> **📚 Learn More:** See [App Store Connect API 4.0 Release Notes](https://developer.apple.com/documentation/appstoreconnectapi/app-store-connect-api-4-0-release-notes) for complete documentation on Beta Feedback Crashes and Beta Feedback Screenshots.
+- **🔥 Crash Reports** - Stack traces, device info, and system state during crashes
+- **📸 User Feedback** - Screenshots, comments, and annotations from beta testers
+- **🔍 Smart Analysis** - AI-powered categorization and technical insights
 
 ## 🚀 Quick Setup
 
@@ -146,28 +127,12 @@ jobs:
 
 That's it! The action will process your TestFlight feedback and create enhanced issues.
 
-## 🔐 Authentication & Security
+## 🔐 Security
 
-### JWT Token Management
-- **Algorithm:** ES256 (ECDSA with SHA-256)
-- **Token Lifetime:** 20 minutes (Apple's maximum recommendation)
-- **Auto-Refresh:** Tokens refresh 2 minutes before expiry
-- **Secure Storage:** Private keys never logged or exposed
-
-### Rate Limiting
-- **Apple's Limits:** Monitored via `X-RateLimit-*` headers
-- **Automatic Throttling:** Waits when rate limits are reached
-- **Retry Logic:** Exponential backoff for failed requests
-- **Best Practices:** Efficient batching and caching to minimize API calls
-
-### API Permissions
-The **Developer** role in App Store Connect provides the minimum required permissions for:
-- ✅ Reading TestFlight crash submissions
-- ✅ Reading TestFlight screenshot feedback  
-- ✅ Accessing app metadata and builds
-- ✅ Downloading crash logs and screenshots
-
-> **🔒 Security Note:** Your private key (`.p8` file) should be stored as a GitHub repository secret and never committed to version control.
+- **Secure API Access:** Uses App Store Connect API with proper JWT authentication
+- **Private Key Safety:** Your `.p8` file is stored securely as a GitHub secret
+- **Rate Limiting:** Automatic throttling respects Apple's API limits
+- **Minimal Permissions:** Requires only **Developer** role access in App Store Connect
 
 ## 🤖 AI Enhancement Examples
 
@@ -330,34 +295,26 @@ Or test in GitHub Actions with dry run mode:
 
 ## ❓ Troubleshooting
 
-**"TestFlight credentials invalid"**
-- **Check Issuer ID:** Copy from App Store Connect → Users and Access → Integrations → App Store Connect API
-- **Verify Key ID:** Copy the exact Key ID shown after creating your API key
-- **Private Key Format:** Ensure the `.p8` file content includes the full header and footer:
-  ```
-  -----BEGIN PRIVATE KEY-----
-  [your key content]
-  -----END PRIVATE KEY-----
-  ```
-- **API Key Role:** Ensure your API key has **Developer** role (minimum required)
-- **Test Locally:** Try making a direct API call to verify credentials work
+**TestFlight credentials invalid**
+- Verify your Issuer ID, Key ID, and Private Key from App Store Connect API settings
+- Ensure your API key has **Developer** role permissions
+- Double-check the `.p8` file content includes headers and footers
 
-**"App not found" or "Invalid Bundle ID"**
-- **App ID:** Verify the numeric App ID from App Store Connect → My Apps → [Your App] → App Information
-- **Bundle ID:** Ensure the Bundle ID exactly matches what's shown in App Store Connect (e.g., `com.company.app`)
-- **API Access:** Confirm your API key can access the specific app (some keys are scoped to specific apps)
+**App not found**
+- Confirm your App ID (numeric) or Bundle ID (com.company.app) is correct
+- Check that your API key can access the specific app
 
-**"No issues created"**
-- Check if there's new TestFlight feedback in the processing window
-- Enable debug mode: `debug: 'true'`
+**No issues created**
+- Enable debug mode: `debug: 'true'` to see detailed logs
+- Verify there's new TestFlight feedback in the processing window
 
-**"AI enhancement failed"**
-- Verify your AI provider API key is valid
-- Check cost limits aren't exceeded
+**AI enhancement failed**
+- Check your AI provider API key is valid and has sufficient credits
+- Verify cost limits aren't exceeded
 
-**"Permission denied"**
-- Ensure GitHub token has `repo` permissions
-- For Linear, verify the API token has write access to your team
+**Permission denied**
+- GitHub: Ensure token has `repo` permissions
+- Linear: Verify API token has write access to your team
 
 ### Getting Help
 

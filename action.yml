@@ -76,17 +76,17 @@ inputs:
   # These inputs are kept for backward compatibility but are ignored
   # Users cannot configure models - only provider selection and API keys are supported
   openai_model:
-    description: "[DEPRECATED] OpenAI model - fixed to latest (gpt-5-mini)"
+    description: "[DEPRECATED] OpenAI model - fixed to latest (gpt-5.2)"
     required: false
-    default: "gpt-5-mini"  # Ignored - uses DEFAULT_LLM_MODELS.openai
+    default: "gpt-5.2"  # Ignored - uses DEFAULT_LLM_MODELS.openai
   anthropic_model:
-    description: "[DEPRECATED] Anthropic model - fixed to latest (claude-4-sonnet)"
+    description: "[DEPRECATED] Anthropic model - fixed to latest (claude-sonnet-4-5)"
     required: false
-    default: "claude-4-sonnet"  # Ignored - uses DEFAULT_LLM_MODELS.anthropic
+    default: "claude-sonnet-4-5"  # Ignored - uses DEFAULT_LLM_MODELS.anthropic
   google_model:
-    description: "[DEPRECATED] Google model - fixed to latest (gemini-2.5-flash)" 
+    description: "[DEPRECATED] Google model - fixed to latest (gemini-3-flash-preview)"
     required: false
-    default: "gemini-2.5-flash"  # Ignored - uses DEFAULT_LLM_MODELS.google
+    default: "gemini-3-flash-preview"  # Ignored - uses DEFAULT_LLM_MODELS.google
 
   # LLM Cost Controls
   max_llm_cost_per_run:
